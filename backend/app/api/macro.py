@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.services import fred_client
 from app.services.news_client import get_macro_news
 from app.services.ai_client import ai_client
+from app.services.business_cycle import determine_current_phase
 
 router = APIRouter(prefix="/api/macro", tags=["macro"])
 
@@ -26,7 +27,7 @@ def macro_indicator(series_id: str, limit: int = 60):
 
 @router.get("/market-state")
 def market_state():
-    return fred_client.get_market_state()
+    return determine_current_phase()
 
 @router.get("/news")
 def macro_news():
@@ -34,5 +35,5 @@ def macro_news():
 
 @router.post("/ai-analyze")
 def ai_analyze_macro():
-    state = fred_client.get_market_state()
-    return ai_client.analyze_macro(state)
+    cycle_state = determine_current_phase()
+    return ai_client.analyze_macro(cycle_state)

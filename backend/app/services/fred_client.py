@@ -7,11 +7,15 @@ INDICATORS = {
     "GDP":        {"series_id": "GDP",       "name": "GDP 성장률", "unit": "십억 달러"},
     "UNRATE":     {"series_id": "UNRATE",    "name": "실업률",    "unit": "%"},
     "CPIAUCSL":   {"series_id": "CPIAUCSL",  "name": "CPI (물가)", "unit": "지수"},
-    "FEDFUNDS":   {"series_id": "FEDFUNDS",  "name": "기준금리",  "unit": "%"},
+    "DFF":        {"series_id": "DFF",       "name": "기준금리",  "unit": "%"},
     "PCE":        {"series_id": "PCE",       "name": "PCE",       "unit": "십억 달러"},
     "UMCSENT":    {"series_id": "UMCSENT",   "name": "소비자심리지수", "unit": "지수"},
     "INDPRO":     {"series_id": "INDPRO",    "name": "산업생산지수", "unit": "지수"},
     "T10YIE":     {"series_id": "T10YIE",    "name": "기대인플레이션(10년)", "unit": "%"},
+    "T10Y2Y":     {"series_id": "T10Y2Y",    "name": "장단기 금리차(10Y-2Y)", "unit": "%"},
+    "ICSA":       {"series_id": "ICSA",      "name": "신규 실업수당 청구",   "unit": "천 건"},
+    "HOUST":      {"series_id": "HOUST",     "name": "주택착공건수",        "unit": "천 호"},
+    "TCU":        {"series_id": "TCU",       "name": "설비가동률",          "unit": "%"},
 }
 
 def fetch_series(series_id: str, limit: int = 60):

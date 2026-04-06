@@ -9,7 +9,7 @@ const api = axios.create({
 export const macroAPI = {
   getOverview: () => api.get('/macro/overview'),
   getIndicator: (seriesId, limit = 60) => api.get(`/macro/indicator/${seriesId}`, { params: { limit } }),
-  getMarketState: () => api.get('/macro/market-state'),
+  getMarketState: () => api.get('/macro/market-state', { timeout: 60000 }),
   getNews: () => api.get('/macro/news'),
   aiAnalyze: () => api.post('/macro/ai-analyze'),
 }
