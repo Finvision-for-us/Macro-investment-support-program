@@ -25,3 +25,30 @@ Thumbs.db
 
 # Logs
 *.log
+
+.env.*
+!.env.example
+
+# Claude local files
+.claude/
+CLAUDE.md
+tmpclaude-*
+backend/tmpclaude-*
+
+# Local scripts
+start.ps1
+stop.ps1
+start-frontend.cmd
+
+# Build
+build/
+
+.env.*
+!.env.example
+.claude/
+CLAUDE.md
+tmpclaude-*
+backend/tmpclaude-*
+start.ps1
+stop.ps1
+start-frontend.cmd

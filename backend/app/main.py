@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import init_db
 from app.api import macro, stock, portfolio, earnings
+from app.deep_research.router import router as deep_research_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,6 +24,7 @@ app.include_router(macro.router)
 app.include_router(stock.router)
 app.include_router(portfolio.router)
 app.include_router(earnings.router)
+app.include_router(deep_research_router)
 
 @app.get("/")
 def root():

@@ -3,11 +3,13 @@ import Sidebar from './components/Sidebar'
 import MacroView from './components/views/MacroView'
 import StockView from './components/views/StockView'
 import PortfolioView from './components/views/PortfolioView'
+import DeepResearchView from './components/views/DeepResearchView'
 
 const VIEWS = {
-  macro:     MacroView,
-  stock:     StockView,
-  portfolio: PortfolioView,
+  macro:        MacroView,
+  stock:        StockView,
+  portfolio:    PortfolioView,
+  deepResearch: DeepResearchView,
 }
 
 export default function App() {

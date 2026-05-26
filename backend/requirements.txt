@@ -6,3 +6,9 @@ yfinance==0.2.44
 requests==2.32.3
 anthropic==0.40.0
 finnhub-python==2.4.20
+scrapling>=0.4.4
+# deep_research 모듈 추가 의존성
+httpx>=0.27.0
+google-generativeai>=0.8.0
+google-genai>=0.3.0
+rapidfuzz>=3.0.0

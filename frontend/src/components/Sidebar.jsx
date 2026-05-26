@@ -1,10 +1,11 @@
-import { Globe, BarChart2, Briefcase } from 'lucide-react'
+import { Globe, BarChart2, Briefcase, FlaskConical } from 'lucide-react'
 import useAppStore from '../store/useAppStore'
 
 const MENU = [
-  { id: 'macro',     label: '거시경제',   icon: Globe },
-  { id: 'stock',     label: '종목 분석',  icon: BarChart2 },
-  { id: 'portfolio', label: '포트폴리오', icon: Briefcase },
+  { id: 'macro',        label: '거시경제',   icon: Globe },
+  { id: 'stock',        label: '종목 분석',  icon: BarChart2 },
+  { id: 'portfolio',    label: '포트폴리오', icon: Briefcase },
+  { id: 'deepResearch', label: '심층 리서치', icon: FlaskConical },
 ]
 
 export default function Sidebar() {
