@@ -26,9 +26,11 @@ def write_html_log_viewer(
 
     sections = [
         ("Run Metadata", json.dumps(_metadata(record), ensure_ascii=False, indent=2)),
+        ("Mode Explanation", _mode_explanation(record.mode)),
         ("Financial Research Instruction", instruction_text),
         ("User Prompt", prompt_text),
-        ("Gemini Request Metadata", json.dumps(record.request_metadata, ensure_ascii=False, indent=2)),
+        ("Request Metadata", json.dumps(record.request_metadata, ensure_ascii=False, indent=2)),
+        ("Polling Events", _polling_events(record)),
         ("Events", json.dumps([model_to_dict(event) for event in record.events], ensure_ascii=False, indent=2)),
         ("Citations", json.dumps([model_to_dict(item) for item in record.citations], ensure_ascii=False, indent=2)),
         ("Final Answer", record.final_answer or "(empty)"),
@@ -157,3 +159,19 @@ def _metadata(record: GeminiRunRecord) -> dict[str, Any]:
     data.pop("citations", None)
     data.pop("final_answer", None)
     return data
+
+
+def _mode_explanation(mode: str) -> str:
+    if mode == "deep-research":
+        return "This run used Gemini Deep Research Agent via the Interactions API."
+    return (
+        "This run used Gemini generate_content with Google Search grounding.\n"
+        "This is not the Gemini Deep Research Agent."
+    )
+
+
+def _polling_events(record: GeminiRunRecord) -> str:
+    if record.mode != "deep-research":
+        return "(grounded mode does not use Interactions API polling)"
+    polling = [model_to_dict(event) for event in record.events if event.name.startswith("interaction_") or event.name == "sdk_interactions_missing"]
+    return json.dumps(polling, ensure_ascii=False, indent=2)

@@ -77,7 +77,13 @@ class GeminiRunRecord(BaseModel):
     query: str
     instruction_path: str | None = None
     prompt_path: str | None = None
+    mode: str = "grounded"
     model: str
+    agent: str | None = None
+    interaction_id: str | None = None
+    poll_count: int | None = None
+    polling_interval_seconds: float | None = None
+    timeout_seconds: int | None = None
     started_at: str
     ended_at: str | None = None
     status: str

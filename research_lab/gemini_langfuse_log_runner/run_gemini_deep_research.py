@@ -6,7 +6,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from gemini_client import GeminiExecutionError, read_text_file, resolve_model, run_gemini_deep_research
+from gemini_client import GeminiExecutionError, read_text_file, resolve_deep_research_agent, resolve_grounded_model
+from gemini_deep_research_client import run_deep_research
+from gemini_grounded_client import run_grounded_research
 from html_log_viewer import write_html_log_viewer
 from langfuse_client import get_langfuse_state
 from schema import GeminiRunRecord, TraceEventItem, model_to_dict
@@ -18,12 +20,16 @@ DEFAULT_OUTPUT_DIR = BASE_DIR / "output"
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run Gemini Deep Research with a financial instruction prompt.")
+    parser = argparse.ArgumentParser(description="Run Gemini financial research in grounded or deep-research mode.")
+    parser.add_argument("--mode", choices=["grounded", "deep-research"], default="grounded", help="Execution mode.")
     parser.add_argument("--instruction", required=True, help="Path to financial research instruction text file.")
     parser.add_argument("--prompt", required=True, help="Path to user question prompt text file.")
-    parser.add_argument("--model", help="Gemini model name. Overrides GEMINI_DEEP_RESEARCH_MODEL.")
+    parser.add_argument("--model", help="Grounded mode model name. Overrides GEMINI_GROUNDED_MODEL.")
+    parser.add_argument("--agent", help="Deep Research mode agent name. Overrides GEMINI_DEEP_RESEARCH_AGENT.")
     parser.add_argument("--no-langfuse", action="store_true", help="Skip optional Langfuse upload.")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Directory for output files.")
+    parser.add_argument("--poll-interval", type=float, default=10.0, help="Deep Research polling interval in seconds.")
+    parser.add_argument("--timeout", type=int, default=3600, help="Deep Research timeout in seconds.")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -31,32 +37,56 @@ def main() -> int:
 
     started_at = now_iso()
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8]
-    model = resolve_model(args.model)
+    mode = args.mode
+    model = resolve_grounded_model(args.model) if mode == "grounded" else ""
+    agent = resolve_deep_research_agent(args.agent) if mode == "deep-research" else None
     instruction_path = str(Path(args.instruction))
     prompt_path = str(Path(args.prompt))
     instruction_text = read_text_file(args.instruction)
     prompt_text = read_text_file(args.prompt)
 
+    mode_explanation = mode_explanation_for(mode)
     events = [
         event("financial_instruction", None, f"{len(instruction_text)} chars loaded.", {"path": instruction_path}),
         event("user_prompt", None, prompt_text, {"path": prompt_path}),
-        event("gemini_request", {"model": model, "prompt": prompt_text}, "Gemini request prepared.", {"model": model}),
+        event("mode_explanation", None, mode_explanation, {"mode": mode}),
+        event(
+            "gemini_request",
+            {"mode": mode, "model": model, "agent": agent, "prompt": prompt_text},
+            "Gemini request prepared.",
+            {"mode": mode, "model": model, "agent": agent},
+        ),
     ]
 
     raw_response: dict = {}
     final_answer = ""
     citations = []
     notes: list[str] = []
-    request_metadata = {"model": model}
+    request_metadata = initial_request_metadata(mode=mode, model=model, agent=agent)
+    interaction_id = None
+    poll_count = None
     status = "success"
 
     try:
-        result = run_gemini_deep_research(instruction=instruction_text, user_prompt=prompt_text, model=model)
+        if mode == "grounded":
+            result = run_grounded_research(instruction=instruction_text, user_prompt=prompt_text, model=model)
+        else:
+            result = run_deep_research(
+                instruction=instruction_text,
+                user_prompt=prompt_text,
+                agent=agent or "",
+                poll_interval=args.poll_interval,
+                timeout_seconds=args.timeout,
+            )
         raw_response = result["raw_response"]
         final_answer = result["final_answer"]
         citations = result["citations"]
         request_metadata = result["request_metadata"]
+        events.extend(result.get("events", []))
         notes.extend(result.get("notes", []))
+        interaction_id = result.get("interaction_id")
+        poll_count = result.get("poll_count")
+        status = result.get("status", status)
         events.append(event("gemini_response_raw", None, "Gemini response captured.", {"raw_keys": list(raw_response.keys())}))
         events.append(event("citations", None, f"{len(citations)} citations extracted.", {}))
         events.append(event("final_answer", None, final_answer[:1000], {"chars": len(final_answer)}))
@@ -79,7 +109,13 @@ def main() -> int:
         query=prompt_text.strip(),
         instruction_path=instruction_path,
         prompt_path=prompt_path,
+        mode=mode,
         model=model,
+        agent=agent,
+        interaction_id=interaction_id,
+        poll_count=poll_count,
+        polling_interval_seconds=args.poll_interval if mode == "deep-research" else None,
+        timeout_seconds=args.timeout if mode == "deep-research" else None,
         started_at=started_at,
         ended_at=now_iso(),
         status=status,
@@ -129,6 +165,12 @@ def main() -> int:
     print(f"run record: {record_path}")
     print(f"summary markdown: {summary_path}")
     print(f"HTML log viewer: {html_path}")
+    print(f"mode: {mode}")
+    if mode == "grounded":
+        print(f"model: {model}")
+    else:
+        print(f"agent: {agent}")
+        print(f"interaction id: {interaction_id or '(none)'}")
     print(f"Langfuse: {langfuse_result}")
     print("Open the HTML file in a browser and drag-copy the log sections you need.")
 
@@ -154,12 +196,19 @@ def render_summary(record: GeminiRunRecord, langfuse_result: dict | None = None)
         "# Gemini Deep Research Financial Run",
         "",
         f"- Run ID: {record.run_id}",
+        f"- Mode: {record.mode}",
         f"- Status: {record.status}",
-        f"- Model: {record.model}",
+        f"- Model: {record.model or '(none)'}",
+        f"- Agent: {record.agent or '(none)'}",
+        f"- Interaction ID: {record.interaction_id or '(none)'}",
         f"- Started: {record.started_at}",
         f"- Ended: {record.ended_at}",
         f"- Instruction: {record.instruction_path}",
         f"- Prompt: {record.prompt_path}",
+        "",
+        "## Mode Explanation",
+        "",
+        mode_explanation_for(record.mode),
         "",
         "## User Prompt",
         "",
@@ -188,6 +237,38 @@ def render_summary(record: GeminiRunRecord, langfuse_result: dict | None = None)
         lines.extend(["", "## Langfuse", "", "```json", json.dumps(langfuse_result, ensure_ascii=False, indent=2), "```"])
 
     return "\n".join(lines) + "\n"
+
+
+def mode_explanation_for(mode: str) -> str:
+    if mode == "deep-research":
+        return "This run used Gemini Deep Research Agent via the Interactions API."
+    return (
+        "This run used Gemini generate_content with Google Search grounding. "
+        "This is not the Gemini Deep Research Agent."
+    )
+
+
+def initial_request_metadata(mode: str, model: str, agent: str | None) -> dict:
+    if mode == "deep-research":
+        return {
+            "mode": "deep-research",
+            "api": "interactions",
+            "agent": agent,
+            "background": True,
+            "store": True,
+            "agent_config": {
+                "type": "deep-research",
+                "thinking_summaries": "auto",
+                "visualization": "auto",
+                "collaborative_planning": False,
+            },
+        }
+    return {
+        "mode": "grounded",
+        "api": "generate_content",
+        "model": model,
+        "uses_google_search_grounding": True,
+    }
 
 
 if __name__ == "__main__":
