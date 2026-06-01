@@ -1,0 +1,4 @@
+google-genai
+langfuse
+python-dotenv
+pydantic
