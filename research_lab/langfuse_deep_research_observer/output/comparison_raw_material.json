@@ -1,0 +1,373 @@
+{
+  "score_weights": {
+    "jurisdiction_detection": 15,
+    "query_generation": 15,
+    "official_source_coverage": 20,
+    "evidence_quality": 15,
+    "search_behavior": 10,
+    "cross_validation": 10,
+    "gap_handling": 10,
+    "final_answer_structure": 5
+  },
+  "scores": {
+    "gemini": {
+      "jurisdiction_detection": 15.0,
+      "query_generation": 15.0,
+      "official_source_coverage": 18.0,
+      "evidence_quality": 12.5,
+      "search_behavior": 7.83,
+      "cross_validation": 6.67,
+      "gap_handling": 10.0,
+      "final_answer_structure": 4.48,
+      "total": 89.48
+    },
+    "openai": {
+      "jurisdiction_detection": 15.0,
+      "query_generation": 15.0,
+      "official_source_coverage": 16.0,
+      "evidence_quality": 13.5,
+      "search_behavior": 7.67,
+      "cross_validation": 3.33,
+      "gap_handling": 10.0,
+      "final_answer_structure": 3.57,
+      "total": 84.07
+    },
+    "finvision": {
+      "jurisdiction_detection": 10.0,
+      "query_generation": 15.0,
+      "official_source_coverage": 16.0,
+      "evidence_quality": 13.75,
+      "search_behavior": 5.5,
+      "cross_validation": 3.33,
+      "gap_handling": 0.0,
+      "final_answer_structure": 2.3,
+      "total": 65.88
+    }
+  },
+  "traces": [
+    {
+      "engine_name": "gemini",
+      "query": "INDI의 Wuxi 매각이 어떤 의미이고 중국/홍콩 공시에서 확인할 내용이 있나?",
+      "research_plan": [
+        "Identify jurisdictions affected by the transaction: US, CN, HK.",
+        "Search issuer filings, SEC documents, and China/Hong Kong exchange disclosures.",
+        "Compare company statements with regulator or exchange records.",
+        "List confirmed facts and unverified gaps."
+      ],
+      "generated_queries": [
+        "INDI Wuxi divestiture SEC 8-K",
+        "site:sec.gov INDI Wuxi divestiture",
+        "site:hkexnews.hk INDI Wuxi acquisition divestiture",
+        "site:sse.com.cn Wuxi semiconductor asset sale",
+        "英迪 Wuxi 出售 半导体",
+        "Tool: web_search input=\"site:hkexnews.hk Wuxi semiconductor divestiture\""
+      ],
+      "official_source_queries": [
+        "site:sec.gov INDI Wuxi divestiture",
+        "site:hkexnews.hk INDI Wuxi acquisition divestiture",
+        "site:sse.com.cn Wuxi semiconductor asset sale",
+        "Tool: web_search input=\"site:hkexnews.hk Wuxi semiconductor divestiture\"",
+        "site:sec.gov",
+        "site:hkexnews.hk",
+        "site:sse.com.cn"
+      ],
+      "searched_sources": [
+        "www.sec.gov",
+        "www.hkexnews.hk",
+        "www.indiesemi.com"
+      ],
+      "sources_found": [
+        {
+          "title": "www.sec.gov",
+          "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+          "source_type": "official",
+          "language": "en",
+          "reliability_score": 0.95
+        },
+        {
+          "title": "www.hkexnews.hk",
+          "url": "https://www.hkexnews.hk/listedco/listconews/sehk/2025/000000/sample.pdf",
+          "source_type": "official",
+          "language": "en",
+          "reliability_score": 0.95
+        },
+        {
+          "title": "www.indiesemi.com",
+          "url": "https://www.indiesemi.com/investors/news-releases/sample-wuxi-transaction",
+          "source_type": "news_or_web",
+          "language": "en",
+          "reliability_score": 0.6
+        }
+      ],
+      "citations": [
+        {
+          "title": "www.sec.gov",
+          "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+          "source_type": "official",
+          "language": "en",
+          "reliability_score": 0.95
+        },
+        {
+          "title": "www.hkexnews.hk",
+          "url": "https://www.hkexnews.hk/listedco/listconews/sehk/2025/000000/sample.pdf",
+          "source_type": "official",
+          "language": "en",
+          "reliability_score": 0.95
+        },
+        {
+          "title": "www.indiesemi.com",
+          "url": "https://www.indiesemi.com/investors/news-releases/sample-wuxi-transaction",
+          "source_type": "news_or_web",
+          "language": "en",
+          "reliability_score": 0.6
+        }
+      ],
+      "tool_calls": [
+        {
+          "tool_name": "tool_call",
+          "input": "web_search input=\"INDI Wuxi divestiture SEC\"",
+          "output_summary": null
+        },
+        {
+          "tool_name": "tool_call",
+          "input": "web_fetch input=\"https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm\"",
+          "output_summary": null
+        },
+        {
+          "tool_name": "tool_call",
+          "input": "web_search input=\"site:hkexnews.hk Wuxi semiconductor divestiture\"",
+          "output_summary": null
+        }
+      ],
+      "detected_jurisdictions": [
+        "US",
+        "CN",
+        "HK"
+      ],
+      "evidence_scores": [],
+      "cross_source_consistency": [
+        "Company press release and SEC filing both mention the transaction rationale.",
+        "HKEX search did not confirm a directly matching issuer announcement."
+      ],
+      "unverified_gaps": [
+        "List confirmed facts and unverified gaps.",
+        "Unverified: final closing conditions and local approval timing were not confirmed in the copied log.",
+        "Final answer: INDI의 Wuxi 매각은 비용 구조와 중국 내 운영 노출을 줄이는 이벤트로 볼 수 있다. SEC filing과 회사 IR 자료는 거래의 전략적 배경을 확인하는 데 유용하지만, 중국/홍콩 쪽 공식 공시는 이 샘플 로그에서 직접 확인되지 않았다. 따라서 투자 판단 근거로는 비용 절감 가능성은 긍정, 현지 승인 및 거래 완료 조건은 불확실로 분리해야 한다."
+      ],
+      "final_answer": "INDI의 Wuxi 매각은 비용 구조와 중국 내 운영 노출을 줄이는 이벤트로 볼 수 있다. SEC filing과 회사 IR 자료는 거래의 전략적 배경을 확인하는 데 유용하지만, 중국/홍콩 쪽 공식 공시는 이 샘플 로그에서 직접 확인되지 않았다. 따라서 투자 판단 근거로는 비용 절감 가능성은 긍정, 현지 승인 및 거래 완료 조건은 불확실로 분리해야 한다.",
+      "notes": []
+    },
+    {
+      "engine_name": "openai",
+      "query": "INDI Wuxi 매각의 의미와 공식 출처 검증",
+      "research_plan": [
+        "Check US issuer filings first.",
+        "Search company investor relations.",
+        "Search HK/CN official disclosure venues for cross-border references.",
+        "Separate confirmed facts from assumptions."
+      ],
+      "generated_queries": [
+        "INDI Wuxi sale investor relations",
+        "site:sec.gov INDI Wuxi 8-K",
+        "site:hkexnews.hk INDI Wuxi",
+        "site:csrc.gov.cn INDI Wuxi semiconductor",
+        "\"site:sec.gov INDI Wuxi 8-K\",",
+        "\"site:hkexnews.hk INDI Wuxi\",",
+        "\"site:csrc.gov.cn INDI Wuxi semiconductor\"",
+        "\"query\": \"site:sec.gov INDI Wuxi 8-K\"",
+        "\"query\": \"site:hkexnews.hk INDI Wuxi\""
+      ],
+      "official_source_queries": [
+        "site:sec.gov INDI Wuxi 8-K",
+        "site:hkexnews.hk INDI Wuxi",
+        "site:csrc.gov.cn INDI Wuxi semiconductor",
+        "\"site:sec.gov INDI Wuxi 8-K\",",
+        "\"site:hkexnews.hk INDI Wuxi\",",
+        "\"site:csrc.gov.cn INDI Wuxi semiconductor\"",
+        "\"query\": \"site:sec.gov INDI Wuxi 8-K\"",
+        "\"query\": \"site:hkexnews.hk INDI Wuxi\"",
+        "site:sec.gov",
+        "site:hkexnews.hk",
+        "site:csrc.gov.cn"
+      ],
+      "searched_sources": [
+        "sec.gov",
+        "indiesemi.com",
+        "hkexnews.hk",
+        "csrc.gov.cn"
+      ],
+      "sources_found": [
+        {
+          "title": "www.sec.gov",
+          "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+          "source_type": "official",
+          "language": "en",
+          "reliability_score": 0.95
+        },
+        {
+          "title": "www.indiesemi.com",
+          "url": "https://www.indiesemi.com/investors/news-releases/sample-wuxi-transaction",
+          "source_type": "news_or_web",
+          "language": "en",
+          "reliability_score": 0.6
+        }
+      ],
+      "citations": [
+        {
+          "title": "Sample SEC filing",
+          "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+          "source_type": "official",
+          "language": "en",
+          "reliability_score": 0.95
+        },
+        {
+          "title": "indie Semiconductor investor release",
+          "url": "https://www.indiesemi.com/investors/news-releases/sample-wuxi-transaction",
+          "source_type": "company_ir",
+          "language": "en",
+          "reliability_score": 0.85
+        }
+      ],
+      "tool_calls": [
+        {
+          "tool_name": "web_search",
+          "input": {
+            "query": "site:sec.gov INDI Wuxi 8-K"
+          },
+          "output_summary": "Found sample SEC filing reference."
+        },
+        {
+          "tool_name": "web_search",
+          "input": {
+            "query": "site:hkexnews.hk INDI Wuxi"
+          },
+          "output_summary": "No direct matching issuer announcement in sample log."
+        }
+      ],
+      "detected_jurisdictions": [
+        "US",
+        "CN",
+        "HK"
+      ],
+      "evidence_scores": [],
+      "cross_source_consistency": [
+        "SEC filing and company IR both describe the divestiture as strategic simplification."
+      ],
+      "unverified_gaps": [
+        "The copied sample log does not confirm local China approval status."
+      ],
+      "final_answer": "확인된 자료 기준으로 Wuxi 매각은 INDI의 운영 단순화와 비용 부담 축소에 연결될 수 있다. 다만 중국 현지 승인, 매각 대상 자산의 범위, 거래 완료 조건은 추가 공식 확인이 필요하다.",
+      "notes": []
+    },
+    {
+      "engine_name": "finvision",
+      "query": "INDI Wuxi 매각 의미 분석",
+      "research_plan": [
+        "Use existing stock dashboard context.",
+        "Search SEC and company IR.",
+        "Summarize investment implications."
+      ],
+      "generated_queries": [
+        "INDI Wuxi divestiture",
+        "site:sec.gov INDI Wuxi",
+        "indie Semiconductor Wuxi transaction",
+        "\"site:sec.gov INDI Wuxi\",",
+        "\"site:sec.gov INDI Wuxi\"",
+        "\"query\": \"site:sec.gov INDI Wuxi\""
+      ],
+      "official_source_queries": [
+        "site:sec.gov INDI Wuxi",
+        "\"site:sec.gov INDI Wuxi\",",
+        "\"site:sec.gov INDI Wuxi\"",
+        "\"query\": \"site:sec.gov INDI Wuxi\"",
+        "site:sec.gov"
+      ],
+      "searched_sources": [
+        "sec.gov",
+        "indiesemi.com"
+      ],
+      "sources_found": [
+        {
+          "title": "Sample SEC filing",
+          "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+          "source_type": "official",
+          "language": "en",
+          "reliability_score": 0.95
+        },
+        {
+          "title": "indie Semiconductor investor release",
+          "url": "https://www.indiesemi.com/investors/news-releases/sample-wuxi-transaction",
+          "source_type": "company_ir",
+          "language": "en",
+          "reliability_score": 0.85
+        }
+      ],
+      "citations": [
+        {
+          "title": "Sample SEC filing",
+          "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+          "source_type": "official",
+          "language": "en",
+          "reliability_score": 0.95
+        }
+      ],
+      "tool_calls": [
+        {
+          "tool_name": "tavily_search",
+          "input": {
+            "query": "site:sec.gov INDI Wuxi"
+          },
+          "output_summary": "Found SEC sample reference."
+        }
+      ],
+      "detected_jurisdictions": [
+        "US",
+        "CN"
+      ],
+      "evidence_scores": [
+        {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+          "score": 95.0,
+          "reason": "SEC filing is an official issuer disclosure source."
+        },
+        {
+          "url": "https://www.indiesemi.com/investors/news-releases/sample-wuxi-transaction",
+          "score": 85.0,
+          "reason": "Company IR is primary but less independent than regulator filing."
+        }
+      ],
+      "cross_source_consistency": [
+        "SEC and company IR are directionally consistent."
+      ],
+      "unverified_gaps": [],
+      "final_answer": "Wuxi 매각은 INDI의 비용 구조 개선과 중국 운영 노출 축소 가능성을 시사한다. 현재 샘플 로그 기준 핵심 근거는 SEC와 회사 IR이다.",
+      "notes": []
+    }
+  ],
+  "finvision_improvement_raw_material": [
+    {
+      "type": "missing_official_source",
+      "description": "External research checked www.hkexnews.hk but FinVision did not.",
+      "suggested_fix": "Add www.hkexnews.hk to official source discovery when the query context matches.",
+      "priority": "high"
+    },
+    {
+      "type": "missing_jurisdiction",
+      "description": "External research detected HK but FinVision did not.",
+      "suggested_fix": "Expand jurisdiction detector keywords and source registry coverage for HK.",
+      "priority": "medium"
+    },
+    {
+      "type": "gap_handling",
+      "description": "External research explicitly listed unverified gaps but FinVision did not.",
+      "suggested_fix": "Add a required uncertainty/gap section to FinVision synthesis output.",
+      "priority": "medium"
+    },
+    {
+      "type": "official_query_generation",
+      "description": "FinVision generated fewer official-source queries than the external research logs.",
+      "suggested_fix": "Generate more site-specific queries for regulators, exchanges, and issuer IR pages.",
+      "priority": "medium"
+    }
+  ]
+}

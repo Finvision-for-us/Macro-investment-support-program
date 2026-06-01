@@ -1,0 +1,67 @@
+{
+  "engine_name": "openai",
+  "query": "INDI Wuxi 매각의 의미와 공식 출처 검증",
+  "research_plan": [
+    "Check US issuer filings first.",
+    "Search company investor relations.",
+    "Search HK/CN official disclosure venues for cross-border references.",
+    "Separate confirmed facts from assumptions."
+  ],
+  "generated_queries": [
+    "INDI Wuxi sale investor relations",
+    "site:sec.gov INDI Wuxi 8-K",
+    "site:hkexnews.hk INDI Wuxi",
+    "site:csrc.gov.cn INDI Wuxi semiconductor"
+  ],
+  "official_source_queries": [
+    "site:sec.gov INDI Wuxi 8-K",
+    "site:hkexnews.hk INDI Wuxi",
+    "site:csrc.gov.cn INDI Wuxi semiconductor"
+  ],
+  "searched_sources": [
+    "sec.gov",
+    "indiesemi.com",
+    "hkexnews.hk",
+    "csrc.gov.cn"
+  ],
+  "tool_calls": [
+    {
+      "tool_name": "web_search",
+      "input": {
+        "query": "site:sec.gov INDI Wuxi 8-K"
+      },
+      "output_summary": "Found sample SEC filing reference."
+    },
+    {
+      "tool_name": "web_search",
+      "input": {
+        "query": "site:hkexnews.hk INDI Wuxi"
+      },
+      "output_summary": "No direct matching issuer announcement in sample log."
+    }
+  ],
+  "citations": [
+    {
+      "title": "Sample SEC filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+      "source_type": "official",
+      "language": "en",
+      "reliability_score": 0.95
+    },
+    {
+      "title": "indie Semiconductor investor release",
+      "url": "https://www.indiesemi.com/investors/news-releases/sample-wuxi-transaction",
+      "source_type": "company_ir",
+      "language": "en",
+      "reliability_score": 0.85
+    }
+  ],
+  "detected_jurisdictions": ["US", "CN", "HK"],
+  "cross_source_consistency": [
+    "SEC filing and company IR both describe the divestiture as strategic simplification."
+  ],
+  "unverified_gaps": [
+    "The copied sample log does not confirm local China approval status."
+  ],
+  "final_answer": "확인된 자료 기준으로 Wuxi 매각은 INDI의 운영 단순화와 비용 부담 축소에 연결될 수 있다. 다만 중국 현지 승인, 매각 대상 자산의 범위, 거래 완료 조건은 추가 공식 확인이 필요하다."
+}

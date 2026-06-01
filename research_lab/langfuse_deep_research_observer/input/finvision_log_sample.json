@@ -1,0 +1,73 @@
+{
+  "engine_name": "finvision",
+  "query": "INDI Wuxi 매각 의미 분석",
+  "research_plan": [
+    "Use existing stock dashboard context.",
+    "Search SEC and company IR.",
+    "Summarize investment implications."
+  ],
+  "generated_queries": [
+    "INDI Wuxi divestiture",
+    "site:sec.gov INDI Wuxi",
+    "indie Semiconductor Wuxi transaction"
+  ],
+  "official_source_queries": [
+    "site:sec.gov INDI Wuxi"
+  ],
+  "searched_sources": [
+    "sec.gov",
+    "indiesemi.com"
+  ],
+  "sources_found": [
+    {
+      "title": "Sample SEC filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+      "source_type": "official",
+      "language": "en",
+      "reliability_score": 0.95
+    },
+    {
+      "title": "indie Semiconductor investor release",
+      "url": "https://www.indiesemi.com/investors/news-releases/sample-wuxi-transaction",
+      "source_type": "company_ir",
+      "language": "en",
+      "reliability_score": 0.85
+    }
+  ],
+  "citations": [
+    {
+      "title": "Sample SEC filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+      "source_type": "official",
+      "language": "en",
+      "reliability_score": 0.95
+    }
+  ],
+  "tool_calls": [
+    {
+      "tool_name": "tavily_search",
+      "input": {
+        "query": "site:sec.gov INDI Wuxi"
+      },
+      "output_summary": "Found SEC sample reference."
+    }
+  ],
+  "detected_jurisdictions": ["US", "CN"],
+  "evidence_scores": [
+    {
+      "url": "https://www.sec.gov/Archives/edgar/data/0001841925/sample-8k.htm",
+      "score": 95,
+      "reason": "SEC filing is an official issuer disclosure source."
+    },
+    {
+      "url": "https://www.indiesemi.com/investors/news-releases/sample-wuxi-transaction",
+      "score": 85,
+      "reason": "Company IR is primary but less independent than regulator filing."
+    }
+  ],
+  "cross_source_consistency": [
+    "SEC and company IR are directionally consistent."
+  ],
+  "unverified_gaps": [],
+  "final_answer": "Wuxi 매각은 INDI의 비용 구조 개선과 중국 운영 노출 축소 가능성을 시사한다. 현재 샘플 로그 기준 핵심 근거는 SEC와 회사 IR이다."
+}
