@@ -1,0 +1,3 @@
+langfuse
+python-dotenv
+pydantic
