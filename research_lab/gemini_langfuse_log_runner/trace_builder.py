@@ -7,9 +7,6 @@ from langfuse_client import LangfuseState, warn
 from schema import GeminiRunRecord, model_to_dict
 
 
-TRACE_NAME = "gemini_deep_research_financial_prompt_run"
-
-
 def upload_record_to_langfuse(
     *,
     state: LangfuseState,
@@ -37,7 +34,10 @@ def upload_record_to_langfuse(
 def _metadata(record: GeminiRunRecord) -> dict[str, Any]:
     return {
         "run_id": record.run_id,
+        "mode": record.mode,
         "model": record.model,
+        "agent": record.agent,
+        "interaction_id": record.interaction_id,
         "query": record.query,
         "status": record.status,
         "instruction_path": record.instruction_path,
@@ -53,17 +53,19 @@ def _upload_legacy(
     raw_response: dict[str, Any],
 ) -> str | None:
     trace = client.trace(
-        name=TRACE_NAME,
+        name=_trace_name(record),
         input={"query": record.query},
         output={"final_answer": record.final_answer},
         metadata=_metadata(record),
     )
+    _legacy_span(trace, "mode_explanation", None, _mode_explanation(record.mode))
     _legacy_span(trace, "financial_instruction", None, instruction_text)
     _legacy_span(trace, "user_prompt", None, prompt_text)
-    _legacy_span(trace, "gemini_request", record.request_metadata, pretty(record.request_metadata))
-    _legacy_span(trace, "gemini_response_raw", None, pretty(raw_response))
+    _legacy_span(trace, "request_metadata", record.request_metadata, pretty(record.request_metadata))
+    _legacy_span(trace, "polling_events", None, _polling_events(record))
     _legacy_span(trace, "citations", None, pretty([model_to_dict(item) for item in record.citations]))
     _legacy_span(trace, "final_answer", None, record.final_answer)
+    _legacy_span(trace, "raw_response_preview", None, pretty(raw_response)[:20000])
     if record.status != "success":
         _legacy_span(trace, "error_if_any", None, pretty(record.notes))
     if hasattr(client, "flush"):
@@ -79,19 +81,21 @@ def _upload_modern(
     raw_response: dict[str, Any],
 ) -> str | None:
     with client.start_as_current_observation(
-        name=TRACE_NAME,
+        name=_trace_name(record),
         as_type="span",
         input={"query": record.query},
         output={"final_answer": record.final_answer},
         metadata=_metadata(record),
     ) as root:
         trace_id = _current_trace_id(client, root)
+        _modern_span(root, "mode_explanation", None, _mode_explanation(record.mode))
         _modern_span(root, "financial_instruction", None, instruction_text)
         _modern_span(root, "user_prompt", None, prompt_text)
-        _modern_span(root, "gemini_request", record.request_metadata, pretty(record.request_metadata))
-        _modern_span(root, "gemini_response_raw", None, pretty(raw_response))
+        _modern_span(root, "request_metadata", record.request_metadata, pretty(record.request_metadata))
+        _modern_span(root, "polling_events", None, _polling_events(record))
         _modern_span(root, "citations", None, pretty([model_to_dict(item) for item in record.citations]))
         _modern_span(root, "final_answer", None, record.final_answer)
+        _modern_span(root, "raw_response_preview", None, pretty(raw_response)[:20000])
         if record.status != "success":
             _modern_span(root, "error_if_any", None, pretty(record.notes))
     if hasattr(client, "flush"):
@@ -130,3 +134,27 @@ def pretty(value: Any) -> str:
     if isinstance(value, str):
         return value
     return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+
+
+def _trace_name(record: GeminiRunRecord) -> str:
+    if record.mode == "deep-research":
+        return "gemini_deep_research_financial_run"
+    return "gemini_grounded_financial_research_run"
+
+
+def _mode_explanation(mode: str) -> str:
+    if mode == "deep-research":
+        return "This run used Gemini Deep Research Agent via the Interactions API."
+    return (
+        "This run used Gemini generate_content with Google Search grounding. "
+        "This is not the Gemini Deep Research Agent."
+    )
+
+
+def _polling_events(record: GeminiRunRecord) -> str:
+    events = [
+        model_to_dict(event)
+        for event in record.events
+        if event.name.startswith("interaction_") or event.name == "sdk_interactions_missing"
+    ]
+    return pretty(events)

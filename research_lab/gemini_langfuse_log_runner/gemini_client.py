@@ -9,7 +9,8 @@ from typing import Any
 from schema import CitationItem
 
 
-DEFAULT_MODEL = "deep-research-pro-preview-12-2025"
+DEFAULT_GROUNDED_MODEL = "gemini-2.5-pro"
+DEFAULT_DEEP_RESEARCH_AGENT = "deep-research-preview-04-2026"
 URL_RE = re.compile(r"https?://[^\s\]\)\}\>,\"']+", re.IGNORECASE)
 
 
@@ -29,96 +30,28 @@ def load_env() -> None:
     load_dotenv()
 
 
-def resolve_model(cli_model: str | None = None) -> str:
-    return cli_model or os.getenv("GEMINI_DEEP_RESEARCH_MODEL") or DEFAULT_MODEL
+def resolve_grounded_model(cli_model: str | None = None) -> str:
+    deprecated = os.getenv("GEMINI_DEEP_RESEARCH_MODEL")
+    return cli_model or os.getenv("GEMINI_GROUNDED_MODEL") or deprecated or DEFAULT_GROUNDED_MODEL
+
+
+def resolve_deep_research_agent(cli_agent: str | None = None) -> str:
+    return cli_agent or os.getenv("GEMINI_DEEP_RESEARCH_AGENT") or DEFAULT_DEEP_RESEARCH_AGENT
 
 
 def read_text_file(path: str | Path) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
-def run_gemini_deep_research(
-    *,
-    instruction: str,
-    user_prompt: str,
-    model: str,
-) -> dict[str, Any]:
+def require_api_key() -> str:
     load_env()
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise GeminiExecutionError("GEMINI_API_KEY is missing. Create .env from .env.example and add your Gemini API key.")
-
-    try:
-        from google import genai
-        from google.genai import types
-    except ImportError as exc:
-        raise GeminiExecutionError("google-genai is not installed. Run: pip install -r requirements.txt") from exc
-
-    client = genai.Client(api_key=api_key)
-    request_metadata = {
-        "model": model,
-        "sdk": "google-genai",
-        "google_search_grounding_requested": True,
-        "instruction_chars": len(instruction),
-        "prompt_chars": len(user_prompt),
-    }
-
-    config = _build_config(types, instruction, include_grounding=True)
-    try:
-        response = client.models.generate_content(model=model, contents=user_prompt, config=config)
-        raw = response_to_jsonable(response)
-        raw["request_metadata"] = request_metadata
-        return {
-            "raw_response": raw,
-            "final_answer": extract_final_answer(response, raw),
-            "citations": extract_citations(raw),
-            "request_metadata": request_metadata,
-            "notes": [],
-        }
-    except Exception as first_exc:
-        if not _should_retry_without_grounding(first_exc):
-            raise GeminiExecutionError(_format_gemini_error(first_exc)) from first_exc
-
-        request_metadata["google_search_grounding_retry_without_tool"] = True
-        config = _build_config(types, instruction, include_grounding=False)
-        try:
-            response = client.models.generate_content(model=model, contents=user_prompt, config=config)
-            raw = response_to_jsonable(response)
-            raw["request_metadata"] = request_metadata
-            return {
-                "raw_response": raw,
-                "final_answer": extract_final_answer(response, raw),
-                "citations": extract_citations(raw),
-                "request_metadata": request_metadata,
-                "notes": [
-                    "Google Search grounding failed or was unsupported; retried without grounding tool.",
-                    f"Initial grounding error: {_format_gemini_error(first_exc)}",
-                ],
-            }
-        except Exception as second_exc:
-            raise GeminiExecutionError(_format_gemini_error(second_exc)) from second_exc
+    return api_key
 
 
-def _build_config(types: Any, instruction: str, include_grounding: bool) -> Any:
-    kwargs: dict[str, Any] = {"system_instruction": instruction}
-    if include_grounding:
-        try:
-            kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
-        except Exception:
-            pass
-    try:
-        return types.GenerateContentConfig(**kwargs)
-    except Exception:
-        return kwargs
-
-
-def _should_retry_without_grounding(error: Exception) -> bool:
-    text = str(error).lower()
-    markers = ["google_search", "tool", "grounding", "unsupported", "invalid argument"]
-    return any(marker in text for marker in markers)
-
-
-def _format_gemini_error(error: Exception) -> str:
+def format_gemini_error(error: Exception) -> str:
     text = str(error).replace(os.getenv("GEMINI_API_KEY") or "", "[REDACTED]")
     return f"Gemini API call failed: {text}"
 
