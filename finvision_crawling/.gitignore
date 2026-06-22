@@ -1,0 +1,21 @@
+# 환경변수 (API 키)
+.env
+
+# Telethon 세션 파일 (계정 인증 정보)
+sessions/
+
+# 수집 데이터 (용량 크고 개인 데이터)
+data/
+
+# 인증코드 임시 파일
+.tg_code
+
+# 로그
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
