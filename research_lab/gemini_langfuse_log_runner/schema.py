@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 try:
@@ -48,11 +50,17 @@ except ImportError:
 
 def _dump_value(value: Any) -> Any:
     if hasattr(value, "model_dump"):
-        return value.model_dump()
+        return _dump_value(value.model_dump())
     if isinstance(value, list):
         return [_dump_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_dump_value(item) for item in value]
     if isinstance(value, dict):
-        return {key: _dump_value(item) for key, item in value.items()}
+        return {str(_dump_value(key)): _dump_value(item) for key, item in value.items()}
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Path):
+        return str(value)
     return value
 
 
@@ -99,5 +107,5 @@ class GeminiRunRecord(BaseModel):
 
 def model_to_dict(model: BaseModel) -> dict[str, Any]:
     if hasattr(model, "model_dump"):
-        return model.model_dump()
-    return model.dict()
+        return _dump_value(model.model_dump())
+    return _dump_value(model.dict())

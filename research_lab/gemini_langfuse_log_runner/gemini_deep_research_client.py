@@ -7,7 +7,7 @@ import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
-from gemini_client import GeminiExecutionError, extract_citations, extract_final_answer, format_gemini_error, require_api_key, response_to_jsonable
+from gemini_client import GeminiExecutionError, extract_citations, extract_final_answer, format_gemini_error, make_json_safe, require_api_key, response_to_jsonable
 from schema import TraceEventItem
 
 
@@ -34,6 +34,7 @@ def run_deep_research(
     agent: str,
     poll_interval: float,
     timeout_seconds: int,
+    live_logger: Any | None = None,
 ) -> dict[str, Any]:
     api_key = require_api_key()
     request_input = _combined_prompt(instruction, user_prompt)
@@ -67,6 +68,7 @@ def run_deep_research(
             events=events,
             poll_interval=poll_interval,
             timeout_seconds=timeout_seconds,
+            live_logger=live_logger,
         )
 
     events.append(_event(
@@ -84,6 +86,7 @@ def run_deep_research(
         events=events,
         poll_interval=poll_interval,
         timeout_seconds=timeout_seconds,
+        live_logger=live_logger,
     )
 
 
@@ -97,6 +100,7 @@ def _run_with_sdk(
     events: list[TraceEventItem],
     poll_interval: float,
     timeout_seconds: int,
+    live_logger: Any | None,
 ) -> dict[str, Any]:
     try:
         create_kwargs = {
@@ -122,6 +126,7 @@ def _run_with_sdk(
         raise GeminiExecutionError("Interactions API did not return an interaction id.")
 
     events.append(_event("interaction_create", {"agent": agent, "background": True}, f"interaction_id={interaction_id}", {}))
+    _live_emit(live_logger, "interaction_created", interaction_id=interaction_id, agent=agent)
     return _poll_interaction(
         get_response=lambda: client.interactions.get(interaction_id),
         initial_response=interaction,
@@ -130,6 +135,7 @@ def _run_with_sdk(
         events=events,
         poll_interval=poll_interval,
         timeout_seconds=timeout_seconds,
+        live_logger=live_logger,
     )
 
 
@@ -143,6 +149,7 @@ def _run_with_rest(
     events: list[TraceEventItem],
     poll_interval: float,
     timeout_seconds: int,
+    live_logger: Any | None,
 ) -> dict[str, Any]:
     body = {
         "input": request_input,
@@ -160,6 +167,7 @@ def _run_with_rest(
         )
 
     events.append(_event("interaction_create_rest", {"agent": agent, "background": True}, f"interaction_id={interaction_id}", {}))
+    _live_emit(live_logger, "interaction_created", interaction_id=interaction_id, agent=agent, transport="rest")
     return _poll_interaction(
         get_response=lambda: _request_json("GET", f"{INTERACTIONS_ENDPOINT}/{interaction_id}", api_key, None),
         initial_response=create_raw,
@@ -168,6 +176,7 @@ def _run_with_rest(
         events=events,
         poll_interval=poll_interval,
         timeout_seconds=timeout_seconds,
+        live_logger=live_logger,
     )
 
 
@@ -180,24 +189,36 @@ def _poll_interaction(
     events: list[TraceEventItem],
     poll_interval: float,
     timeout_seconds: int,
+    live_logger: Any | None = None,
 ) -> dict[str, Any]:
     started = time.monotonic()
     poll_count = 0
     current = initial_response
-    raw_history = [response_to_jsonable(current) if not isinstance(current, dict) else current]
+    raw_history = [make_json_safe(response_to_jsonable(current) if not isinstance(current, dict) else current)]
+    _live_emit(live_logger, "interaction_poll_started", interaction_id=interaction_id, poll_interval=poll_interval, timeout_seconds=timeout_seconds)
 
     while True:
-        current_raw = response_to_jsonable(current) if not isinstance(current, dict) else current
+        current_raw = make_json_safe(response_to_jsonable(current) if not isinstance(current, dict) else current)
         status = _extract_status(current_raw)
+        summary = _short_response_summary(current_raw)
         events.append(_event(
             "interaction_poll",
             {"interaction_id": interaction_id, "poll_count": poll_count},
             f"status={status or 'unknown'}",
-            {"status": status, "poll_count": poll_count},
+            {"status": status, "poll_count": poll_count, "summary": summary},
         ))
+        _live_emit(
+            live_logger,
+            "interaction_poll_result",
+            poll_count=poll_count,
+            interaction_id=interaction_id,
+            status=status or "unknown",
+            summary=summary,
+        )
 
         if (status or "").lower() in TERMINAL_SUCCESS:
             final_answer = _extract_output_text(current, current_raw)
+            _live_emit(live_logger, "final_success", interaction_id=interaction_id, poll_count=poll_count, status=status, summary=summary)
             return {
                 "raw_response": {"interaction_id": interaction_id, "poll_history": raw_history, "final": current_raw},
                 "final_answer": final_answer,
@@ -212,6 +233,7 @@ def _poll_interaction(
 
         if (status or "").lower() in TERMINAL_FAILURE:
             error_text = _extract_error(current_raw) or f"Interaction ended with status={status}"
+            _live_emit(live_logger, "final_error", interaction_id=interaction_id, poll_count=poll_count, status=status, summary=error_text)
             return {
                 "raw_response": {"interaction_id": interaction_id, "poll_history": raw_history, "final": current_raw},
                 "final_answer": "",
@@ -226,6 +248,7 @@ def _poll_interaction(
 
         if time.monotonic() - started > timeout_seconds:
             timeout_text = f"Timed out waiting for interaction {interaction_id} after {timeout_seconds} seconds."
+            _live_emit(live_logger, "timeout", interaction_id=interaction_id, poll_count=poll_count, status=status or "unknown", summary=timeout_text)
             return {
                 "raw_response": {"interaction_id": interaction_id, "poll_history": raw_history, "final": current_raw},
                 "final_answer": "",
@@ -241,11 +264,11 @@ def _poll_interaction(
         time.sleep(poll_interval)
         poll_count += 1
         current = get_response()
-        raw_history.append(response_to_jsonable(current) if not isinstance(current, dict) else current)
+        raw_history.append(make_json_safe(response_to_jsonable(current) if not isinstance(current, dict) else current))
 
 
 def _request_json(method: str, url: str, api_key: str, body: dict[str, Any] | None) -> dict[str, Any]:
-    payload = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
+    payload = json.dumps(make_json_safe(body), ensure_ascii=False).encode("utf-8") if body is not None else None
     request = urllib.request.Request(
         url=url,
         data=payload,
@@ -314,7 +337,7 @@ def _extract_error(raw: dict[str, Any]) -> str | None:
     if isinstance(error, str):
         return error
     if isinstance(error, dict):
-        return json.dumps(error, ensure_ascii=False)
+        return json.dumps(make_json_safe(error), ensure_ascii=False)
     return None
 
 
@@ -326,3 +349,28 @@ def _event(name: str, input_value: Any, output_summary: str | None, metadata: di
         metadata=metadata,
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
+
+
+def _live_emit(live_logger: Any | None, event: str, **payload: Any) -> None:
+    if live_logger is not None:
+        live_logger.emit(event, **payload)
+
+
+def _short_response_summary(raw: dict[str, Any]) -> str:
+    for key in ("output_text", "text", "final_answer", "answer"):
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            return _shorten(value)
+    error = _extract_error(raw)
+    if error:
+        return _shorten(error)
+    status = _extract_status(raw)
+    keys = ", ".join(sorted(str(key) for key in raw.keys())[:12])
+    return _shorten(f"status={status or 'unknown'}; keys={keys}")
+
+
+def _shorten(text: str, limit: int = 500) -> str:
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3] + "..."

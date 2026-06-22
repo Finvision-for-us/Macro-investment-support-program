@@ -6,17 +6,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from gemini_client import GeminiExecutionError, read_text_file, resolve_deep_research_agent, resolve_grounded_model
+from gemini_client import GeminiExecutionError, make_json_safe, read_text_file, resolve_deep_research_agent, resolve_grounded_model
 from gemini_deep_research_client import run_deep_research
 from gemini_grounded_client import run_grounded_research
 from html_log_viewer import write_html_log_viewer
 from langfuse_client import get_langfuse_state
+from live_log import LiveLogWriter
 from schema import GeminiRunRecord, TraceEventItem, model_to_dict
 from trace_builder import upload_record_to_langfuse
 
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_DIR = BASE_DIR / "output"
+OUTPUT_ENCODING = "utf-8-sig"
 
 
 def main() -> int:
@@ -30,6 +32,10 @@ def main() -> int:
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Directory for output files.")
     parser.add_argument("--poll-interval", type=float, default=10.0, help="Deep Research polling interval in seconds.")
     parser.add_argument("--timeout", type=int, default=3600, help="Deep Research timeout in seconds.")
+    parser.add_argument("--live-log", dest="live_log", action="store_true", default=None, help="Enable local live log files.")
+    parser.add_argument("--no-live-log", dest="live_log", action="store_false", help="Disable local live log files.")
+    parser.add_argument("--open-live-log", dest="open_live_log", action="store_true", default=None, help="Open live log viewer automatically.")
+    parser.add_argument("--no-open-live-log", dest="open_live_log", action="store_false", help="Do not open live log viewer automatically.")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -38,12 +44,32 @@ def main() -> int:
     started_at = now_iso()
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8]
     mode = args.mode
+    live_enabled = args.live_log if args.live_log is not None else mode == "deep-research"
+    open_live_log = args.open_live_log if args.open_live_log is not None else True
+    live_logger = LiveLogWriter(output_dir=output_dir, enabled=live_enabled, open_viewer=open_live_log)
     model = resolve_grounded_model(args.model) if mode == "grounded" else ""
     agent = resolve_deep_research_agent(args.agent) if mode == "deep-research" else None
     instruction_path = str(Path(args.instruction))
     prompt_path = str(Path(args.prompt))
-    instruction_text = read_text_file(args.instruction)
-    prompt_text = read_text_file(args.prompt)
+    live_logger.start({
+        "run_id": run_id,
+        "mode": mode,
+        "model": model,
+        "agent": agent,
+        "output_dir": str(output_dir),
+        "live_log_jsonl": str(live_logger.jsonl_path),
+        "live_log_viewer": str(live_logger.viewer_path),
+    })
+    instruction_text = ""
+    prompt_text = ""
+    initialization_error: Exception | None = None
+    try:
+        instruction_text = read_text_file(args.instruction)
+        live_logger.emit("instruction_loaded", path=instruction_path, chars=len(instruction_text))
+        prompt_text = read_text_file(args.prompt)
+        live_logger.emit("prompt_loaded", path=prompt_path, chars=len(prompt_text), preview=prompt_text[:500])
+    except Exception as exc:
+        initialization_error = exc
 
     mode_explanation = mode_explanation_for(mode)
     events = [
@@ -57,6 +83,14 @@ def main() -> int:
             {"mode": mode, "model": model, "agent": agent},
         ),
     ]
+    live_logger.emit(
+        "gemini_request_prepared",
+        mode=mode,
+        model=model,
+        agent=agent,
+        poll_interval=args.poll_interval if mode == "deep-research" else None,
+        timeout=args.timeout if mode == "deep-research" else None,
+    )
 
     raw_response: dict = {}
     final_answer = ""
@@ -68,6 +102,8 @@ def main() -> int:
     status = "success"
 
     try:
+        if initialization_error is not None:
+            raise initialization_error
         if mode == "grounded":
             result = run_grounded_research(instruction=instruction_text, user_prompt=prompt_text, model=model)
         else:
@@ -77,16 +113,21 @@ def main() -> int:
                 agent=agent or "",
                 poll_interval=args.poll_interval,
                 timeout_seconds=args.timeout,
+                live_logger=live_logger if live_enabled else None,
             )
-        raw_response = result["raw_response"]
+        raw_response = make_json_safe(result["raw_response"])
         final_answer = result["final_answer"]
         citations = result["citations"]
-        request_metadata = result["request_metadata"]
+        request_metadata = make_json_safe(result["request_metadata"])
         events.extend(result.get("events", []))
         notes.extend(result.get("notes", []))
         interaction_id = result.get("interaction_id")
         poll_count = result.get("poll_count")
         status = result.get("status", status)
+        if status == "success":
+            live_logger.emit("final_success", mode=mode, interaction_id=interaction_id, poll_count=poll_count, summary=final_answer[:500])
+        else:
+            live_logger.emit("final_error", mode=mode, interaction_id=interaction_id, poll_count=poll_count, summary="; ".join(notes[-3:]))
         events.append(event("gemini_response_raw", None, "Gemini response captured.", {"raw_keys": list(raw_response.keys())}))
         events.append(event("citations", None, f"{len(citations)} citations extracted.", {}))
         events.append(event("final_answer", None, final_answer[:1000], {"chars": len(final_answer)}))
@@ -96,8 +137,9 @@ def main() -> int:
         if not isinstance(exc, GeminiExecutionError):
             message = f"Unexpected runner error: {message}"
         notes.append(message)
-        raw_response = {"error": message, "status": "error", "request_metadata": request_metadata}
+        raw_response = make_json_safe({"error": message, "status": "error", "request_metadata": request_metadata})
         events.append(event("error_if_any", None, message, {"error_type": exc.__class__.__name__}))
+        live_logger.emit("final_error", mode=mode, summary=message, error_type=exc.__class__.__name__)
 
     raw_path = output_dir / "gemini_run_raw.json"
     record_path = output_dir / "gemini_run_record.json"
@@ -129,8 +171,9 @@ def main() -> int:
         notes=notes,
     )
 
-    raw_path.write_text(json.dumps(raw_response, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-    summary_path.write_text(render_summary(record), encoding="utf-8")
+    raw_response = make_json_safe(raw_response)
+    raw_path.write_text(json.dumps(raw_response, ensure_ascii=False, indent=2, default=str), encoding=OUTPUT_ENCODING)
+    summary_path.write_text(render_summary(record), encoding=OUTPUT_ENCODING)
     write_html_log_viewer(
         output_path=html_path,
         record=record,
@@ -150,7 +193,7 @@ def main() -> int:
             raw_response=raw_response,
         )
         record.notes.append(f"Langfuse: {langfuse_result}")
-        summary_path.write_text(render_summary(record, langfuse_result), encoding="utf-8")
+        summary_path.write_text(render_summary(record, langfuse_result), encoding=OUTPUT_ENCODING)
         write_html_log_viewer(
             output_path=html_path,
             record=record,
@@ -159,7 +202,8 @@ def main() -> int:
             raw_response=raw_response,
         )
 
-    record_path.write_text(json.dumps(model_to_dict(record), ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    record_path.write_text(json.dumps(make_json_safe(model_to_dict(record)), ensure_ascii=False, indent=2, default=str), encoding=OUTPUT_ENCODING)
+    live_logger.emit("run_finished", status=status, raw_path=str(raw_path), record_path=str(record_path), summary_path=str(summary_path), html_path=str(html_path))
 
     print(f"raw JSON: {raw_path}")
     print(f"run record: {record_path}")
@@ -234,7 +278,7 @@ def render_summary(record: GeminiRunRecord, langfuse_result: dict | None = None)
         lines.append("- (none)")
 
     if langfuse_result is not None:
-        lines.extend(["", "## Langfuse", "", "```json", json.dumps(langfuse_result, ensure_ascii=False, indent=2), "```"])
+        lines.extend(["", "## Langfuse", "", "```json", json.dumps(make_json_safe(langfuse_result), ensure_ascii=False, indent=2, default=str), "```"])
 
     return "\n".join(lines) + "\n"
 

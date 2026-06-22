@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -40,7 +41,21 @@ def resolve_deep_research_agent(cli_agent: str | None = None) -> str:
 
 
 def read_text_file(path: str | Path) -> str:
-    return Path(path).read_text(encoding="utf-8")
+    file_path = Path(path)
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise GeminiExecutionError(
+            f"Prompt file is not valid UTF-8: {file_path}. "
+            "Save it as UTF-8 without ANSI/CP949 mojibake and run again."
+        ) from exc
+
+    if looks_like_mojibake(text):
+        raise GeminiExecutionError(
+            f"Prompt file appears to contain mojibake/garbled Korean text: {file_path}. "
+            "Open the file and save the original Korean text as UTF-8."
+        )
+    return text
 
 
 def require_api_key() -> str:
@@ -56,12 +71,77 @@ def format_gemini_error(error: Exception) -> str:
     return f"Gemini API call failed: {text}"
 
 
+def make_json_safe(value: Any) -> Any:
+    return _make_json_safe(value, seen=set())
+
+
+def _make_json_safe(value: Any, seen: set[int]) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+
+    object_id = id(value)
+    if object_id in seen:
+        return "<circular-reference>"
+
+    if isinstance(value, dict):
+        seen.add(object_id)
+        try:
+            return {str(_make_json_safe(key, seen)): _make_json_safe(child, seen) for key, child in value.items()}
+        finally:
+            seen.discard(object_id)
+
+    if isinstance(value, (list, tuple, set, frozenset)):
+        seen.add(object_id)
+        try:
+            return [_make_json_safe(child, seen) for child in value]
+        finally:
+            seen.discard(object_id)
+
+    if isinstance(value, Path):
+        return str(value)
+
+    if hasattr(value, "model_dump"):
+        try:
+            return _make_json_safe(value.model_dump(), seen)
+        except Exception:
+            pass
+
+    if hasattr(value, "dict"):
+        try:
+            return _make_json_safe(value.dict(), seen)
+        except Exception:
+            pass
+
+    if hasattr(value, "__dict__"):
+        seen.add(object_id)
+        try:
+            public_attrs = {
+                key: child
+                for key, child in vars(value).items()
+                if not key.startswith("_")
+            }
+            if public_attrs:
+                return _make_json_safe(public_attrs, seen)
+        except Exception:
+            pass
+        finally:
+            seen.discard(object_id)
+
+    return str(value)
+
+
 def response_to_jsonable(response: Any) -> dict[str, Any]:
     for attr in ("model_dump", "to_json_dict"):
         method = getattr(response, attr, None)
         if callable(method):
             try:
-                data = method()
+                data = make_json_safe(method())
                 return data if isinstance(data, dict) else {"response": data}
             except Exception:
                 pass
@@ -69,14 +149,16 @@ def response_to_jsonable(response: Any) -> dict[str, Any]:
     to_json = getattr(response, "to_json", None)
     if callable(to_json):
         try:
-            return json.loads(to_json())
+            data = json.loads(to_json())
+            return make_json_safe(data) if isinstance(data, dict) else {"response": make_json_safe(data)}
         except Exception:
             pass
 
-    return {
+    fallback = {
         "text": getattr(response, "text", None),
         "repr": repr(response),
     }
+    return make_json_safe(fallback)
 
 
 def extract_final_answer(response: Any, raw: dict[str, Any]) -> str:
@@ -101,10 +183,11 @@ def _collect_text_parts(value: Any, output: list[str]) -> None:
 
 
 def extract_citations(raw: dict[str, Any]) -> list[CitationItem]:
+    raw = make_json_safe(raw)
     citations: list[CitationItem] = []
     _collect_citations(raw, citations)
 
-    raw_text = json.dumps(raw, ensure_ascii=False)
+    raw_text = json.dumps(raw, ensure_ascii=False, default=str)
     for url in URL_RE.findall(raw_text):
         citations.append(CitationItem(
             title=_domain(url),
@@ -121,24 +204,24 @@ def _collect_citations(value: Any, citations: list[CitationItem]) -> None:
     if isinstance(value, dict):
         web = value.get("web")
         if isinstance(web, dict):
-            uri = web.get("uri") or web.get("url")
+            uri = _optional_str(web.get("uri") or web.get("url"))
             if uri:
                 citations.append(CitationItem(
-                    title=web.get("title") or _domain(uri),
+                    title=_optional_str(web.get("title")) or _domain(uri),
                     url=uri,
                     source_type=_guess_source_type(uri),
                     language=_guess_language(uri),
-                    snippet=web.get("snippet"),
+                    snippet=_optional_str(web.get("snippet")),
                 ))
 
-        uri = value.get("uri") or value.get("url")
-        if uri and isinstance(uri, str):
+        uri = _optional_str(value.get("uri") or value.get("url"))
+        if uri:
             citations.append(CitationItem(
-                title=value.get("title") or value.get("name") or _domain(uri),
+                title=_optional_str(value.get("title")) or _optional_str(value.get("name")) or _domain(uri),
                 url=uri,
-                source_type=value.get("source_type") or _guess_source_type(uri),
-                language=value.get("language") or _guess_language(uri),
-                snippet=value.get("snippet") or value.get("text"),
+                source_type=_optional_str(value.get("source_type")) or _guess_source_type(uri),
+                language=_optional_str(value.get("language")) or _guess_language(uri),
+                snippet=_optional_str(value.get("snippet")) or _optional_str(value.get("text")),
             ))
 
         for child in value.values():
@@ -189,3 +272,23 @@ def _guess_language(url: str | None) -> str | None:
     if domain.endswith(".in"):
         return "en"
     return "en"
+
+
+def _optional_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    return str(make_json_safe(value))
+
+
+def looks_like_mojibake(text: str) -> bool:
+    if "\ufffd" in text:
+        return True
+
+    suspicious_fragments = [
+        "Ã", "Â", "â€", "留", "ㅺ", "醫", "媛", "湲",
+        "遺", "怨", "寃", "洹", "蹂", "嫄", "쒖", "덉",
+    ]
+    hits = sum(1 for fragment in suspicious_fragments if fragment in text)
+    return hits >= 2

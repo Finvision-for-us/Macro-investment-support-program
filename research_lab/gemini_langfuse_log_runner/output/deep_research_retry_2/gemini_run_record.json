@@ -1,0 +1,2253 @@
+{
+  "run_id": "20260601T084257Z-a40e9328",
+  "query": "INDI Semiconductor의 Wuxi 매각과 자회사 관련 이슈에 대해 분석해줘.\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.",
+  "instruction_path": "prompts\\financial_research_instruction.txt",
+  "prompt_path": "prompts\\user_questions\\indi_wuxi.txt",
+  "mode": "deep-research",
+  "model": "",
+  "agent": "deep-research-preview-04-2026",
+  "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+  "poll_count": 162,
+  "polling_interval_seconds": 10.0,
+  "timeout_seconds": 1800,
+  "started_at": "2026-06-01T08:42:57.033137+00:00",
+  "ended_at": "2026-06-01T09:13:16.332075+00:00",
+  "status": "error",
+  "request_metadata": {
+    "mode": "deep-research",
+    "api": "interactions",
+    "agent": "deep-research-preview-04-2026",
+    "background": true,
+    "store": true,
+    "agent_config": {
+      "type": "deep-research",
+      "thinking_summaries": "auto",
+      "visualization": "auto",
+      "collaborative_planning": false
+    },
+    "instruction_chars": 1091,
+    "prompt_chars": 119,
+    "mode_explanation": "This run used Gemini Deep Research Agent via the Interactions API."
+  },
+  "events": [
+    {
+      "name": "financial_instruction",
+      "input": null,
+      "output_summary": "1091 chars loaded.",
+      "metadata": {
+        "path": "prompts\\financial_research_instruction.txt"
+      },
+      "timestamp": "2026-06-01T08:42:57.034579+00:00"
+    },
+    {
+      "name": "user_prompt",
+      "input": null,
+      "output_summary": "INDI Semiconductor의 Wuxi 매각과 자회사 관련 이슈에 대해 분석해줘.\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.\n",
+      "metadata": {
+        "path": "prompts\\user_questions\\indi_wuxi.txt"
+      },
+      "timestamp": "2026-06-01T08:42:57.034722+00:00"
+    },
+    {
+      "name": "mode_explanation",
+      "input": null,
+      "output_summary": "This run used Gemini Deep Research Agent via the Interactions API.",
+      "metadata": {
+        "mode": "deep-research"
+      },
+      "timestamp": "2026-06-01T08:42:57.034745+00:00"
+    },
+    {
+      "name": "gemini_request",
+      "input": {
+        "mode": "deep-research",
+        "model": "",
+        "agent": "deep-research-preview-04-2026",
+        "prompt": "INDI Semiconductor의 Wuxi 매각과 자회사 관련 이슈에 대해 분석해줘.\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.\n"
+      },
+      "output_summary": "Gemini request prepared.",
+      "metadata": {
+        "mode": "deep-research",
+        "model": "",
+        "agent": "deep-research-preview-04-2026"
+      },
+      "timestamp": "2026-06-01T08:42:57.034761+00:00"
+    },
+    {
+      "name": "mode_explanation",
+      "input": null,
+      "output_summary": "This run used Gemini Deep Research Agent via the Interactions API.",
+      "metadata": {
+        "mode": "deep-research"
+      },
+      "timestamp": "2026-06-01T08:42:57.038200+00:00"
+    },
+    {
+      "name": "interaction_create",
+      "input": {
+        "agent": "deep-research-preview-04-2026",
+        "background": true
+      },
+      "output_summary": "interaction_id=v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+      "metadata": {},
+      "timestamp": "2026-06-01T08:43:06.019554+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 0
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 0
+      },
+      "timestamp": "2026-06-01T08:43:06.019655+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 1
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 1
+      },
+      "timestamp": "2026-06-01T08:43:16.955943+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 2
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 2
+      },
+      "timestamp": "2026-06-01T08:43:27.865084+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 3
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 3
+      },
+      "timestamp": "2026-06-01T08:43:38.985451+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 4
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 4
+      },
+      "timestamp": "2026-06-01T08:43:49.785969+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 5
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 5
+      },
+      "timestamp": "2026-06-01T08:44:00.506391+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 6
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 6
+      },
+      "timestamp": "2026-06-01T08:44:11.320076+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 7
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 7
+      },
+      "timestamp": "2026-06-01T08:44:22.059128+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 8
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 8
+      },
+      "timestamp": "2026-06-01T08:44:32.857634+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 9
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 9
+      },
+      "timestamp": "2026-06-01T08:44:43.662126+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 10
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 10
+      },
+      "timestamp": "2026-06-01T08:44:54.469286+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 11
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 11
+      },
+      "timestamp": "2026-06-01T08:45:05.185155+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 12
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 12
+      },
+      "timestamp": "2026-06-01T08:45:16.338869+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 13
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 13
+      },
+      "timestamp": "2026-06-01T08:45:27.197291+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 14
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 14
+      },
+      "timestamp": "2026-06-01T08:45:38.152332+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 15
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 15
+      },
+      "timestamp": "2026-06-01T08:45:49.127761+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 16
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 16
+      },
+      "timestamp": "2026-06-01T08:46:00.026801+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 17
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 17
+      },
+      "timestamp": "2026-06-01T08:46:10.931673+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 18
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 18
+      },
+      "timestamp": "2026-06-01T08:46:21.733611+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 19
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 19
+      },
+      "timestamp": "2026-06-01T08:46:32.593347+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 20
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 20
+      },
+      "timestamp": "2026-06-01T08:46:43.470232+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 21
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 21
+      },
+      "timestamp": "2026-06-01T08:46:54.347758+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 22
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 22
+      },
+      "timestamp": "2026-06-01T08:47:05.191192+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 23
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 23
+      },
+      "timestamp": "2026-06-01T08:47:16.170085+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 24
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 24
+      },
+      "timestamp": "2026-06-01T08:47:27.110390+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 25
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 25
+      },
+      "timestamp": "2026-06-01T08:47:38.072226+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 26
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 26
+      },
+      "timestamp": "2026-06-01T08:47:49.032375+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 27
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 27
+      },
+      "timestamp": "2026-06-01T08:47:59.939812+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 28
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 28
+      },
+      "timestamp": "2026-06-01T08:48:10.893666+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 29
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 29
+      },
+      "timestamp": "2026-06-01T08:48:21.790982+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 30
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 30
+      },
+      "timestamp": "2026-06-01T08:48:32.677473+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 31
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 31
+      },
+      "timestamp": "2026-06-01T08:48:43.695132+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 32
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 32
+      },
+      "timestamp": "2026-06-01T08:48:54.726380+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 33
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 33
+      },
+      "timestamp": "2026-06-01T08:49:05.661119+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 34
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 34
+      },
+      "timestamp": "2026-06-01T08:49:16.635429+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 35
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 35
+      },
+      "timestamp": "2026-06-01T08:49:27.580856+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 36
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 36
+      },
+      "timestamp": "2026-06-01T08:49:38.473929+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 37
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 37
+      },
+      "timestamp": "2026-06-01T08:49:49.408673+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 38
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 38
+      },
+      "timestamp": "2026-06-01T08:50:00.412702+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 39
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 39
+      },
+      "timestamp": "2026-06-01T08:50:41.106166+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 40
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 40
+      },
+      "timestamp": "2026-06-01T08:50:52.369767+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 41
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 41
+      },
+      "timestamp": "2026-06-01T08:51:03.339236+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 42
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 42
+      },
+      "timestamp": "2026-06-01T08:51:14.433521+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 43
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 43
+      },
+      "timestamp": "2026-06-01T08:51:25.412799+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 44
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 44
+      },
+      "timestamp": "2026-06-01T08:51:36.423982+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 45
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 45
+      },
+      "timestamp": "2026-06-01T08:51:47.500011+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 46
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 46
+      },
+      "timestamp": "2026-06-01T08:51:58.357257+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 47
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 47
+      },
+      "timestamp": "2026-06-01T08:52:09.318058+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 48
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 48
+      },
+      "timestamp": "2026-06-01T08:52:20.424385+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 49
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 49
+      },
+      "timestamp": "2026-06-01T08:52:31.441255+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 50
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 50
+      },
+      "timestamp": "2026-06-01T08:52:42.372649+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 51
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 51
+      },
+      "timestamp": "2026-06-01T08:52:53.386519+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 52
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 52
+      },
+      "timestamp": "2026-06-01T08:53:04.410430+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 53
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 53
+      },
+      "timestamp": "2026-06-01T08:53:15.489768+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 54
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 54
+      },
+      "timestamp": "2026-06-01T08:53:26.487522+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 55
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 55
+      },
+      "timestamp": "2026-06-01T08:53:37.507879+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 56
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 56
+      },
+      "timestamp": "2026-06-01T08:53:48.647925+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 57
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 57
+      },
+      "timestamp": "2026-06-01T08:53:59.621892+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 58
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 58
+      },
+      "timestamp": "2026-06-01T08:54:10.703493+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 59
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 59
+      },
+      "timestamp": "2026-06-01T08:54:22.885945+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 60
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 60
+      },
+      "timestamp": "2026-06-01T08:54:33.772816+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 61
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 61
+      },
+      "timestamp": "2026-06-01T08:54:44.649163+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 62
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 62
+      },
+      "timestamp": "2026-06-01T08:54:55.558116+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 63
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 63
+      },
+      "timestamp": "2026-06-01T08:55:06.506734+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 64
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 64
+      },
+      "timestamp": "2026-06-01T08:55:17.482711+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 65
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 65
+      },
+      "timestamp": "2026-06-01T08:55:28.595310+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 66
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 66
+      },
+      "timestamp": "2026-06-01T08:55:39.699085+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 67
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 67
+      },
+      "timestamp": "2026-06-01T08:55:50.565399+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 68
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 68
+      },
+      "timestamp": "2026-06-01T08:56:01.551471+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 69
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 69
+      },
+      "timestamp": "2026-06-01T08:56:12.582326+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 70
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 70
+      },
+      "timestamp": "2026-06-01T08:56:23.573694+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 71
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 71
+      },
+      "timestamp": "2026-06-01T08:56:34.904402+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 72
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 72
+      },
+      "timestamp": "2026-06-01T08:56:45.766587+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 73
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 73
+      },
+      "timestamp": "2026-06-01T08:56:56.838413+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 74
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 74
+      },
+      "timestamp": "2026-06-01T08:57:08.078560+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 75
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 75
+      },
+      "timestamp": "2026-06-01T08:57:19.081912+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 76
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 76
+      },
+      "timestamp": "2026-06-01T08:57:30.218661+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 77
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 77
+      },
+      "timestamp": "2026-06-01T08:57:41.233497+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 78
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 78
+      },
+      "timestamp": "2026-06-01T08:57:52.135243+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 79
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 79
+      },
+      "timestamp": "2026-06-01T08:58:03.208698+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 80
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 80
+      },
+      "timestamp": "2026-06-01T08:58:14.084481+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 81
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 81
+      },
+      "timestamp": "2026-06-01T08:58:25.105675+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 82
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 82
+      },
+      "timestamp": "2026-06-01T08:58:36.346893+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 83
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 83
+      },
+      "timestamp": "2026-06-01T08:58:47.237484+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 84
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 84
+      },
+      "timestamp": "2026-06-01T08:58:58.251161+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 85
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 85
+      },
+      "timestamp": "2026-06-01T08:59:09.333497+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 86
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 86
+      },
+      "timestamp": "2026-06-01T08:59:20.308328+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 87
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 87
+      },
+      "timestamp": "2026-06-01T08:59:31.372980+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 88
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 88
+      },
+      "timestamp": "2026-06-01T08:59:42.280879+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 89
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 89
+      },
+      "timestamp": "2026-06-01T08:59:53.300154+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 90
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 90
+      },
+      "timestamp": "2026-06-01T09:00:04.240319+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 91
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 91
+      },
+      "timestamp": "2026-06-01T09:00:15.227381+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 92
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 92
+      },
+      "timestamp": "2026-06-01T09:00:26.285419+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 93
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 93
+      },
+      "timestamp": "2026-06-01T09:00:37.291743+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 94
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 94
+      },
+      "timestamp": "2026-06-01T09:00:48.229011+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 95
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 95
+      },
+      "timestamp": "2026-06-01T09:00:59.132895+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 96
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 96
+      },
+      "timestamp": "2026-06-01T09:01:10.123271+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 97
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 97
+      },
+      "timestamp": "2026-06-01T09:01:21.113982+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 98
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 98
+      },
+      "timestamp": "2026-06-01T09:01:32.140594+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 99
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 99
+      },
+      "timestamp": "2026-06-01T09:01:43.176226+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 100
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 100
+      },
+      "timestamp": "2026-06-01T09:01:54.049421+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 101
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 101
+      },
+      "timestamp": "2026-06-01T09:02:05.040794+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 102
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 102
+      },
+      "timestamp": "2026-06-01T09:02:16.015897+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 103
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 103
+      },
+      "timestamp": "2026-06-01T09:02:26.992331+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 104
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 104
+      },
+      "timestamp": "2026-06-01T09:02:37.953400+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 105
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 105
+      },
+      "timestamp": "2026-06-01T09:02:48.862737+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 106
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 106
+      },
+      "timestamp": "2026-06-01T09:02:59.751399+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 107
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 107
+      },
+      "timestamp": "2026-06-01T09:03:10.700195+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 108
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 108
+      },
+      "timestamp": "2026-06-01T09:03:21.677139+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 109
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 109
+      },
+      "timestamp": "2026-06-01T09:03:32.623898+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 110
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 110
+      },
+      "timestamp": "2026-06-01T09:03:44.718692+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 111
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 111
+      },
+      "timestamp": "2026-06-01T09:03:55.611511+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 112
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 112
+      },
+      "timestamp": "2026-06-01T09:04:06.584977+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 113
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 113
+      },
+      "timestamp": "2026-06-01T09:04:17.708572+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 114
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 114
+      },
+      "timestamp": "2026-06-01T09:04:28.556152+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 115
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 115
+      },
+      "timestamp": "2026-06-01T09:04:39.594366+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 116
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 116
+      },
+      "timestamp": "2026-06-01T09:04:50.548228+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 117
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 117
+      },
+      "timestamp": "2026-06-01T09:05:01.548173+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 118
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 118
+      },
+      "timestamp": "2026-06-01T09:05:12.728082+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 119
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 119
+      },
+      "timestamp": "2026-06-01T09:05:23.718486+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 120
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 120
+      },
+      "timestamp": "2026-06-01T09:05:34.767957+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 121
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 121
+      },
+      "timestamp": "2026-06-01T09:05:45.804860+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 122
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 122
+      },
+      "timestamp": "2026-06-01T09:05:56.820186+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 123
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 123
+      },
+      "timestamp": "2026-06-01T09:06:07.742561+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 124
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 124
+      },
+      "timestamp": "2026-06-01T09:06:18.775214+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 125
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 125
+      },
+      "timestamp": "2026-06-01T09:06:29.725186+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 126
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 126
+      },
+      "timestamp": "2026-06-01T09:06:40.705543+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 127
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 127
+      },
+      "timestamp": "2026-06-01T09:06:51.750558+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 128
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 128
+      },
+      "timestamp": "2026-06-01T09:07:02.718558+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 129
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 129
+      },
+      "timestamp": "2026-06-01T09:07:13.804256+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 130
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 130
+      },
+      "timestamp": "2026-06-01T09:07:24.825332+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 131
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 131
+      },
+      "timestamp": "2026-06-01T09:07:35.738835+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 132
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 132
+      },
+      "timestamp": "2026-06-01T09:07:46.778995+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 133
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 133
+      },
+      "timestamp": "2026-06-01T09:07:57.715496+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 134
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 134
+      },
+      "timestamp": "2026-06-01T09:08:08.739817+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 135
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 135
+      },
+      "timestamp": "2026-06-01T09:08:19.779239+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 136
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 136
+      },
+      "timestamp": "2026-06-01T09:08:31.113769+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 137
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 137
+      },
+      "timestamp": "2026-06-01T09:08:41.968645+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 138
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 138
+      },
+      "timestamp": "2026-06-01T09:08:52.922877+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 139
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 139
+      },
+      "timestamp": "2026-06-01T09:09:03.957123+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 140
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 140
+      },
+      "timestamp": "2026-06-01T09:09:14.934307+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 141
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 141
+      },
+      "timestamp": "2026-06-01T09:09:25.776336+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 142
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 142
+      },
+      "timestamp": "2026-06-01T09:09:36.782367+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 143
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 143
+      },
+      "timestamp": "2026-06-01T09:09:47.673207+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 144
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 144
+      },
+      "timestamp": "2026-06-01T09:09:58.750724+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 145
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 145
+      },
+      "timestamp": "2026-06-01T09:10:09.641105+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 146
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 146
+      },
+      "timestamp": "2026-06-01T09:10:20.591243+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 147
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 147
+      },
+      "timestamp": "2026-06-01T09:10:31.566939+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 148
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 148
+      },
+      "timestamp": "2026-06-01T09:10:42.623218+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 149
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 149
+      },
+      "timestamp": "2026-06-01T09:10:53.609419+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 150
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 150
+      },
+      "timestamp": "2026-06-01T09:11:04.666369+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 151
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 151
+      },
+      "timestamp": "2026-06-01T09:11:15.677784+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 152
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 152
+      },
+      "timestamp": "2026-06-01T09:11:26.644279+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 153
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 153
+      },
+      "timestamp": "2026-06-01T09:11:37.535715+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 154
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 154
+      },
+      "timestamp": "2026-06-01T09:11:48.565125+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 155
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 155
+      },
+      "timestamp": "2026-06-01T09:11:59.462002+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 156
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 156
+      },
+      "timestamp": "2026-06-01T09:12:10.403363+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 157
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 157
+      },
+      "timestamp": "2026-06-01T09:12:21.566711+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 158
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 158
+      },
+      "timestamp": "2026-06-01T09:12:32.485144+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 159
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 159
+      },
+      "timestamp": "2026-06-01T09:12:43.522140+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 160
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 160
+      },
+      "timestamp": "2026-06-01T09:12:54.535795+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 161
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 161
+      },
+      "timestamp": "2026-06-01T09:13:05.410810+00:00"
+    },
+    {
+      "name": "interaction_poll",
+      "input": {
+        "interaction_id": "v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0",
+        "poll_count": 162
+      },
+      "output_summary": "status=in_progress",
+      "metadata": {
+        "status": "in_progress",
+        "poll_count": 162
+      },
+      "timestamp": "2026-06-01T09:13:16.329697+00:00"
+    },
+    {
+      "name": "gemini_response_raw",
+      "input": null,
+      "output_summary": "Gemini response captured.",
+      "metadata": {
+        "raw_keys": [
+          "interaction_id",
+          "poll_history",
+          "final"
+        ]
+      },
+      "timestamp": "2026-06-01T09:13:16.331973+00:00"
+    },
+    {
+      "name": "citations",
+      "input": null,
+      "output_summary": "0 citations extracted.",
+      "metadata": {},
+      "timestamp": "2026-06-01T09:13:16.332022+00:00"
+    },
+    {
+      "name": "final_answer",
+      "input": null,
+      "output_summary": "",
+      "metadata": {
+        "chars": 0
+      },
+      "timestamp": "2026-06-01T09:13:16.332035+00:00"
+    }
+  ],
+  "citations": [],
+  "final_answer": "",
+  "raw_response_path": "output\\deep_research_retry_2\\gemini_run_raw.json",
+  "summary_path": "output\\deep_research_retry_2\\gemini_run_summary.md",
+  "html_log_viewer_path": "output\\deep_research_retry_2\\gemini_run_log_viewer.html",
+  "notes": [
+    "This run used Gemini Deep Research Agent via the Interactions API.",
+    "Timed out waiting for interaction v1_ChdGMFlkYXFPd09PN04xZThQX01xMDhBTRIXRjBZZGFxT3dPTzdOMWU4UF9NcTA4QU0 after 1800 seconds."
+  ]
+}

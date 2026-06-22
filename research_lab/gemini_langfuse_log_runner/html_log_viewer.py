@@ -5,10 +5,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from gemini_client import make_json_safe
 from schema import GeminiRunRecord, model_to_dict
 
 
 RAW_PREVIEW_CHARS = 20000
+OUTPUT_ENCODING = "utf-8-sig"
 
 
 def write_html_log_viewer(
@@ -19,17 +21,18 @@ def write_html_log_viewer(
     prompt_text: str,
     raw_response: dict[str, Any],
 ) -> None:
+    raw_response = make_json_safe(raw_response)
     raw_pretty = json.dumps(raw_response, ensure_ascii=False, indent=2, default=str)
     raw_preview = raw_pretty[:RAW_PREVIEW_CHARS]
     if len(raw_pretty) > RAW_PREVIEW_CHARS:
         raw_preview += "\n\n[Preview truncated. See output/gemini_run_raw.json for the full raw response.]"
 
     sections = [
-        ("Run Metadata", json.dumps(_metadata(record), ensure_ascii=False, indent=2)),
+        ("Run Metadata", json.dumps(make_json_safe(_metadata(record)), ensure_ascii=False, indent=2, default=str)),
         ("Mode Explanation", _mode_explanation(record.mode)),
         ("Financial Research Instruction", instruction_text),
         ("User Prompt", prompt_text),
-        ("Request Metadata", json.dumps(record.request_metadata, ensure_ascii=False, indent=2)),
+        ("Request Metadata", json.dumps(make_json_safe(record.request_metadata), ensure_ascii=False, indent=2, default=str)),
         ("Polling Events", _polling_events(record)),
         ("Events", json.dumps([model_to_dict(event) for event in record.events], ensure_ascii=False, indent=2)),
         ("Citations", json.dumps([model_to_dict(item) for item in record.citations], ensure_ascii=False, indent=2)),
@@ -146,7 +149,7 @@ def write_html_log_viewer(
 </body>
 </html>
 """
-    Path(output_path).write_text(document, encoding="utf-8")
+    Path(output_path).write_text(document, encoding=OUTPUT_ENCODING)
 
 
 def _section(title: str, content: str) -> str:

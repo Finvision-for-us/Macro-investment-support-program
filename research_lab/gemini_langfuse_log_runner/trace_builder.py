@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from gemini_client import make_json_safe
 from langfuse_client import LangfuseState, warn
 from schema import GeminiRunRecord, model_to_dict
 
@@ -133,7 +134,7 @@ def _build_trace_url(host: str | None, trace_id: str | None) -> str | None:
 def pretty(value: Any) -> str:
     if isinstance(value, str):
         return value
-    return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+    return json.dumps(make_json_safe(value), ensure_ascii=False, indent=2, default=str)
 
 
 def _trace_name(record: GeminiRunRecord) -> str:

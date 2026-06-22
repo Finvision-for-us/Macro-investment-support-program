@@ -1,0 +1,175 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="2">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gemini Live Log Viewer</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #627084;
+      --border: #d8dee8;
+      --accent: #1456d9;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, "Malgun Gothic", sans-serif;
+      line-height: 1.5;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+    }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 18px;
+    }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    h2 {
+      margin: 0;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fbfcfe;
+      border-bottom: 1px solid var(--border);
+    }
+    pre {
+      margin: 0;
+      padding: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow: auto;
+      font: 13px/1.55 Consolas, "Courier New", "Malgun Gothic", monospace;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .status {
+      display: inline-block;
+      margin-right: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: white;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Gemini Deep Research Live Log</h1>
+    <div class="meta"><span class="status">polling</span>Auto-refresh every 2s. Last updated: 2026-06-01T09:19:05.907745+00:00</div>
+    <div class="meta">JSONL: output\deep_research_retry_live\live_log.jsonl</div>
+  </header>
+  <main>
+    <section><h2>interaction_poll_result <span class="meta">2026-06-01T09:19:05.906000+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:19:05.906000+00:00&quot;,
+  &quot;event&quot;: &quot;interaction_poll_result&quot;,
+  &quot;poll_count&quot;: 4,
+  &quot;interaction_id&quot;: &quot;v1_ChdYRTRkYXFxQkpNaXJ2cjBQdE4tcW1RSRIXWEU0ZGFxcUJKTWlydnIwUHROLXFtUUk&quot;,
+  &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;summary&quot;: &quot;status=in_progress; keys=agent, created, id, model, object, outputs, previous_interaction_id, role, status, updated, usage&quot;
+}</pre></section>
+<section><h2>interaction_poll_result <span class="meta">2026-06-01T09:18:55.184292+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:18:55.184292+00:00&quot;,
+  &quot;event&quot;: &quot;interaction_poll_result&quot;,
+  &quot;poll_count&quot;: 3,
+  &quot;interaction_id&quot;: &quot;v1_ChdYRTRkYXFxQkpNaXJ2cjBQdE4tcW1RSRIXWEU0ZGFxcUJKTWlydnIwUHROLXFtUUk&quot;,
+  &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;summary&quot;: &quot;status=in_progress; keys=agent, created, id, model, object, outputs, previous_interaction_id, role, status, updated, usage&quot;
+}</pre></section>
+<section><h2>interaction_poll_result <span class="meta">2026-06-01T09:18:44.352465+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:18:44.352465+00:00&quot;,
+  &quot;event&quot;: &quot;interaction_poll_result&quot;,
+  &quot;poll_count&quot;: 2,
+  &quot;interaction_id&quot;: &quot;v1_ChdYRTRkYXFxQkpNaXJ2cjBQdE4tcW1RSRIXWEU0ZGFxcUJKTWlydnIwUHROLXFtUUk&quot;,
+  &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;summary&quot;: &quot;status=in_progress; keys=agent, created, id, model, object, outputs, previous_interaction_id, role, status, updated, usage&quot;
+}</pre></section>
+<section><h2>interaction_poll_result <span class="meta">2026-06-01T09:18:33.603530+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:18:33.603530+00:00&quot;,
+  &quot;event&quot;: &quot;interaction_poll_result&quot;,
+  &quot;poll_count&quot;: 1,
+  &quot;interaction_id&quot;: &quot;v1_ChdYRTRkYXFxQkpNaXJ2cjBQdE4tcW1RSRIXWEU0ZGFxcUJKTWlydnIwUHROLXFtUUk&quot;,
+  &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;summary&quot;: &quot;status=in_progress; keys=agent, created, id, model, object, outputs, previous_interaction_id, role, status, updated, usage&quot;
+}</pre></section>
+<section><h2>interaction_poll_result <span class="meta">2026-06-01T09:18:22.756053+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:18:22.756053+00:00&quot;,
+  &quot;event&quot;: &quot;interaction_poll_result&quot;,
+  &quot;poll_count&quot;: 0,
+  &quot;interaction_id&quot;: &quot;v1_ChdYRTRkYXFxQkpNaXJ2cjBQdE4tcW1RSRIXWEU0ZGFxcUJKTWlydnIwUHROLXFtUUk&quot;,
+  &quot;status&quot;: &quot;in_progress&quot;,
+  &quot;summary&quot;: &quot;status=in_progress; keys=agent, created, id, model, object, outputs, previous_interaction_id, role, status, updated, usage&quot;
+}</pre></section>
+<section><h2>interaction_poll_started <span class="meta">2026-06-01T09:18:22.751642+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:18:22.751642+00:00&quot;,
+  &quot;event&quot;: &quot;interaction_poll_started&quot;,
+  &quot;interaction_id&quot;: &quot;v1_ChdYRTRkYXFxQkpNaXJ2cjBQdE4tcW1RSRIXWEU0ZGFxcUJKTWlydnIwUHROLXFtUUk&quot;,
+  &quot;poll_interval&quot;: 10.0,
+  &quot;timeout_seconds&quot;: 1800
+}</pre></section>
+<section><h2>interaction_created <span class="meta">2026-06-01T09:18:22.746414+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:18:22.746414+00:00&quot;,
+  &quot;event&quot;: &quot;interaction_created&quot;,
+  &quot;interaction_id&quot;: &quot;v1_ChdYRTRkYXFxQkpNaXJ2cjBQdE4tcW1RSRIXWEU0ZGFxcUJKTWlydnIwUHROLXFtUUk&quot;,
+  &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;
+}</pre></section>
+<section><h2>gemini_request_prepared <span class="meta">2026-06-01T09:18:12.530303+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:18:12.530303+00:00&quot;,
+  &quot;event&quot;: &quot;gemini_request_prepared&quot;,
+  &quot;mode&quot;: &quot;deep-research&quot;,
+  &quot;model&quot;: &quot;&quot;,
+  &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+  &quot;poll_interval&quot;: 10.0,
+  &quot;timeout&quot;: 1800
+}</pre></section>
+<section><h2>prompt_loaded <span class="meta">2026-06-01T09:18:12.526542+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:18:12.526542+00:00&quot;,
+  &quot;event&quot;: &quot;prompt_loaded&quot;,
+  &quot;path&quot;: &quot;prompts\\user_questions\\indi_wuxi.txt&quot;,
+  &quot;chars&quot;: 119,
+  &quot;preview&quot;: &quot;INDI Semiconductor의 Wuxi 매각과 자회사 관련 이슈에 대해 분석해줘.\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.\n&quot;
+}</pre></section>
+<section><h2>instruction_loaded <span class="meta">2026-06-01T09:18:12.517269+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:18:12.517269+00:00&quot;,
+  &quot;event&quot;: &quot;instruction_loaded&quot;,
+  &quot;path&quot;: &quot;prompts\\financial_research_instruction.txt&quot;,
+  &quot;chars&quot;: 1091
+}</pre></section>
+<section><h2>run_started <span class="meta">2026-06-01T09:18:12.272553+00:00</span></h2><pre>{
+  &quot;timestamp&quot;: &quot;2026-06-01T09:18:12.272553+00:00&quot;,
+  &quot;event&quot;: &quot;run_started&quot;,
+  &quot;metadata&quot;: {
+    &quot;run_id&quot;: &quot;20260601T091812Z-b2e687dc&quot;,
+    &quot;mode&quot;: &quot;deep-research&quot;,
+    &quot;model&quot;: &quot;&quot;,
+    &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+    &quot;output_dir&quot;: &quot;output\\deep_research_retry_live&quot;,
+    &quot;live_log_jsonl&quot;: &quot;output\\deep_research_retry_live\\live_log.jsonl&quot;,
+    &quot;live_log_viewer&quot;: &quot;output\\deep_research_retry_live\\live_log_viewer.html&quot;
+  }
+}</pre></section>
+  </main>
+</body>
+</html>

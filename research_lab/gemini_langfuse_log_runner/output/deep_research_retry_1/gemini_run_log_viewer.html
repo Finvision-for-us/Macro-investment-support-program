@@ -1,0 +1,2387 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gemini Deep Research Log Viewer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #607080;
+      --border: #d8dee8;
+      --accent: #1456d9;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, "Malgun Gothic", sans-serif;
+      line-height: 1.5;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 16px 22px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    h2 {
+      margin: 0;
+      padding: 12px 14px;
+      font-size: 15px;
+      border-bottom: 1px solid var(--border);
+      background: #fbfcfe;
+    }
+    pre {
+      margin: 0;
+      padding: 14px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 13px/1.55 Consolas, "Courier New", "Malgun Gothic", monospace;
+    }
+    button {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: white;
+      border-radius: 6px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Gemini Deep Research Log Viewer</h1>
+      <div class="meta">Drag any block to copy. Copy All is optional.</div>
+    </div>
+    <button type="button" onclick="copyAll()">Copy All</button>
+  </header>
+  <main>
+    <section><h2>Run Metadata</h2><pre>{
+  &quot;run_id&quot;: &quot;20260601T082619Z-b40b4566&quot;,
+  &quot;query&quot;: &quot;INDI Semiconductor의 Wuxi 매각이 투자 관점에서 어떤 의미인지 분석해줘.\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.&quot;,
+  &quot;instruction_path&quot;: &quot;prompts\\financial_research_instruction.txt&quot;,
+  &quot;prompt_path&quot;: &quot;prompts\\user_questions\\indi_wuxi.txt&quot;,
+  &quot;mode&quot;: &quot;deep-research&quot;,
+  &quot;model&quot;: &quot;&quot;,
+  &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+  &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+  &quot;poll_count&quot;: 55,
+  &quot;polling_interval_seconds&quot;: 10.0,
+  &quot;timeout_seconds&quot;: 600,
+  &quot;started_at&quot;: &quot;2026-06-01T08:26:19.462707+00:00&quot;,
+  &quot;ended_at&quot;: &quot;2026-06-01T08:36:30.982822+00:00&quot;,
+  &quot;status&quot;: &quot;error&quot;,
+  &quot;request_metadata&quot;: {
+    &quot;mode&quot;: &quot;deep-research&quot;,
+    &quot;api&quot;: &quot;interactions&quot;,
+    &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+    &quot;background&quot;: true,
+    &quot;store&quot;: true,
+    &quot;agent_config&quot;: {
+      &quot;type&quot;: &quot;deep-research&quot;,
+      &quot;thinking_summaries&quot;: &quot;auto&quot;,
+      &quot;visualization&quot;: &quot;auto&quot;,
+      &quot;collaborative_planning&quot;: false
+    },
+    &quot;instruction_chars&quot;: 1091,
+    &quot;prompt_chars&quot;: 121,
+    &quot;mode_explanation&quot;: &quot;This run used Gemini Deep Research Agent via the Interactions API.&quot;
+  },
+  &quot;raw_response_path&quot;: &quot;output\\deep_research_retry_1\\gemini_run_raw.json&quot;,
+  &quot;summary_path&quot;: &quot;output\\deep_research_retry_1\\gemini_run_summary.md&quot;,
+  &quot;html_log_viewer_path&quot;: &quot;output\\deep_research_retry_1\\gemini_run_log_viewer.html&quot;,
+  &quot;notes&quot;: [
+    &quot;This run used Gemini Deep Research Agent via the Interactions API.&quot;,
+    &quot;Timed out waiting for interaction v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk after 600 seconds.&quot;
+  ]
+}</pre></section>
+<section><h2>Mode Explanation</h2><pre>This run used Gemini Deep Research Agent via the Interactions API.</pre></section>
+<section><h2>Financial Research Instruction</h2><pre>너는 글로벌 주식 리서치 애널리스트다.
+목표는 투자 판단 보조 보고서를 작성하는 것이다.
+확정적인 매수/매도 추천을 하지 않는다.
+
+분석 원칙:
+1. 사용자의 질문에서 ticker, company, event, country, jurisdiction을 식별한다.
+2. 미국 상장사는 SEC 공식 자료를 우선 확인한다.
+   - 10-K
+   - 10-Q
+   - 8-K
+   - Form 4
+   - proxy filing
+3. 내부자 거래, 임원 매도/매수, RSU, 10b5-1 관련 질문은 SEC Form 4를 우선 확인한다.
+4. 매각, 인수, 자산매각, 사업부 매각, 합작, 공장 증설, 규제, 수출통제 같은 이벤트는 관련 국가의 공식 자료도 확인한다.
+5. 중국 관련 이슈는 다음을 우선 확인한다.
+   - CSRC
+   - Shanghai Stock Exchange
+   - Shenzhen Stock Exchange
+   - Beijing Stock Exchange
+   - HKEX
+   - 중국어 원문 검색
+6. 한국 관련 이슈는 DART, KRX를 확인한다.
+7. 일본 관련 이슈는 EDINET, JPX를 확인한다.
+8. 공식 출처, 회사 IR/보도자료, 주요 금융뉴스, 일반 웹자료를 구분한다.
+9. 확인된 사실과 확인되지 않은 사항을 분리한다.
+10. 출처가 부족한 내용은 추측하지 말고 &quot;확인되지 않음&quot;으로 표시한다.
+11. 추론은 추론이라고 명시한다.
+12. 호재, 악재, 불확실성을 분리한다.
+13. 투자자가 추가로 확인해야 할 체크포인트를 제시한다.
+14. 최종 결론은 매수/매도 지시가 아니라 근거와 리스크 중심으로 작성한다.
+
+출력 구조:
+1. 핵심 결론
+2. 확인된 사실
+3. 공식 출처 기반 근거
+4. 해외/현지어 출처 확인 결과
+5. 교차검증 결과
+6. 재무/사업 영향
+7. 투자 리스크
+8. 확인되지 않은 사항
+9. 추가 확인 체크포인트
+10. 사용한 주요 출처 목록
+
+로그 관측 요구:
+- 사용한 주요 검색 방향과 공식 출처를 답변에 드러내라.
+- 출처 URL이나 citation이 제공 가능하면 답변 하단에 정리하라.
+- 모델 내부 사고 과정이나 비공개 chain-of-thought는 출력하지 않는다.
+</pre></section>
+<section><h2>User Prompt</h2><pre>INDI Semiconductor의 Wuxi 매각이 투자 관점에서 어떤 의미인지 분석해줘.
+미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,
+확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.
+</pre></section>
+<section><h2>Request Metadata</h2><pre>{
+  &quot;mode&quot;: &quot;deep-research&quot;,
+  &quot;api&quot;: &quot;interactions&quot;,
+  &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+  &quot;background&quot;: true,
+  &quot;store&quot;: true,
+  &quot;agent_config&quot;: {
+    &quot;type&quot;: &quot;deep-research&quot;,
+    &quot;thinking_summaries&quot;: &quot;auto&quot;,
+    &quot;visualization&quot;: &quot;auto&quot;,
+    &quot;collaborative_planning&quot;: false
+  },
+  &quot;instruction_chars&quot;: 1091,
+  &quot;prompt_chars&quot;: 121,
+  &quot;mode_explanation&quot;: &quot;This run used Gemini Deep Research Agent via the Interactions API.&quot;
+}</pre></section>
+<section><h2>Polling Events</h2><pre>[
+  {
+    &quot;name&quot;: &quot;interaction_create&quot;,
+    &quot;input&quot;: {
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;background&quot;: true
+    },
+    &quot;output_summary&quot;: &quot;interaction_id=v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+    &quot;metadata&quot;: {},
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:29.532359+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 0
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 0
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:29.532518+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 1
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 1
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:40.342469+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 2
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 2
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:51.195748+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 3
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 3
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:02.049954+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 4
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 4
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:12.764391+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 5
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 5
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:23.496352+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 6
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 6
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:34.269830+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 7
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 7
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:43.859907+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 8
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 8
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:54.540960+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 9
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 9
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:05.548734+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 10
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 10
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:16.327761+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 11
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 11
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:27.310565+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 12
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 12
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:38.174275+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 13
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 13
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:49.111316+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 14
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 14
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:59.936365+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 15
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 15
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:29:10.755526+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 16
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 16
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:29:21.635603+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 17
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 17
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:29:32.498171+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 18
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 18
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:29:43.462919+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 19
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 19
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:29:54.331222+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 20
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 20
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:30:05.532260+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 21
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 21
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:30:16.455212+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 22
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 22
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:30:27.414532+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 23
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 23
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:30:38.316215+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 24
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 24
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:30:49.250439+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 25
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 25
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:00.085102+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 26
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 26
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:10.980223+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 27
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 27
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:21.941456+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 28
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 28
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:32.870505+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 29
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 29
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:43.791182+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 30
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 30
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:54.802126+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 31
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 31
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:32:05.721020+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 32
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 32
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:32:16.656921+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 33
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 33
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:32:27.588161+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 34
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 34
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:32:38.544849+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 35
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 35
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:32:49.403582+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 36
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 36
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:00.573316+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 37
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 37
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:11.400150+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 38
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 38
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:22.307889+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 39
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 39
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:33.359045+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 40
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 40
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:44.325175+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 41
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 41
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:55.236853+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 42
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 42
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:34:06.132219+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 43
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 43
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:34:17.011059+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 44
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 44
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:34:28.187826+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 45
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 45
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:34:39.104871+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 46
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 46
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:34:50.147906+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 47
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 47
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:01.099978+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 48
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 48
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:12.488107+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 49
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 49
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:23.671367+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 50
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 50
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:34.808720+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 51
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 51
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:46.035872+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 52
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 52
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:57.503437+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 53
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 53
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:36:08.671632+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 54
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 54
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:36:19.816371+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 55
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 55
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:36:30.981708+00:00&quot;
+  }
+]</pre></section>
+<section><h2>Events</h2><pre>[
+  {
+    &quot;name&quot;: &quot;financial_instruction&quot;,
+    &quot;input&quot;: null,
+    &quot;output_summary&quot;: &quot;1091 chars loaded.&quot;,
+    &quot;metadata&quot;: {
+      &quot;path&quot;: &quot;prompts\\financial_research_instruction.txt&quot;
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:19.464217+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;user_prompt&quot;,
+    &quot;input&quot;: null,
+    &quot;output_summary&quot;: &quot;INDI Semiconductor의 Wuxi 매각이 투자 관점에서 어떤 의미인지 분석해줘.\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.\n&quot;,
+    &quot;metadata&quot;: {
+      &quot;path&quot;: &quot;prompts\\user_questions\\indi_wuxi.txt&quot;
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:19.464308+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;mode_explanation&quot;,
+    &quot;input&quot;: null,
+    &quot;output_summary&quot;: &quot;This run used Gemini Deep Research Agent via the Interactions API.&quot;,
+    &quot;metadata&quot;: {
+      &quot;mode&quot;: &quot;deep-research&quot;
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:19.464320+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;gemini_request&quot;,
+    &quot;input&quot;: {
+      &quot;mode&quot;: &quot;deep-research&quot;,
+      &quot;model&quot;: &quot;&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;prompt&quot;: &quot;INDI Semiconductor의 Wuxi 매각이 투자 관점에서 어떤 의미인지 분석해줘.\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.\n&quot;
+    },
+    &quot;output_summary&quot;: &quot;Gemini request prepared.&quot;,
+    &quot;metadata&quot;: {
+      &quot;mode&quot;: &quot;deep-research&quot;,
+      &quot;model&quot;: &quot;&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:19.464328+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;mode_explanation&quot;,
+    &quot;input&quot;: null,
+    &quot;output_summary&quot;: &quot;This run used Gemini Deep Research Agent via the Interactions API.&quot;,
+    &quot;metadata&quot;: {
+      &quot;mode&quot;: &quot;deep-research&quot;
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:19.472894+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_create&quot;,
+    &quot;input&quot;: {
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;background&quot;: true
+    },
+    &quot;output_summary&quot;: &quot;interaction_id=v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+    &quot;metadata&quot;: {},
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:29.532359+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 0
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 0
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:29.532518+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 1
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 1
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:40.342469+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 2
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 2
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:26:51.195748+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 3
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 3
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:02.049954+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 4
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 4
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:12.764391+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 5
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 5
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:23.496352+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 6
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 6
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:34.269830+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 7
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 7
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:43.859907+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 8
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 8
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:27:54.540960+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 9
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 9
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:05.548734+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 10
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 10
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:16.327761+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 11
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 11
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:27.310565+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 12
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 12
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:38.174275+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 13
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 13
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:49.111316+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 14
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 14
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:28:59.936365+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 15
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 15
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:29:10.755526+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 16
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 16
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:29:21.635603+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 17
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 17
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:29:32.498171+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 18
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 18
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:29:43.462919+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 19
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 19
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:29:54.331222+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 20
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 20
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:30:05.532260+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 21
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 21
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:30:16.455212+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 22
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 22
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:30:27.414532+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 23
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 23
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:30:38.316215+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 24
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 24
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:30:49.250439+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 25
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 25
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:00.085102+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 26
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 26
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:10.980223+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 27
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 27
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:21.941456+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 28
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 28
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:32.870505+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 29
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 29
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:43.791182+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 30
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 30
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:31:54.802126+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 31
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 31
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:32:05.721020+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 32
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 32
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:32:16.656921+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 33
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 33
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:32:27.588161+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 34
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 34
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:32:38.544849+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 35
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 35
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:32:49.403582+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 36
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 36
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:00.573316+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 37
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 37
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:11.400150+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 38
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 38
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:22.307889+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 39
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 39
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:33.359045+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 40
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 40
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:44.325175+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 41
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 41
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:33:55.236853+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 42
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 42
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:34:06.132219+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 43
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 43
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:34:17.011059+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 44
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 44
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:34:28.187826+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 45
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 45
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:34:39.104871+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 46
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 46
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:34:50.147906+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 47
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 47
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:01.099978+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 48
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 48
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:12.488107+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 49
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 49
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:23.671367+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 50
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 50
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:34.808720+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 51
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 51
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:46.035872+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 52
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 52
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:35:57.503437+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 53
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 53
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:36:08.671632+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 54
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 54
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:36:19.816371+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;interaction_poll&quot;,
+    &quot;input&quot;: {
+      &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;poll_count&quot;: 55
+    },
+    &quot;output_summary&quot;: &quot;status=in_progress&quot;,
+    &quot;metadata&quot;: {
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;poll_count&quot;: 55
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:36:30.981708+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;gemini_response_raw&quot;,
+    &quot;input&quot;: null,
+    &quot;output_summary&quot;: &quot;Gemini response captured.&quot;,
+    &quot;metadata&quot;: {
+      &quot;raw_keys&quot;: [
+        &quot;interaction_id&quot;,
+        &quot;poll_history&quot;,
+        &quot;final&quot;
+      ]
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:36:30.982641+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;citations&quot;,
+    &quot;input&quot;: null,
+    &quot;output_summary&quot;: &quot;0 citations extracted.&quot;,
+    &quot;metadata&quot;: {},
+    &quot;timestamp&quot;: &quot;2026-06-01T08:36:30.982709+00:00&quot;
+  },
+  {
+    &quot;name&quot;: &quot;final_answer&quot;,
+    &quot;input&quot;: null,
+    &quot;output_summary&quot;: &quot;&quot;,
+    &quot;metadata&quot;: {
+      &quot;chars&quot;: 0
+    },
+    &quot;timestamp&quot;: &quot;2026-06-01T08:36:30.982746+00:00&quot;
+  }
+]</pre></section>
+<section><h2>Citations</h2><pre>[]</pre></section>
+<section><h2>Final Answer</h2><pre>(empty)</pre></section>
+<section><h2>Raw Response Preview</h2><pre>{
+  &quot;interaction_id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+  &quot;poll_history&quot;: [
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+      &quot;outputs&quot;: null,
+      &quot;previous_interaction_id&quot;: null,
+      &quot;role&quot;: &quot;agent&quot;,
+      &quot;updated&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;usage&quot;: null,
+      &quot;object&quot;: &quot;interaction&quot;
+    },
+    {
+      &quot;id&quot;: &quot;v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk&quot;,
+      &quot;status&quot;: &quot;in_progress&quot;,
+      &quot;agent&quot;: &quot;deep-research-preview-04-2026&quot;,
+      &quot;created&quot;: &quot;2026-06-01T08:26:28+00:00&quot;,
+      &quot;model&quot;: null,
+    
+
+[Preview truncated. See output/gemini_run_raw.json for the full raw response.]</pre></section>
+<section><h2>Errors/Notes</h2><pre>This run used Gemini Deep Research Agent via the Interactions API.
+Timed out waiting for interaction v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk after 600 seconds.</pre></section>
+  </main>
+  <script>
+    const COPY_ALL_TEXT = "## Run Metadata\n{\n  \"run_id\": \"20260601T082619Z-b40b4566\",\n  \"query\": \"INDI Semiconductor의 Wuxi 매각이 투자 관점에서 어떤 의미인지 분석해줘.\\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.\",\n  \"instruction_path\": \"prompts\\\\financial_research_instruction.txt\",\n  \"prompt_path\": \"prompts\\\\user_questions\\\\indi_wuxi.txt\",\n  \"mode\": \"deep-research\",\n  \"model\": \"\",\n  \"agent\": \"deep-research-preview-04-2026\",\n  \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n  \"poll_count\": 55,\n  \"polling_interval_seconds\": 10.0,\n  \"timeout_seconds\": 600,\n  \"started_at\": \"2026-06-01T08:26:19.462707+00:00\",\n  \"ended_at\": \"2026-06-01T08:36:30.982822+00:00\",\n  \"status\": \"error\",\n  \"request_metadata\": {\n    \"mode\": \"deep-research\",\n    \"api\": \"interactions\",\n    \"agent\": \"deep-research-preview-04-2026\",\n    \"background\": true,\n    \"store\": true,\n    \"agent_config\": {\n      \"type\": \"deep-research\",\n      \"thinking_summaries\": \"auto\",\n      \"visualization\": \"auto\",\n      \"collaborative_planning\": false\n    },\n    \"instruction_chars\": 1091,\n    \"prompt_chars\": 121,\n    \"mode_explanation\": \"This run used Gemini Deep Research Agent via the Interactions API.\"\n  },\n  \"raw_response_path\": \"output\\\\deep_research_retry_1\\\\gemini_run_raw.json\",\n  \"summary_path\": \"output\\\\deep_research_retry_1\\\\gemini_run_summary.md\",\n  \"html_log_viewer_path\": \"output\\\\deep_research_retry_1\\\\gemini_run_log_viewer.html\",\n  \"notes\": [\n    \"This run used Gemini Deep Research Agent via the Interactions API.\",\n    \"Timed out waiting for interaction v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk after 600 seconds.\"\n  ]\n}\n\n## Mode Explanation\nThis run used Gemini Deep Research Agent via the Interactions API.\n\n## Financial Research Instruction\n너는 글로벌 주식 리서치 애널리스트다.\n목표는 투자 판단 보조 보고서를 작성하는 것이다.\n확정적인 매수/매도 추천을 하지 않는다.\n\n분석 원칙:\n1. 사용자의 질문에서 ticker, company, event, country, jurisdiction을 식별한다.\n2. 미국 상장사는 SEC 공식 자료를 우선 확인한다.\n   - 10-K\n   - 10-Q\n   - 8-K\n   - Form 4\n   - proxy filing\n3. 내부자 거래, 임원 매도/매수, RSU, 10b5-1 관련 질문은 SEC Form 4를 우선 확인한다.\n4. 매각, 인수, 자산매각, 사업부 매각, 합작, 공장 증설, 규제, 수출통제 같은 이벤트는 관련 국가의 공식 자료도 확인한다.\n5. 중국 관련 이슈는 다음을 우선 확인한다.\n   - CSRC\n   - Shanghai Stock Exchange\n   - Shenzhen Stock Exchange\n   - Beijing Stock Exchange\n   - HKEX\n   - 중국어 원문 검색\n6. 한국 관련 이슈는 DART, KRX를 확인한다.\n7. 일본 관련 이슈는 EDINET, JPX를 확인한다.\n8. 공식 출처, 회사 IR/보도자료, 주요 금융뉴스, 일반 웹자료를 구분한다.\n9. 확인된 사실과 확인되지 않은 사항을 분리한다.\n10. 출처가 부족한 내용은 추측하지 말고 \"확인되지 않음\"으로 표시한다.\n11. 추론은 추론이라고 명시한다.\n12. 호재, 악재, 불확실성을 분리한다.\n13. 투자자가 추가로 확인해야 할 체크포인트를 제시한다.\n14. 최종 결론은 매수/매도 지시가 아니라 근거와 리스크 중심으로 작성한다.\n\n출력 구조:\n1. 핵심 결론\n2. 확인된 사실\n3. 공식 출처 기반 근거\n4. 해외/현지어 출처 확인 결과\n5. 교차검증 결과\n6. 재무/사업 영향\n7. 투자 리스크\n8. 확인되지 않은 사항\n9. 추가 확인 체크포인트\n10. 사용한 주요 출처 목록\n\n로그 관측 요구:\n- 사용한 주요 검색 방향과 공식 출처를 답변에 드러내라.\n- 출처 URL이나 citation이 제공 가능하면 답변 하단에 정리하라.\n- 모델 내부 사고 과정이나 비공개 chain-of-thought는 출력하지 않는다.\n\n\n## User Prompt\nINDI Semiconductor의 Wuxi 매각이 투자 관점에서 어떤 의미인지 분석해줘.\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.\n\n\n## Request Metadata\n{\n  \"mode\": \"deep-research\",\n  \"api\": \"interactions\",\n  \"agent\": \"deep-research-preview-04-2026\",\n  \"background\": true,\n  \"store\": true,\n  \"agent_config\": {\n    \"type\": \"deep-research\",\n    \"thinking_summaries\": \"auto\",\n    \"visualization\": \"auto\",\n    \"collaborative_planning\": false\n  },\n  \"instruction_chars\": 1091,\n  \"prompt_chars\": 121,\n  \"mode_explanation\": \"This run used Gemini Deep Research Agent via the Interactions API.\"\n}\n\n## Polling Events\n[\n  {\n    \"name\": \"interaction_create\",\n    \"input\": {\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"background\": true\n    },\n    \"output_summary\": \"interaction_id=v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n    \"metadata\": {},\n    \"timestamp\": \"2026-06-01T08:26:29.532359+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 0\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 0\n    },\n    \"timestamp\": \"2026-06-01T08:26:29.532518+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 1\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 1\n    },\n    \"timestamp\": \"2026-06-01T08:26:40.342469+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 2\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 2\n    },\n    \"timestamp\": \"2026-06-01T08:26:51.195748+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 3\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 3\n    },\n    \"timestamp\": \"2026-06-01T08:27:02.049954+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 4\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 4\n    },\n    \"timestamp\": \"2026-06-01T08:27:12.764391+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 5\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 5\n    },\n    \"timestamp\": \"2026-06-01T08:27:23.496352+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 6\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 6\n    },\n    \"timestamp\": \"2026-06-01T08:27:34.269830+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 7\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 7\n    },\n    \"timestamp\": \"2026-06-01T08:27:43.859907+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 8\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 8\n    },\n    \"timestamp\": \"2026-06-01T08:27:54.540960+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 9\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 9\n    },\n    \"timestamp\": \"2026-06-01T08:28:05.548734+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 10\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 10\n    },\n    \"timestamp\": \"2026-06-01T08:28:16.327761+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 11\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 11\n    },\n    \"timestamp\": \"2026-06-01T08:28:27.310565+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 12\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 12\n    },\n    \"timestamp\": \"2026-06-01T08:28:38.174275+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 13\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 13\n    },\n    \"timestamp\": \"2026-06-01T08:28:49.111316+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 14\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 14\n    },\n    \"timestamp\": \"2026-06-01T08:28:59.936365+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 15\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 15\n    },\n    \"timestamp\": \"2026-06-01T08:29:10.755526+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 16\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 16\n    },\n    \"timestamp\": \"2026-06-01T08:29:21.635603+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 17\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 17\n    },\n    \"timestamp\": \"2026-06-01T08:29:32.498171+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 18\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 18\n    },\n    \"timestamp\": \"2026-06-01T08:29:43.462919+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 19\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 19\n    },\n    \"timestamp\": \"2026-06-01T08:29:54.331222+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 20\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 20\n    },\n    \"timestamp\": \"2026-06-01T08:30:05.532260+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 21\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 21\n    },\n    \"timestamp\": \"2026-06-01T08:30:16.455212+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 22\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 22\n    },\n    \"timestamp\": \"2026-06-01T08:30:27.414532+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 23\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 23\n    },\n    \"timestamp\": \"2026-06-01T08:30:38.316215+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 24\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 24\n    },\n    \"timestamp\": \"2026-06-01T08:30:49.250439+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 25\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 25\n    },\n    \"timestamp\": \"2026-06-01T08:31:00.085102+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 26\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 26\n    },\n    \"timestamp\": \"2026-06-01T08:31:10.980223+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 27\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 27\n    },\n    \"timestamp\": \"2026-06-01T08:31:21.941456+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 28\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 28\n    },\n    \"timestamp\": \"2026-06-01T08:31:32.870505+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 29\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 29\n    },\n    \"timestamp\": \"2026-06-01T08:31:43.791182+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 30\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 30\n    },\n    \"timestamp\": \"2026-06-01T08:31:54.802126+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 31\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 31\n    },\n    \"timestamp\": \"2026-06-01T08:32:05.721020+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 32\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 32\n    },\n    \"timestamp\": \"2026-06-01T08:32:16.656921+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 33\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 33\n    },\n    \"timestamp\": \"2026-06-01T08:32:27.588161+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 34\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 34\n    },\n    \"timestamp\": \"2026-06-01T08:32:38.544849+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 35\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 35\n    },\n    \"timestamp\": \"2026-06-01T08:32:49.403582+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 36\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 36\n    },\n    \"timestamp\": \"2026-06-01T08:33:00.573316+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 37\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 37\n    },\n    \"timestamp\": \"2026-06-01T08:33:11.400150+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 38\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 38\n    },\n    \"timestamp\": \"2026-06-01T08:33:22.307889+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 39\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 39\n    },\n    \"timestamp\": \"2026-06-01T08:33:33.359045+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 40\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 40\n    },\n    \"timestamp\": \"2026-06-01T08:33:44.325175+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 41\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 41\n    },\n    \"timestamp\": \"2026-06-01T08:33:55.236853+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 42\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 42\n    },\n    \"timestamp\": \"2026-06-01T08:34:06.132219+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 43\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 43\n    },\n    \"timestamp\": \"2026-06-01T08:34:17.011059+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 44\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 44\n    },\n    \"timestamp\": \"2026-06-01T08:34:28.187826+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 45\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 45\n    },\n    \"timestamp\": \"2026-06-01T08:34:39.104871+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 46\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 46\n    },\n    \"timestamp\": \"2026-06-01T08:34:50.147906+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 47\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 47\n    },\n    \"timestamp\": \"2026-06-01T08:35:01.099978+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 48\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 48\n    },\n    \"timestamp\": \"2026-06-01T08:35:12.488107+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 49\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 49\n    },\n    \"timestamp\": \"2026-06-01T08:35:23.671367+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 50\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 50\n    },\n    \"timestamp\": \"2026-06-01T08:35:34.808720+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 51\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 51\n    },\n    \"timestamp\": \"2026-06-01T08:35:46.035872+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 52\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 52\n    },\n    \"timestamp\": \"2026-06-01T08:35:57.503437+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 53\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 53\n    },\n    \"timestamp\": \"2026-06-01T08:36:08.671632+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 54\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 54\n    },\n    \"timestamp\": \"2026-06-01T08:36:19.816371+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 55\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 55\n    },\n    \"timestamp\": \"2026-06-01T08:36:30.981708+00:00\"\n  }\n]\n\n## Events\n[\n  {\n    \"name\": \"financial_instruction\",\n    \"input\": null,\n    \"output_summary\": \"1091 chars loaded.\",\n    \"metadata\": {\n      \"path\": \"prompts\\\\financial_research_instruction.txt\"\n    },\n    \"timestamp\": \"2026-06-01T08:26:19.464217+00:00\"\n  },\n  {\n    \"name\": \"user_prompt\",\n    \"input\": null,\n    \"output_summary\": \"INDI Semiconductor의 Wuxi 매각이 투자 관점에서 어떤 의미인지 분석해줘.\\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.\\n\",\n    \"metadata\": {\n      \"path\": \"prompts\\\\user_questions\\\\indi_wuxi.txt\"\n    },\n    \"timestamp\": \"2026-06-01T08:26:19.464308+00:00\"\n  },\n  {\n    \"name\": \"mode_explanation\",\n    \"input\": null,\n    \"output_summary\": \"This run used Gemini Deep Research Agent via the Interactions API.\",\n    \"metadata\": {\n      \"mode\": \"deep-research\"\n    },\n    \"timestamp\": \"2026-06-01T08:26:19.464320+00:00\"\n  },\n  {\n    \"name\": \"gemini_request\",\n    \"input\": {\n      \"mode\": \"deep-research\",\n      \"model\": \"\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"prompt\": \"INDI Semiconductor의 Wuxi 매각이 투자 관점에서 어떤 의미인지 분석해줘.\\n미국 SEC 자료와 중국 쪽 공식 공시/거래소 자료를 함께 확인하고,\\n확인된 사실과 확인되지 않은 사항을 분리해서 정리해줘.\\n\"\n    },\n    \"output_summary\": \"Gemini request prepared.\",\n    \"metadata\": {\n      \"mode\": \"deep-research\",\n      \"model\": \"\",\n      \"agent\": \"deep-research-preview-04-2026\"\n    },\n    \"timestamp\": \"2026-06-01T08:26:19.464328+00:00\"\n  },\n  {\n    \"name\": \"mode_explanation\",\n    \"input\": null,\n    \"output_summary\": \"This run used Gemini Deep Research Agent via the Interactions API.\",\n    \"metadata\": {\n      \"mode\": \"deep-research\"\n    },\n    \"timestamp\": \"2026-06-01T08:26:19.472894+00:00\"\n  },\n  {\n    \"name\": \"interaction_create\",\n    \"input\": {\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"background\": true\n    },\n    \"output_summary\": \"interaction_id=v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n    \"metadata\": {},\n    \"timestamp\": \"2026-06-01T08:26:29.532359+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 0\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 0\n    },\n    \"timestamp\": \"2026-06-01T08:26:29.532518+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 1\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 1\n    },\n    \"timestamp\": \"2026-06-01T08:26:40.342469+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 2\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 2\n    },\n    \"timestamp\": \"2026-06-01T08:26:51.195748+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 3\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 3\n    },\n    \"timestamp\": \"2026-06-01T08:27:02.049954+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 4\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 4\n    },\n    \"timestamp\": \"2026-06-01T08:27:12.764391+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 5\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 5\n    },\n    \"timestamp\": \"2026-06-01T08:27:23.496352+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 6\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 6\n    },\n    \"timestamp\": \"2026-06-01T08:27:34.269830+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 7\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 7\n    },\n    \"timestamp\": \"2026-06-01T08:27:43.859907+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 8\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 8\n    },\n    \"timestamp\": \"2026-06-01T08:27:54.540960+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 9\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 9\n    },\n    \"timestamp\": \"2026-06-01T08:28:05.548734+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 10\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 10\n    },\n    \"timestamp\": \"2026-06-01T08:28:16.327761+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 11\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 11\n    },\n    \"timestamp\": \"2026-06-01T08:28:27.310565+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 12\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 12\n    },\n    \"timestamp\": \"2026-06-01T08:28:38.174275+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 13\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 13\n    },\n    \"timestamp\": \"2026-06-01T08:28:49.111316+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 14\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 14\n    },\n    \"timestamp\": \"2026-06-01T08:28:59.936365+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 15\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 15\n    },\n    \"timestamp\": \"2026-06-01T08:29:10.755526+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 16\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 16\n    },\n    \"timestamp\": \"2026-06-01T08:29:21.635603+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 17\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 17\n    },\n    \"timestamp\": \"2026-06-01T08:29:32.498171+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 18\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 18\n    },\n    \"timestamp\": \"2026-06-01T08:29:43.462919+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 19\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 19\n    },\n    \"timestamp\": \"2026-06-01T08:29:54.331222+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 20\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 20\n    },\n    \"timestamp\": \"2026-06-01T08:30:05.532260+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 21\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 21\n    },\n    \"timestamp\": \"2026-06-01T08:30:16.455212+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 22\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 22\n    },\n    \"timestamp\": \"2026-06-01T08:30:27.414532+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 23\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 23\n    },\n    \"timestamp\": \"2026-06-01T08:30:38.316215+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 24\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 24\n    },\n    \"timestamp\": \"2026-06-01T08:30:49.250439+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 25\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 25\n    },\n    \"timestamp\": \"2026-06-01T08:31:00.085102+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 26\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 26\n    },\n    \"timestamp\": \"2026-06-01T08:31:10.980223+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 27\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 27\n    },\n    \"timestamp\": \"2026-06-01T08:31:21.941456+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 28\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 28\n    },\n    \"timestamp\": \"2026-06-01T08:31:32.870505+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 29\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 29\n    },\n    \"timestamp\": \"2026-06-01T08:31:43.791182+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 30\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 30\n    },\n    \"timestamp\": \"2026-06-01T08:31:54.802126+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 31\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 31\n    },\n    \"timestamp\": \"2026-06-01T08:32:05.721020+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 32\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 32\n    },\n    \"timestamp\": \"2026-06-01T08:32:16.656921+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 33\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 33\n    },\n    \"timestamp\": \"2026-06-01T08:32:27.588161+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 34\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 34\n    },\n    \"timestamp\": \"2026-06-01T08:32:38.544849+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 35\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 35\n    },\n    \"timestamp\": \"2026-06-01T08:32:49.403582+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 36\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 36\n    },\n    \"timestamp\": \"2026-06-01T08:33:00.573316+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 37\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 37\n    },\n    \"timestamp\": \"2026-06-01T08:33:11.400150+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 38\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 38\n    },\n    \"timestamp\": \"2026-06-01T08:33:22.307889+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 39\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 39\n    },\n    \"timestamp\": \"2026-06-01T08:33:33.359045+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 40\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 40\n    },\n    \"timestamp\": \"2026-06-01T08:33:44.325175+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 41\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 41\n    },\n    \"timestamp\": \"2026-06-01T08:33:55.236853+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 42\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 42\n    },\n    \"timestamp\": \"2026-06-01T08:34:06.132219+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 43\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 43\n    },\n    \"timestamp\": \"2026-06-01T08:34:17.011059+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 44\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 44\n    },\n    \"timestamp\": \"2026-06-01T08:34:28.187826+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 45\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 45\n    },\n    \"timestamp\": \"2026-06-01T08:34:39.104871+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 46\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 46\n    },\n    \"timestamp\": \"2026-06-01T08:34:50.147906+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 47\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 47\n    },\n    \"timestamp\": \"2026-06-01T08:35:01.099978+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 48\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 48\n    },\n    \"timestamp\": \"2026-06-01T08:35:12.488107+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 49\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 49\n    },\n    \"timestamp\": \"2026-06-01T08:35:23.671367+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 50\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 50\n    },\n    \"timestamp\": \"2026-06-01T08:35:34.808720+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 51\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 51\n    },\n    \"timestamp\": \"2026-06-01T08:35:46.035872+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 52\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 52\n    },\n    \"timestamp\": \"2026-06-01T08:35:57.503437+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 53\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 53\n    },\n    \"timestamp\": \"2026-06-01T08:36:08.671632+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 54\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 54\n    },\n    \"timestamp\": \"2026-06-01T08:36:19.816371+00:00\"\n  },\n  {\n    \"name\": \"interaction_poll\",\n    \"input\": {\n      \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"poll_count\": 55\n    },\n    \"output_summary\": \"status=in_progress\",\n    \"metadata\": {\n      \"status\": \"in_progress\",\n      \"poll_count\": 55\n    },\n    \"timestamp\": \"2026-06-01T08:36:30.981708+00:00\"\n  },\n  {\n    \"name\": \"gemini_response_raw\",\n    \"input\": null,\n    \"output_summary\": \"Gemini response captured.\",\n    \"metadata\": {\n      \"raw_keys\": [\n        \"interaction_id\",\n        \"poll_history\",\n        \"final\"\n      ]\n    },\n    \"timestamp\": \"2026-06-01T08:36:30.982641+00:00\"\n  },\n  {\n    \"name\": \"citations\",\n    \"input\": null,\n    \"output_summary\": \"0 citations extracted.\",\n    \"metadata\": {},\n    \"timestamp\": \"2026-06-01T08:36:30.982709+00:00\"\n  },\n  {\n    \"name\": \"final_answer\",\n    \"input\": null,\n    \"output_summary\": \"\",\n    \"metadata\": {\n      \"chars\": 0\n    },\n    \"timestamp\": \"2026-06-01T08:36:30.982746+00:00\"\n  }\n]\n\n## Citations\n[]\n\n## Final Answer\n(empty)\n\n## Raw Response Preview\n{\n  \"interaction_id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n  \"poll_history\": [\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n      \"outputs\": null,\n      \"previous_interaction_id\": null,\n      \"role\": \"agent\",\n      \"updated\": \"2026-06-01T08:26:28+00:00\",\n      \"usage\": null,\n      \"object\": \"interaction\"\n    },\n    {\n      \"id\": \"v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk\",\n      \"status\": \"in_progress\",\n      \"agent\": \"deep-research-preview-04-2026\",\n      \"created\": \"2026-06-01T08:26:28+00:00\",\n      \"model\": null,\n    \n\n[Preview truncated. See output/gemini_run_raw.json for the full raw response.]\n\n## Errors/Notes\nThis run used Gemini Deep Research Agent via the Interactions API.\nTimed out waiting for interaction v1_ChdNa0lkYXNxek50S1QxZThQNkpUUzZBWRIXTWtJZGFzcXpOdEtUMWU4UDZKVFM2QVk after 600 seconds.";
+    async function copyAll() {
+      try {
+        await navigator.clipboard.writeText(COPY_ALL_TEXT);
+        alert("Copied all log text.");
+      } catch (error) {
+        alert("Copy failed. Please drag-select the log blocks manually.");
+      }
+    }
+  </script>
+</body>
+</html>
