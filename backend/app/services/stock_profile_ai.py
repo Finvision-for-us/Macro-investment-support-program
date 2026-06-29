@@ -107,11 +107,12 @@ async def _save_profile(ticker: str, profile: dict):
         logger.warning("stock_profile_ai save error: %s", e)
 
 
-async def _analyze_with_gemini(ticker: str, overview: dict) -> dict | None:
-    if not GOOGLE_API_KEY:
-        logger.warning("GOOGLE_API_KEY not set")
-        return None
+def _extract_profile_inputs(ticker: str, overview: dict) -> dict:
+    """PROFILE_PROMPT.format()에 넣을 입력값 추출 (동작 보존 헬퍼).
 
+    반환 dict의 key는 PROFILE_PROMPT placeholder와 동일하게 유지한다.
+    market_cap은 raw 숫자가 아니라 기존 로직으로 포맷된 문자열이다.
+    """
     company_name = overview.get("name", ticker)
     sector = overview.get("sector", "Unknown")
     industry = overview.get("industry", "Unknown")
@@ -126,14 +127,23 @@ async def _analyze_with_gemini(ticker: str, overview: dict) -> dict | None:
     else:
         mc_str = f"${market_cap:,.0f}" if market_cap else "N/A"
 
-    prompt = PROFILE_PROMPT.format(
-        ticker=ticker,
-        company_name=company_name,
-        sector=sector,
-        industry=industry,
-        market_cap=mc_str,
-        description=description,
-    )
+    return {
+        "ticker": ticker,
+        "company_name": company_name,
+        "sector": sector,
+        "industry": industry,
+        "market_cap": mc_str,
+        "description": description,
+    }
+
+
+async def _analyze_with_gemini(ticker: str, overview: dict) -> dict | None:
+    if not GOOGLE_API_KEY:
+        logger.warning("GOOGLE_API_KEY not set")
+        return None
+
+    inputs = _extract_profile_inputs(ticker, overview)
+    prompt = PROFILE_PROMPT.format(**inputs)
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GOOGLE_API_KEY}"
     payload = {
