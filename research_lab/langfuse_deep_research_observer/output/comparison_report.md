@@ -68,4 +68,3 @@
 - Description: FinVision generated fewer official-source queries than the external research logs.
 - Suggested fix: Generate more site-specific queries for regulators, exchanges, and issuer IR pages.
 - Priority: medium
-

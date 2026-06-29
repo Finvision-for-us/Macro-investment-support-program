@@ -93,4 +93,3 @@ research_lab/langfuse_deep_research_observer/output/
 | final_answer_structure | 5 |
 
 `comparison_raw_material.json`에는 FinVision 개선 원석도 포함됩니다.
-
