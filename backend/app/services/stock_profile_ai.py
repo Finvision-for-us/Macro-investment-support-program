@@ -26,6 +26,9 @@ PROFILE_PROMPT = """[역할] 종목 프로파일링 전문가. 사업 구조를 
 [대상] {ticker} ({company_name}) | {sector} > {industry} | 시총 {market_cap}
 [사업] {description}
 
+[재무 컨텍스트 — key metric 선택 참고용 보조 정보]
+{financial_context}
+
 [Task 1: 경쟁사] 사업 영역별 직접 경쟁사 선정
 - 직접 경쟁만 (간접 제외). 예: Apple 스마트폰 → 삼성, 샤오미 (O) / Microsoft (X)
 - NYSE/NASDAQ 상장 종목만 (ADR 가능: TSM, BABA 등)
@@ -34,6 +37,15 @@ PROFILE_PROMPT = """[역할] 종목 프로파일링 전문가. 사업 구조를 
 [Task 2: 핵심지표] 이 종목만의 핵심 분석 지표 7-10개
 같은 산업이어도 회사마다 다름. 성장주→revenue_growth, 배당주→dividend_yield
 선택 가능 목록: pe_ratio, forward_pe, pb_ratio, ev_to_ebitda, profit_margin, operating_margin, gross_margin, roe, roa, roic, total_revenue, net_income, ebitda, debt_to_equity, current_ratio, total_debt, total_cash, asset_turnover, inventory_turnover, ocf_margin, capex_to_revenue, revenue_per_share, dividend_yield, payout_ratio, revenue_growth, eps_growth, net_income_growth, operating_income_growth, beta, fcf
+
+[재무 컨텍스트 사용 정책]
+- 위 재무 컨텍스트는 key metric 선택을 돕는 참고 정보다.
+- reason에는 구체적인 숫자 값을 직접 쓰지 말 것.
+- 수치가 높거나 낮다는 이유만으로 metric을 고르지 말 것.
+- 회사의 사업 구조, sector, industry, description과 함께 해석할 것.
+- 최신 뉴스, 계약, 공시, 실적 이벤트, M&A, 임원 거래를 생성하지 말 것.
+- key_metrics의 metric은 위 '선택 가능 목록' 안에서만 고를 것.
+- 출력 JSON 스키마는 아래 형식과 동일하게 유지할 것.
 
 [출력] JSON만. 한국어.
 {{
@@ -107,11 +119,39 @@ async def _save_profile(ticker: str, profile: dict):
         logger.warning("stock_profile_ai save error: %s", e)
 
 
-async def _analyze_with_gemini(ticker: str, overview: dict) -> dict | None:
-    if not GOOGLE_API_KEY:
-        logger.warning("GOOGLE_API_KEY not set")
-        return None
+def _build_financial_context(overview: dict) -> str:
+    """key metric 선택 참고용 compact 재무 컨텍스트 문자열 생성.
 
+    overview의 5개 필드만 사용 (revenue_growth, gross_margin, operating_margin,
+    roe, debt_to_equity). 외부 API/DB/frontend 참조 없음.
+    값이 None이면 'N/A'로 표기하되 라인 자체는 유지한다.
+    margin/growth/roe는 overview에 비율(소수)로 저장되므로 ×100하여 % 표기,
+    debt_to_equity는 배수(ratio)로 그대로 표기.
+    """
+    def _pct(v) -> str:
+        return f"{v * 100:.1f}%" if v is not None else "N/A"
+
+    def _ratio(v) -> str:
+        return f"{v:.2f}" if v is not None else "N/A"
+
+    lines = [
+        "Financial context (참고용):",
+        f"- revenue_growth: {_pct(overview.get('revenue_growth'))}",
+        f"- gross_margin: {_pct(overview.get('gross_margin'))}",
+        f"- operating_margin: {_pct(overview.get('operating_margin'))}",
+        f"- roe: {_pct(overview.get('roe'))}",
+        f"- debt_to_equity: {_ratio(overview.get('debt_to_equity'))}",
+    ]
+    return "\n".join(lines)
+
+
+def _extract_profile_inputs(ticker: str, overview: dict) -> dict:
+    """PROFILE_PROMPT.format()에 넣을 입력값 추출 (동작 보존 헬퍼).
+
+    반환 dict의 key는 PROFILE_PROMPT placeholder와 동일하게 유지한다.
+    market_cap은 raw 숫자가 아니라 기존 로직으로 포맷된 문자열이다.
+    financial_context는 _build_financial_context로 만든 참고용 문자열이다.
+    """
     company_name = overview.get("name", ticker)
     sector = overview.get("sector", "Unknown")
     industry = overview.get("industry", "Unknown")
@@ -126,14 +166,24 @@ async def _analyze_with_gemini(ticker: str, overview: dict) -> dict | None:
     else:
         mc_str = f"${market_cap:,.0f}" if market_cap else "N/A"
 
-    prompt = PROFILE_PROMPT.format(
-        ticker=ticker,
-        company_name=company_name,
-        sector=sector,
-        industry=industry,
-        market_cap=mc_str,
-        description=description,
-    )
+    return {
+        "ticker": ticker,
+        "company_name": company_name,
+        "sector": sector,
+        "industry": industry,
+        "market_cap": mc_str,
+        "description": description,
+        "financial_context": _build_financial_context(overview),
+    }
+
+
+async def _analyze_with_gemini(ticker: str, overview: dict) -> dict | None:
+    if not GOOGLE_API_KEY:
+        logger.warning("GOOGLE_API_KEY not set")
+        return None
+
+    inputs = _extract_profile_inputs(ticker, overview)
+    prompt = PROFILE_PROMPT.format(**inputs)
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GOOGLE_API_KEY}"
     payload = {
