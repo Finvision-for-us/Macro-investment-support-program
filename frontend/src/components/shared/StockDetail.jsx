@@ -167,7 +167,7 @@ const METRIC_GROUPS = [
   { title: '수익성',       keys: ['profit_margin', 'operating_margin', 'gross_margin', 'roe', 'roa', 'roic'] },
   { title: '수익구조',     keys: ['total_revenue', 'net_income', 'ebit', 'ebitda', 'pretax_income', 'interest_expense', 'tax_rate'] },
   { title: '재무 건전성',  keys: ['debt_to_equity', 'current_ratio', 'total_debt', 'total_cash', 'working_capital'] },
-  { title: '효율성',       keys: ['asset_turnover', 'inventory_turnover', 'receivables_turnover', 'ocf_margin', 'capex_to_revenue'] },
+  { title: '효율성',       keys: ['asset_turnover', 'inventory_turnover', 'receivables_turnover', 'ocf_margin', 'capex_to_revenue', 'fcf'] },
   { title: '주당지표',     keys: ['revenue_per_share', 'dividend_per_share', 'dividend_yield', 'payout_ratio'] },
   { title: '성장률',       keys: ['revenue_growth', 'eps_growth', 'net_income_growth', 'operating_income_growth'] },
   { title: '자산 항목',    keys: ['accounts_receivable', 'inventory', 'accounts_payable', 'tangible_book'] },
