@@ -20,6 +20,7 @@ from ..collect.registry import all_collectors
 from ..dedup.cluster import dedup_passed
 from ..filter.basic import run_filter
 from ..rank.final import rank_final
+from ..report import write_report
 from ..run import run
 from ..store.news_store import NewsStore
 from ..store.raw_store import RawStore
@@ -110,6 +111,11 @@ def main() -> None:
         print(f"    제목: {story.title or '(no title)'}")
         if story.narrative_short:
             print(f"    요약: {story.narrative_short[:160]}")
+
+    _hr("리포트 출력")
+    paths = write_report(final_items, result, window_hours=WINDOW_HOURS)
+    print(f"HTML: {paths.html.resolve()}")
+    print(f"JSON: {paths.json.resolve()}")
 
     news_store.close()
 

@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  @apply bg-zinc-50 text-zinc-900 antialiased;
+  font-feature-settings: "ss01", "cv11"; /* 더 또렷한 숫자/한글 */
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    @apply bg-zinc-950 text-zinc-100;
+  }
+}
+
+/* Glassmorphism effects */
+.glass-panel {
+  @apply bg-white/70 border border-zinc-200/80 backdrop-blur-md dark:bg-zinc-900/60 dark:border-zinc-800/80;
+}
+
+.glass-card-hover {
+  @apply hover:border-indigo-500/30 dark:hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-0.5 transition-all duration-300;
+}
+
+/* Custom terminal/fintech highlights */
+.glow-accent {
+  box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.15);
+}
+
+/* 가로 스크롤 영역 스크롤바 톤다운 */
+.scrollbar-soft::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.scrollbar-soft::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-soft::-webkit-scrollbar-thumb {
+  background: rgb(156 163 175 / 0.3);
+  border-radius: 9999px;
+}
+.scrollbar-soft::-webkit-scrollbar-thumb:hover {
+  background: rgb(156 163 175 / 0.5);
+}
+@media (prefers-color-scheme: dark) {
+  .scrollbar-soft::-webkit-scrollbar-thumb {
+    background: rgb(75 85 99 / 0.3);
+  }
+  .scrollbar-soft::-webkit-scrollbar-thumb:hover {
+    background: rgb(75 85 99 / 0.5);
+  }
+}
