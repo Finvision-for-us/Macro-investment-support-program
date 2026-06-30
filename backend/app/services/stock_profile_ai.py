@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import requests
 from datetime import datetime
 
@@ -35,8 +36,10 @@ PROFILE_PROMPT = """[역할] 종목 프로파일링 전문가. 사업 구조를 
 {financial_context}
 
 [Task 1: 경쟁사] 사업 영역별 직접 경쟁사 선정
-- 직접 경쟁만 (간접 제외). 예: Apple 스마트폰 → 삼성, 샤오미 (O) / Microsoft (X)
-- NYSE/NASDAQ 상장 종목만 (ADR 가능: TSM, BABA 등)
+- 직접 경쟁만 (간접 제외). 예: 같은 제품군에서 직접 경쟁하는 회사 (O) / 사업이 겹치지 않는 회사 (X)
+- tickers에는 NYSE/NASDAQ에서 실제 조회 가능한 ticker symbol만 넣을 것 (ADR 가능: TSM, BABA 등)
+- 회사명을 ticker 자리에 쓰지 말 것. 예: "SAMSUNG", "XIAOMI", "LENOVO" 같은 회사명 금지 (실제 US ticker가 아님)
+- 미국 정규상장 ticker가 없거나 확실하지 않은 경쟁사는 생략할 것 (글로벌 경쟁사라도 ticker 기반 비교 UI에서는 제외)
 - 비상장 제외. 영역당 2-3개, 총 5-8개
 
 [Task 2: 핵심지표] 이 종목만의 핵심 분석 지표 7-10개
@@ -86,6 +89,12 @@ def _compute_profile_hash() -> str:
 # 모듈 로드 시 1회 계산 (PROFILE_PROMPT 정의 이후여야 함)
 CURRENT_PROFILE_HASH = _compute_profile_hash()
 
+# competitor 저장 가드 기준 (fail-closed): 정제 후 이 기준 미달이면 새 profile을 저장하지 않는다.
+_MIN_COMPETITOR_GROUPS = 1
+_MIN_VALID_COMPETITOR_TICKERS = 2
+# ticker 형식 1차 필터. 형식만으로는 'SAMSUNG' 같은 회사명을 못 거른다(실재성은 validator가 담당).
+_TICKER_FORMAT_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
 
 async def get_stock_profile(ticker: str, overview: dict = None) -> dict:
     """종목별 AI 프로필 (경쟁사 + 핵심지표) 반환. DB 캐시 우선."""
@@ -104,7 +113,27 @@ async def get_stock_profile(ticker: str, overview: dict = None) -> dict:
     # 3) Gemini 분석
     profile = await _analyze_with_gemini(ticker, overview)
     if profile:
-        await _save_profile(ticker, profile)
+        # competitor 정제 (저장 전, fail-closed). raw model output을 그대로 저장하지 않는다.
+        #   (1) 구조 정제: 형식/중복/self/정렬 — 순수 함수, 네트워크 없음
+        #   (2) 실재성 병렬 검증: 후보 ticker를 get_overview로 병렬 조회 (stock.py peer 조회와 동일 패턴)
+        #   (3) valid 집합으로 필터: 조회 불가 ticker / 빈 group 제거
+        structural = _sanitize_competitors(ticker, profile.get("competitors", []))
+        candidate_tickers = {t for g in structural for t in g["tickers"]}
+        valid_tickers = await _validate_competitor_tickers(candidate_tickers)
+        sanitized = _filter_competitors_by_valid(structural, valid_tickers)
+        profile["competitors"] = sanitized
+
+        # 저장 가드: valid competitor가 기준 미달이면 새 profile을 저장하지 않는다.
+        # (cache miss 경로이므로 덮어쓸 기존 cache는 없다. 저장만 보류하고 결과는 그대로 반환한다.)
+        valid_ticker_count = sum(len(g["tickers"]) for g in sanitized)
+        if len(sanitized) >= _MIN_COMPETITOR_GROUPS and valid_ticker_count >= _MIN_VALID_COMPETITOR_TICKERS:
+            await _save_profile(ticker, profile)
+        else:
+            logger.info(
+                "stock_profile_ai save skipped (insufficient valid competitors): "
+                "ticker=%s groups=%d valid_tickers=%d",
+                ticker, len(sanitized), valid_ticker_count,
+            )
 
     return profile or {"competitors": [], "key_metrics": []}
 
@@ -160,6 +189,125 @@ async def _save_profile(ticker: str, profile: dict):
             await db.commit()
     except Exception as e:
         logger.warning("stock_profile_ai save error: %s", e)
+
+
+def _sanitize_competitors(ticker, competitors):
+    """경쟁사 목록을 '구조' 기준으로만 정제한다 (순수 함수, 네트워크 호출 없음).
+
+    - non-list 입력 / non-dict group 방어
+    - business_area 없으면 group 제거, tickers가 list 아니면 group 제거
+    - ticker trim/uppercase, 자기 ticker 제거, 중복 제거
+    - 형식 1차 필터(_TICKER_FORMAT_RE)
+    - descriptions를 ticker와 정렬 유지하여 보정
+    - ticker가 0개가 된 group 제거
+
+    형식 필터만으로는 'SAMSUNG' 같은 회사명을 못 거른다. 실재성 검증은
+    _validate_competitor_tickers + _filter_competitors_by_valid가 담당한다.
+    """
+    if not isinstance(competitors, list):
+        return []
+    self_upper = (ticker or "").strip().upper()
+    cleaned = []
+    for group in competitors:
+        if not isinstance(group, dict):
+            continue
+        area = group.get("business_area")
+        if not isinstance(area, str) or not area.strip():
+            continue
+        tickers = group.get("tickers")
+        if not isinstance(tickers, list):
+            continue
+        descriptions = group.get("descriptions")
+        if not isinstance(descriptions, list):
+            descriptions = []
+
+        seen = set()
+        kept_tickers = []
+        kept_descs = []
+        for i, t in enumerate(tickers):
+            if not isinstance(t, str):
+                continue
+            sym = t.strip().upper()
+            if not sym or sym == self_upper or sym in seen:
+                continue
+            if not _TICKER_FORMAT_RE.match(sym):
+                continue
+            seen.add(sym)
+            kept_tickers.append(sym)
+            desc = descriptions[i] if i < len(descriptions) and isinstance(descriptions[i], str) else ""
+            kept_descs.append(desc)
+
+        if kept_tickers:
+            cleaned.append({
+                "business_area": area,
+                "tickers": kept_tickers,
+                "descriptions": kept_descs,
+            })
+    return cleaned
+
+
+def _filter_competitors_by_valid(groups, valid_tickers):
+    """구조 정제된 groups에서 valid_tickers 집합에 없는 ticker를 제거한다 (순수 함수).
+
+    descriptions 정렬을 유지하고, ticker가 0개가 된 group은 제거한다.
+    입력 groups는 이미 _sanitize_competitors를 통과한(대문자/중복제거/정렬된) 형태로 가정한다.
+    """
+    out = []
+    for group in groups:
+        tickers = group.get("tickers", [])
+        descriptions = group.get("descriptions", [])
+        kept_t = []
+        kept_d = []
+        for i, t in enumerate(tickers):
+            if t in valid_tickers:
+                kept_t.append(t)
+                kept_d.append(descriptions[i] if i < len(descriptions) else "")
+        if kept_t:
+            out.append({
+                "business_area": group.get("business_area", ""),
+                "tickers": kept_t,
+                "descriptions": kept_d,
+            })
+    return out
+
+
+def _is_valid_competitor_ticker(symbol) -> bool:
+    """단일 ticker가 실제 조회 가능한 종목인지 검증한다 (fail-closed).
+
+    기존 yfinance_client.get_overview를 재사용한다. quote-like 핵심 필드
+    (market_cap 또는 current_price)가 존재하면 valid로 본다.
+    주의: get_overview는 exchange를 반환하지 않으므로 NYSE/NASDAQ 상장 여부까지는
+    검증하지 못한다. '실재/조회 가능 ticker' 검증까지만 보장한다.
+    예외 발생 또는 빈 데이터면 invalid (fail-closed).
+    """
+    try:
+        from app.services import yfinance_client
+        ov = yfinance_client.get_overview(symbol)
+        if not isinstance(ov, dict):
+            return False
+        return ov.get("market_cap") is not None or ov.get("current_price") is not None
+    except Exception as e:
+        logger.warning("competitor ticker validation error: symbol=%s err=%s", symbol, e)
+        return False
+
+
+async def _validate_competitor_tickers(tickers) -> set:
+    """후보 ticker들의 실재성을 병렬로 검증해 valid한 ticker 집합을 반환한다.
+
+    stock.py의 peer 조회와 동일하게 get_overview를 병렬(asyncio.gather)로 호출한다.
+    각 get_overview는 동기 + 네트워크 I/O이므로 asyncio.to_thread로 감싼다.
+    네트워크 검증이 cache miss + Gemini 성공 경로에서만 발생한다(드묾).
+    """
+    symbols = list(tickers)
+    if not symbols:
+        return set()
+
+    async def _check(sym):
+        ok = await asyncio.to_thread(_is_valid_competitor_ticker, sym)
+        return sym if ok else None
+
+    results = await asyncio.gather(*[_check(s) for s in symbols])
+    return {s for s in results if s}
 
 
 def _build_financial_context(overview: dict) -> str:
