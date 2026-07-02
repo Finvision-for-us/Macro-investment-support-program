@@ -55,10 +55,10 @@ PROFILE_PROMPT = """[역할] 종목 프로파일링 전문가. 사업 구조를 
 
 [ticker 규칙]
 - tickers에는 '미국에서 실제 조회 가능한' ticker symbol만 넣을 것 (NYSE/NASDAQ + ADR/OTC 허용).
-- 회사명(예: "SAMSUNG")을 ticker 자리에 쓰지 말 것.
-- 해외 직접 경쟁사는 미국 거래 ADR/OTC ticker로 표기할 것
-  (예: 삼성전자 → SSNLF, 샤오미 → XIACY, TSMC → TSM).
-- ADR/OTC ticker조차 없거나 확실하지 않으면 그 경쟁사는 생략할 것.
+- 회사명(예: "SAMSUNG")을 ticker 자리에 쓰지 말 것. ticker를 추측/변형하지 말 것.
+- 아래 주요 해외 기업은 반드시 이 미국 거래 ticker를 그대로 사용할 것 (다른 표기 금지):
+  삼성전자=SSNLF, 샤오미=XIACY, 레노버=LNVGY
+- 위 목록에 없는 해외 기업은, 정확한 미국 거래 ticker를 확신할 수 없으면 생략할 것 (ticker 추측 금지).
 - 비상장 제외. 영역당 최대 3개.
 
 [각 경쟁사 self-check]
