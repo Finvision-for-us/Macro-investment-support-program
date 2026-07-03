@@ -221,6 +221,11 @@ def get_overview(ticker: str):
         "annualTotalAssets", "annualCurrentAssets", "annualCurrentLiabilities",
         "annualTangibleBookValue", "annualOperatingIncome",
         "annualCapitalExpenditure", "annualCostOfRevenue", "annualTotalRevenue",
+        "annualStockholdersEquity", "annualTotalDebt",
+        # 손익계산서 흐름 항목의 TTM 표시용(분기 4개 합). net_income(TTM)과 같은 그룹의
+        # pretax_income·EBIT를 TTM으로 맞춰 '순이익 > 세전이익' 같은 기준혼용 오표시를 없앤다.
+        # 필드 총 20개 — Yahoo timeseries 잘림 없음(실측 확인).
+        "quarterlyPretaxIncome", "quarterlyEBIT",
     ]
 
     # Run all 3 API calls in parallel
@@ -339,10 +344,32 @@ def get_overview(ticker: str):
         pts = ts.get(key, [])
         return pts[-1]["value"] if pts else None
 
+    def _ts_avg2(key):
+        """timeseries 최근 2개(기초·기말) 평균. 1개뿐이면 그 값, 없으면 None.
+        회전율 등 재무상태표 항목은 기말이 아니라 '평균 잔액'을 쓰는 것이 정석이다."""
+        pts = ts.get(key, [])
+        vals = [p["value"] for p in pts[-2:] if p.get("value") is not None]
+        return sum(vals) / len(vals) if vals else None
+
+    def _ts_ttm(base):
+        """손익계산서 흐름 항목의 TTM = 분기 최근 4개 합. 4개 미만이면 None(폴백은 호출측).
+        base는 'PretaxIncome'처럼 'quarterly' 접두어를 뗀 이름."""
+        pts = [p["value"] for p in ts.get("quarterly" + base, []) if p.get("value") is not None]
+        return sum(pts[-4:]) if len(pts) >= 4 else None
+
     # 절대 지표 (timeseries 우선, quoteSummary fallback)
-    net_income = _ts_latest("annualNetIncome") or net_income_qs
-    pretax_income = _ts_latest("annualPretaxIncome")
-    ebit_val = _ts_latest("annualEBIT")
+    # 화면 표시용 순이익: 최신(TTM, netIncomeToCommon) 우선 → 매출(TTM)·마진(TTM)과 정합.
+    # 연간 순이익은 tax_rate 폴백 등 '연간끼리' 계산해야 하는 내부용으로 별도 보관.
+    net_income_annual = _ts_latest("annualNetIncome")
+    net_income = net_income_qs or net_income_annual
+    # 표시용 pretax_income·EBIT는 TTM(분기4합) 우선 → net_income(TTM)과 기준 정합.
+    # 분기 데이터 부족시 annual 폴백. 단, tax_rate는 '연간끼리' 계산해야 하므로
+    # annual pretax(pretax_income_annual)를 별도 보존한다(net_income_annual과 동일 원리).
+    pretax_income_annual = _ts_latest("annualPretaxIncome")
+    _pretax_ttm = _ts_ttm("PretaxIncome")
+    pretax_income = _pretax_ttm if _pretax_ttm is not None else pretax_income_annual
+    _ebit_ttm = _ts_ttm("EBIT")
+    ebit_val = _ebit_ttm if _ebit_ttm is not None else _ts_latest("annualEBIT")
     interest_expense = _ts_latest("annualInterestExpense")
     income_tax = _ts_latest("annualIncomeTaxExpense")
     accounts_receivable = _ts_latest("annualAccountsReceivable")
@@ -357,47 +384,61 @@ def get_overview(ticker: str):
     ts_revenue = _ts_latest("annualTotalRevenue") or total_revenue
 
     # 계산 지표
-    # 유효세율 (세금 데이터가 있으면 직접, 없으면 1 - netIncome/pretaxIncome)
+    # 유효세율 (세전이익이 '양수'일 때만 — 적자면 유효세율이 무의미하므로 None)
+    # 표시용 pretax_income은 TTM이므로, 여기서는 반드시 annual pretax(pretax_income_annual)와
+    # annual net_income으로 '연간끼리' 계산한다(기간 정합).
     tax_rate = None
-    if pretax_income and income_tax and pretax_income != 0:
-        tax_rate = round(income_tax / pretax_income * 100, 2)
-    elif pretax_income and net_income and pretax_income != 0:
-        tax_rate = round((1 - net_income / pretax_income) * 100, 2)
+    if pretax_income_annual and pretax_income_annual > 0:
+        if income_tax is not None:
+            tax_rate = round(income_tax / pretax_income_annual * 100, 2)
+        elif net_income_annual is not None:
+            tax_rate = round((1 - net_income_annual / pretax_income_annual) * 100, 2)
 
     # 운전자본
     working_capital = None
     if current_assets is not None and current_liabilities is not None:
         working_capital = current_assets - current_liabilities
 
-    # 자산회전율
+    # 자산회전율 (매출 ÷ 평균 총자산)
     asset_turnover = None
-    if ts_revenue and total_assets and total_assets != 0:
-        asset_turnover = round(ts_revenue / total_assets, 2)
+    avg_assets = _ts_avg2("annualTotalAssets")
+    if ts_revenue and avg_assets and avg_assets != 0:
+        asset_turnover = round(ts_revenue / avg_assets, 2)
 
-    # 재고회전율
+    # 재고회전율 (매출원가 ÷ 평균 재고)
     inventory_turnover = None
     cost_of_revenue = _ts_latest("annualCostOfRevenue")
-    if cost_of_revenue and inventory and inventory != 0:
-        inventory_turnover = round(cost_of_revenue / inventory, 1)
+    avg_inventory = _ts_avg2("annualInventory")
+    if cost_of_revenue and avg_inventory and avg_inventory != 0:
+        inventory_turnover = round(cost_of_revenue / avg_inventory, 1)
 
-    # 매출채권회전율
+    # 매출채권회전율 (매출 ÷ 평균 매출채권)
     receivables_turnover = None
-    if ts_revenue and accounts_receivable and accounts_receivable != 0:
-        receivables_turnover = round(ts_revenue / accounts_receivable, 1)
+    avg_ar = _ts_avg2("annualAccountsReceivable")
+    if ts_revenue and avg_ar and avg_ar != 0:
+        receivables_turnover = round(ts_revenue / avg_ar, 1)
 
-    # ROIC
+    # ROIC = NOPAT ÷ 투하자본(유이자부채 + 자기자본). NOPAT = 영업이익 × (1 - 유효세율).
+    # (영업손실이면 ROIC 음수가 정상이므로 영업이익 부호는 막지 않는다. 투하자본만 양수 요구.)
     roic = None
-    if operating_income_ts and total_assets and current_liabilities:
-        invested_capital = total_assets - current_liabilities
+    equity_ts = _ts_latest("annualStockholdersEquity")
+    total_debt_ts = _ts_latest("annualTotalDebt")
+    if operating_income_ts is not None and equity_ts is not None and total_debt_ts is not None:
+        invested_capital = total_debt_ts + equity_ts
         if invested_capital > 0:
-            effective_tax = (tax_rate / 100) if tax_rate else 0.21
+            # 유효세율은 0~100% 범위일 때만 사용, 아니면 미국 법인세 근사 21%
+            effective_tax = tax_rate / 100 if (tax_rate is not None and 0 <= tax_rate <= 100) else 0.21
             nopat = operating_income_ts * (1 - effective_tax)
             roic = round(nopat / invested_capital * 100, 2)
 
-    # 영업CF마진
+    # 영업CF마진 = 영업현금흐름 ÷ 매출.
+    # operating_cashflow(financialData)는 TTM이므로 분모도 TTM 매출(total_revenue)로 맞춘다
+    # (연간 ts_revenue를 쓰면 성장기업일수록 분모가 작아 마진이 과대됨 — 다른 마진 3형제도 전부 TTM).
+    # total_revenue(TTM)가 없을 때만 연간으로 폴백.
     ocf_margin = None
-    if operating_cashflow and ts_revenue and ts_revenue != 0:
-        ocf_margin = round(operating_cashflow / ts_revenue, 4)  # 비율로 저장 (프론트에서 *100)
+    rev_for_ocf = total_revenue or ts_revenue
+    if operating_cashflow and rev_for_ocf and rev_for_ocf != 0:
+        ocf_margin = round(operating_cashflow / rev_for_ocf, 4)  # 비율로 저장 (프론트에서 *100)
 
     # 설비투자비율
     capex_to_revenue = None
