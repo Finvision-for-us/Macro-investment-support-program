@@ -16,12 +16,13 @@ import re
 import requests
 from datetime import datetime
 
-from app.config import GOOGLE_API_KEY
+from app.config import GOOGLE_API_KEY, GEMINI_STOCK_PROFILE_MODEL
 from app.database import DB_PATH
 
 logger = logging.getLogger(__name__)
 
-GEMINI_MODEL = "gemini-2.5-flash-lite"
+# 모델은 config(env)에서 주입. .env의 GEMINI_STOCK_PROFILE_MODEL로 교체 가능.
+GEMINI_MODEL = GEMINI_STOCK_PROFILE_MODEL
 
 # profile 생성 설정의 의미적 버전. context/output schema 의미가 바뀔 때만 +1.
 # (함수 코드 자체는 hash에 넣지 않는다 — 무해한 refactor로 cache 전체가 무효화되는 것을 피하기 위함.)
