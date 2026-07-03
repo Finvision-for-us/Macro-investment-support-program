@@ -143,12 +143,20 @@ def _name_tokens(s):
 
 
 def _name_match_ratio(query, cand_name):
-    """질의 회사명의 핵심 토큰이 후보 회사명에 포함된 비율 (0~1). stopword 제외."""
+    """질의 회사명의 핵심 토큰이 후보 회사명에 포함된 비율 (0~1). stopword 제외.
+
+    완전일치 외에, 질의 토큰이 후보 토큰의 '접두'인 경우도 매칭으로 본다(4자 이상).
+    예: 'Pepsi'(pepsi) 가 'PepsiCo'(pepsico)의 접두 → 매칭. (오탐 방지를 위해 접두만, 부분문자열 아님)
+    """
     q = _name_tokens(query) - _NAME_STOP
     c = _name_tokens(cand_name) - _NAME_STOP
     if not q:
         return 0.0
-    return len(q & c) / len(q)
+    hit = 0
+    for qt in q:
+        if qt in c or any(len(qt) >= 4 and ct.startswith(qt) for ct in c):
+            hit += 1
+    return hit / len(q)
 
 
 def _is_fund_name(name):

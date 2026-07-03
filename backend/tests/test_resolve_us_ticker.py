@@ -76,6 +76,16 @@ class TestSelectUsTicker(unittest.TestCase):
         quotes = [Q("ZZZZ", "Totally Different Company", "NYSE")]
         self.assertIsNone(_select_us_ticker("Apple", quotes))
 
+    def test_prefix_match_brand_vs_legal_name(self):
+        # 브랜드명(Pepsi)이 법인명(PepsiCo)의 접두면 매칭되어야 함
+        quotes = [Q("PEP", "PepsiCo, Inc.", "NASDAQ")]
+        self.assertEqual(_select_us_ticker("Pepsi", quotes), "PEP")
+
+    def test_prefix_no_false_positive_short_token(self):
+        # 3자 이하 토큰은 접두매칭에서 제외(오탐 방지). 'ab'가 'abbott'에 접두여도 매칭 안 함.
+        quotes = [Q("ABT", "Abbott Laboratories", "NYSE")]
+        self.assertIsNone(_select_us_ticker("Ab", quotes))
+
     def test_non_list_input(self):
         self.assertIsNone(_select_us_ticker("X", None))
         self.assertIsNone(_select_us_ticker("X", []))
