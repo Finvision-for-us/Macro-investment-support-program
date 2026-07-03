@@ -178,18 +178,10 @@ const METRIC_GROUPS = [
 const CHART_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
 
 /* ── Portal 기반 툴팁 (잘림 방지) ── */
-function MetricTooltip({ label, desc, sector, sectorAvg, avgKey }) {
+function MetricTooltip({ label, desc }) {
   const [show, setShow] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const iconRef = useRef(null)
-
-  const avgVal = avgKey && sectorAvg ? sectorAvg[avgKey] : null
-
-  const formatAvg = (key, val) => {
-    if (val == null) return null
-    if (key === 'dividend_yield' || key === 'profit_margin' || key === 'operating_margin' || key === 'roe' || key === 'roa') return (val * 100).toFixed(1) + '%'
-    return val.toFixed(2)
-  }
 
   const handleEnter = () => {
     if (iconRef.current) {
@@ -218,13 +210,6 @@ function MetricTooltip({ label, desc, sector, sectorAvg, avgKey }) {
         >
           <p className="text-xs font-bold text-slate-800 mb-1">{label}</p>
           <p className="text-[11px] text-slate-500 leading-relaxed">{desc}</p>
-          {avgVal != null && sector && sector !== '-' && (
-            <div className="mt-2 pt-2 border-t border-slate-100">
-              <p className="text-[11px] text-indigo-600 font-semibold">
-                📊 {sector} 평균: {formatAvg(avgKey, avgVal)}
-              </p>
-            </div>
-          )}
           <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px">
             <div className="w-2.5 h-2.5 bg-white border-r border-b border-slate-200 rotate-45" />
           </div>
@@ -243,8 +228,6 @@ function MetricCard({ metricKey, value, overview, isKeyMetric, isSelected, onCli
   // 차트 가능한 지표는 overview 값 없어도 표시 (히스토리에서만 확인 가능)
   if (value == null && !isChartable) return null
 
-  const sector = overview?.sector
-  const sectorAvg = overview?.sector_averages || {}
   const displayValue = value != null ? info.format(value) : '-'
 
   return (
@@ -282,9 +265,6 @@ function MetricCard({ metricKey, value, overview, isKeyMetric, isSelected, onCli
             <MetricTooltip
               label={info.label}
               desc={info.desc}
-              sector={sector}
-              sectorAvg={sectorAvg}
-              avgKey={info.avgKey}
             />
           </p>
           <p className={`text-sm font-bold mt-1 ${isSelected ? 'text-indigo-700' : 'text-slate-800'}`}>

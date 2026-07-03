@@ -25,39 +25,13 @@ SEC_HEADERS = {
     "Accept-Encoding": "gzip, deflate",
 }
 
-# ── SEC EDGAR: ticker → CIK 매핑 캐시 ─────────────────────
-_cik_cache: dict = {}  # {ticker: cik_str}
-_cik_loaded = False
-
-
-def _load_cik_map():
-    """SEC company_tickers.json에서 전체 ticker→CIK 매핑 로드 (1회)"""
-    global _cik_cache, _cik_loaded
-    if _cik_loaded:
-        return
-    try:
-        resp = requests.get(
-            "https://www.sec.gov/files/company_tickers.json",
-            headers=SEC_HEADERS,
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        for entry in data.values():
-            t = entry.get("ticker", "").upper()
-            cik = entry.get("cik_str")
-            if t and cik:
-                _cik_cache[t] = str(cik).zfill(10)
-        _cik_loaded = True
-        logger.info(f"SEC CIK map loaded: {len(_cik_cache)} tickers")
-    except Exception as e:
-        logger.warning(f"SEC CIK map load failed: {e}")
+# ── SEC EDGAR: ticker → CIK 매핑 (단일 소스 sec_client로 통합) ─────────────────────
+from app.services import sec_client
 
 
 def _get_sec_cik(ticker: str) -> str | None:
-    """ticker → 10자리 zero-padded CIK 반환"""
-    _load_cik_map()
-    return _cik_cache.get(ticker.upper())
+    """ticker → 10자리 zero-padded CIK 반환. CIK 소스는 sec_client.get_cik로 통합됨."""
+    return sec_client.get_cik(ticker)
 
 
 def _get_sec_earnings_data(ticker: str) -> list:

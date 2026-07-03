@@ -1,3 +1,4 @@
+import re
 import requests
 import threading
 import time
@@ -11,21 +12,6 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json",
     "Accept-Language": "en-US,en;q=0.9",
-}
-
-# ── 섹터별 평균 지표 (S&P500 기준 근사치) ──────────────────────────
-SECTOR_AVERAGES = {
-    "Technology":              {"pe": 30.0, "pb": 8.0, "dividend_yield": 0.008, "profit_margin": 0.20, "eps_growth": 0.15, "roe": 0.25, "roa": 0.10, "debt_to_equity": 0.80, "current_ratio": 2.0, "operating_margin": 0.22, "fcf_yield": 0.04, "asset_turnover": 0.70, "inventory_turnover": 25.0, "receivables_turnover": 8.0, "ocf_margin": 0.25, "tax_rate": 15.0, "payout_ratio": 25.0, "roic": 20.0},
-    "Healthcare":              {"pe": 22.0, "pb": 4.0, "dividend_yield": 0.015, "profit_margin": 0.15, "eps_growth": 0.10, "roe": 0.18, "roa": 0.08, "debt_to_equity": 0.70, "current_ratio": 1.8, "operating_margin": 0.15, "fcf_yield": 0.05, "asset_turnover": 0.50, "inventory_turnover": 5.0, "receivables_turnover": 6.0, "ocf_margin": 0.20, "tax_rate": 16.0, "payout_ratio": 35.0, "roic": 12.0},
-    "Financial Services":      {"pe": 14.0, "pb": 1.5, "dividend_yield": 0.025, "profit_margin": 0.25, "eps_growth": 0.08, "roe": 0.12, "roa": 0.01, "debt_to_equity": 3.00, "current_ratio": None, "operating_margin": 0.30, "fcf_yield": 0.06, "asset_turnover": 0.05, "inventory_turnover": None, "receivables_turnover": None, "ocf_margin": 0.30, "tax_rate": 18.0, "payout_ratio": 35.0, "roic": 8.0},
-    "Consumer Cyclical":       {"pe": 25.0, "pb": 5.0, "dividend_yield": 0.012, "profit_margin": 0.08, "eps_growth": 0.12, "roe": 0.20, "roa": 0.07, "debt_to_equity": 1.20, "current_ratio": 1.5, "operating_margin": 0.10, "fcf_yield": 0.04, "asset_turnover": 1.00, "inventory_turnover": 8.0, "receivables_turnover": 10.0, "ocf_margin": 0.12, "tax_rate": 20.0, "payout_ratio": 30.0, "roic": 15.0},
-    "Consumer Defensive":      {"pe": 22.0, "pb": 4.0, "dividend_yield": 0.025, "profit_margin": 0.10, "eps_growth": 0.06, "roe": 0.22, "roa": 0.08, "debt_to_equity": 1.10, "current_ratio": 1.3, "operating_margin": 0.12, "fcf_yield": 0.05, "asset_turnover": 0.80, "inventory_turnover": 8.0, "receivables_turnover": 12.0, "ocf_margin": 0.14, "tax_rate": 22.0, "payout_ratio": 55.0, "roic": 14.0},
-    "Energy":                  {"pe": 12.0, "pb": 2.0, "dividend_yield": 0.035, "profit_margin": 0.10, "eps_growth": 0.05, "roe": 0.15, "roa": 0.06, "debt_to_equity": 0.50, "current_ratio": 1.2, "operating_margin": 0.15, "fcf_yield": 0.08, "asset_turnover": 0.60, "inventory_turnover": 12.0, "receivables_turnover": 8.0, "ocf_margin": 0.20, "tax_rate": 22.0, "payout_ratio": 45.0, "roic": 10.0},
-    "Industrials":             {"pe": 20.0, "pb": 4.0, "dividend_yield": 0.018, "profit_margin": 0.10, "eps_growth": 0.10, "roe": 0.18, "roa": 0.06, "debt_to_equity": 1.00, "current_ratio": 1.5, "operating_margin": 0.12, "fcf_yield": 0.05, "asset_turnover": 0.80, "inventory_turnover": 7.0, "receivables_turnover": 7.0, "ocf_margin": 0.14, "tax_rate": 21.0, "payout_ratio": 35.0, "roic": 12.0},
-    "Communication Services":  {"pe": 18.0, "pb": 3.0, "dividend_yield": 0.015, "profit_margin": 0.15, "eps_growth": 0.12, "roe": 0.15, "roa": 0.05, "debt_to_equity": 1.20, "current_ratio": 1.4, "operating_margin": 0.18, "fcf_yield": 0.05, "asset_turnover": 0.40, "inventory_turnover": None, "receivables_turnover": 6.0, "ocf_margin": 0.22, "tax_rate": 18.0, "payout_ratio": 30.0, "roic": 10.0},
-    "Utilities":               {"pe": 18.0, "pb": 2.0, "dividend_yield": 0.035, "profit_margin": 0.12, "eps_growth": 0.04, "roe": 0.10, "roa": 0.03, "debt_to_equity": 1.50, "current_ratio": 0.8, "operating_margin": 0.20, "fcf_yield": 0.04, "asset_turnover": 0.30, "inventory_turnover": None, "receivables_turnover": 10.0, "ocf_margin": 0.25, "tax_rate": 20.0, "payout_ratio": 65.0, "roic": 5.0},
-    "Real Estate":             {"pe": 35.0, "pb": 2.0, "dividend_yield": 0.038, "profit_margin": 0.25, "eps_growth": 0.05, "roe": 0.08, "roa": 0.03, "debt_to_equity": 1.30, "current_ratio": 1.0, "operating_margin": 0.30, "fcf_yield": 0.05, "asset_turnover": 0.10, "inventory_turnover": None, "receivables_turnover": 15.0, "ocf_margin": 0.35, "tax_rate": 5.0, "payout_ratio": 70.0, "roic": 4.0},
-    "Basic Materials":         {"pe": 15.0, "pb": 2.5, "dividend_yield": 0.020, "profit_margin": 0.10, "eps_growth": 0.07, "roe": 0.14, "roa": 0.06, "debt_to_equity": 0.60, "current_ratio": 1.8, "operating_margin": 0.14, "fcf_yield": 0.05, "asset_turnover": 0.70, "inventory_turnover": 6.0, "receivables_turnover": 7.0, "ocf_margin": 0.15, "tax_rate": 22.0, "payout_ratio": 40.0, "roic": 10.0},
 }
 
 # ── 섹터별 핵심 지표 (해당 섹터에서 가장 중요하게 봐야 할 지표) ────────
@@ -116,10 +102,93 @@ def search_ticker(query: str):
                     "name": q.get("longname") or q.get("shortname", ""),
                     "exchange": q.get("exchDisp", ""),
                     "sector": q.get("sector", ""),
+                    "quote_type": q.get("quoteType", ""),
                 })
         return results
     except Exception:
         return []
+
+
+# ── 이름 → 미국 거래 ticker 해석 ─────────────────────────────────
+# Yahoo 검색 결과에서 '실제 회사(EQUITY)'이며 '미국에서 거래되는' ticker를 고른다.
+# 회사별 하드코딩 없음. NYSE/NASDAQ 우선, 없으면 OTC. 펀드/ETF·이름 불일치는 제외.
+_US_PRIMARY_EXCH = {
+    "NYSE", "NASDAQ", "NasdaqGS", "NasdaqGM", "NasdaqCM",
+    "NYSEArca", "NYSE American", "NYSEAmerican",
+}
+_FUND_WORDS = {"etf", "fund", "futures", "index", "etn", "leveraged"}
+_NAME_STOP = {
+    "the", "co", "ltd", "inc", "corp", "corporation", "company",
+    "group", "holding", "holdings", "limited", "plc", "sa", "ag", "nv",
+}
+
+
+def _name_tokens(s):
+    return set(re.findall(r"[a-z0-9]+", (s or "").lower()))
+
+
+def _name_match_ratio(query, cand_name):
+    """질의 회사명의 핵심 토큰이 후보 회사명에 포함된 비율 (0~1). stopword 제외.
+
+    완전일치 외에, 질의 토큰이 후보 토큰의 '접두'인 경우도 매칭으로 본다(4자 이상).
+    예: 'Pepsi'(pepsi) 가 'PepsiCo'(pepsico)의 접두 → 매칭. (오탐 방지를 위해 접두만, 부분문자열 아님)
+    """
+    q = _name_tokens(query) - _NAME_STOP
+    c = _name_tokens(cand_name) - _NAME_STOP
+    if not q:
+        return 0.0
+    hit = 0
+    for qt in q:
+        if qt in c or any(len(qt) >= 4 and ct.startswith(qt) for ct in c):
+            hit += 1
+    return hit / len(q)
+
+
+def _is_fund_name(name):
+    return bool(_name_tokens(name) & _FUND_WORDS)
+
+
+def _is_us_primary_exch(e):
+    return e in _US_PRIMARY_EXCH
+
+
+def _is_otc_exch(e):
+    return "OTC" in (e or "") or e in ("Pink Sheets", "Other OTC")
+
+
+def _select_us_ticker(query, quotes, min_name_match=0.5):
+    """search_ticker 결과(quotes)에서 최적의 미국 거래 ticker 1개를 고른다 (순수 함수, network 없음).
+
+    조건: quote_type == EQUITY, 펀드/ETF 이름 아님, 회사명 유사도 >= min_name_match.
+    우선순위: 미국 정규거래소(NYSE/NASDAQ) > OTC. 같은 tier면 이름 유사도 높은 것.
+    없으면 None.
+    """
+    if not isinstance(quotes, list):
+        return None
+    eq = [
+        q for q in quotes
+        if isinstance(q, dict)
+        and q.get("quote_type") == "EQUITY"
+        and not _is_fund_name(q.get("name", ""))
+        and _name_match_ratio(query, q.get("name", "")) >= min_name_match
+    ]
+    t1 = [q for q in eq if _is_us_primary_exch(q.get("exchange", ""))]
+    t2 = [q for q in eq if _is_otc_exch(q.get("exchange", ""))]
+    tier = t1 or t2
+    if not tier:
+        return None
+    tier.sort(key=lambda q: _name_match_ratio(query, q.get("name", "")), reverse=True)
+    return tier[0].get("ticker") or None
+
+
+def resolve_us_ticker(name):
+    """회사 이름을 미국 거래 ticker로 해석한다 (Yahoo 검색 기반, 회사별 하드코딩 없음).
+
+    못 찾거나 네트워크 실패면 None. 실제 선택 로직은 _select_us_ticker(순수 함수)가 담당한다.
+    """
+    if not name or not isinstance(name, str):
+        return None
+    return _select_us_ticker(name, search_ticker(name))
 
 
 # ── 유틸리티 ─────────────────────────────────────────────────────
@@ -152,6 +221,11 @@ def get_overview(ticker: str):
         "annualTotalAssets", "annualCurrentAssets", "annualCurrentLiabilities",
         "annualTangibleBookValue", "annualOperatingIncome",
         "annualCapitalExpenditure", "annualCostOfRevenue", "annualTotalRevenue",
+        "annualStockholdersEquity", "annualTotalDebt",
+        # 손익계산서 흐름 항목의 TTM 표시용(분기 4개 합). net_income(TTM)과 같은 그룹의
+        # pretax_income·EBIT를 TTM으로 맞춰 '순이익 > 세전이익' 같은 기준혼용 오표시를 없앤다.
+        # 필드 총 20개 — Yahoo timeseries 잘림 없음(실측 확인).
+        "quarterlyPretaxIncome", "quarterlyEBIT",
     ]
 
     # Run all 3 API calls in parallel
@@ -270,10 +344,32 @@ def get_overview(ticker: str):
         pts = ts.get(key, [])
         return pts[-1]["value"] if pts else None
 
+    def _ts_avg2(key):
+        """timeseries 최근 2개(기초·기말) 평균. 1개뿐이면 그 값, 없으면 None.
+        회전율 등 재무상태표 항목은 기말이 아니라 '평균 잔액'을 쓰는 것이 정석이다."""
+        pts = ts.get(key, [])
+        vals = [p["value"] for p in pts[-2:] if p.get("value") is not None]
+        return sum(vals) / len(vals) if vals else None
+
+    def _ts_ttm(base):
+        """손익계산서 흐름 항목의 TTM = 분기 최근 4개 합. 4개 미만이면 None(폴백은 호출측).
+        base는 'PretaxIncome'처럼 'quarterly' 접두어를 뗀 이름."""
+        pts = [p["value"] for p in ts.get("quarterly" + base, []) if p.get("value") is not None]
+        return sum(pts[-4:]) if len(pts) >= 4 else None
+
     # 절대 지표 (timeseries 우선, quoteSummary fallback)
-    net_income = _ts_latest("annualNetIncome") or net_income_qs
-    pretax_income = _ts_latest("annualPretaxIncome")
-    ebit_val = _ts_latest("annualEBIT")
+    # 화면 표시용 순이익: 최신(TTM, netIncomeToCommon) 우선 → 매출(TTM)·마진(TTM)과 정합.
+    # 연간 순이익은 tax_rate 폴백 등 '연간끼리' 계산해야 하는 내부용으로 별도 보관.
+    net_income_annual = _ts_latest("annualNetIncome")
+    net_income = net_income_qs or net_income_annual
+    # 표시용 pretax_income·EBIT는 TTM(분기4합) 우선 → net_income(TTM)과 기준 정합.
+    # 분기 데이터 부족시 annual 폴백. 단, tax_rate는 '연간끼리' 계산해야 하므로
+    # annual pretax(pretax_income_annual)를 별도 보존한다(net_income_annual과 동일 원리).
+    pretax_income_annual = _ts_latest("annualPretaxIncome")
+    _pretax_ttm = _ts_ttm("PretaxIncome")
+    pretax_income = _pretax_ttm if _pretax_ttm is not None else pretax_income_annual
+    _ebit_ttm = _ts_ttm("EBIT")
+    ebit_val = _ebit_ttm if _ebit_ttm is not None else _ts_latest("annualEBIT")
     interest_expense = _ts_latest("annualInterestExpense")
     income_tax = _ts_latest("annualIncomeTaxExpense")
     accounts_receivable = _ts_latest("annualAccountsReceivable")
@@ -288,47 +384,61 @@ def get_overview(ticker: str):
     ts_revenue = _ts_latest("annualTotalRevenue") or total_revenue
 
     # 계산 지표
-    # 유효세율 (세금 데이터가 있으면 직접, 없으면 1 - netIncome/pretaxIncome)
+    # 유효세율 (세전이익이 '양수'일 때만 — 적자면 유효세율이 무의미하므로 None)
+    # 표시용 pretax_income은 TTM이므로, 여기서는 반드시 annual pretax(pretax_income_annual)와
+    # annual net_income으로 '연간끼리' 계산한다(기간 정합).
     tax_rate = None
-    if pretax_income and income_tax and pretax_income != 0:
-        tax_rate = round(income_tax / pretax_income * 100, 2)
-    elif pretax_income and net_income and pretax_income != 0:
-        tax_rate = round((1 - net_income / pretax_income) * 100, 2)
+    if pretax_income_annual and pretax_income_annual > 0:
+        if income_tax is not None:
+            tax_rate = round(income_tax / pretax_income_annual * 100, 2)
+        elif net_income_annual is not None:
+            tax_rate = round((1 - net_income_annual / pretax_income_annual) * 100, 2)
 
     # 운전자본
     working_capital = None
     if current_assets is not None and current_liabilities is not None:
         working_capital = current_assets - current_liabilities
 
-    # 자산회전율
+    # 자산회전율 (매출 ÷ 평균 총자산)
     asset_turnover = None
-    if ts_revenue and total_assets and total_assets != 0:
-        asset_turnover = round(ts_revenue / total_assets, 2)
+    avg_assets = _ts_avg2("annualTotalAssets")
+    if ts_revenue and avg_assets and avg_assets != 0:
+        asset_turnover = round(ts_revenue / avg_assets, 2)
 
-    # 재고회전율
+    # 재고회전율 (매출원가 ÷ 평균 재고)
     inventory_turnover = None
     cost_of_revenue = _ts_latest("annualCostOfRevenue")
-    if cost_of_revenue and inventory and inventory != 0:
-        inventory_turnover = round(cost_of_revenue / inventory, 1)
+    avg_inventory = _ts_avg2("annualInventory")
+    if cost_of_revenue and avg_inventory and avg_inventory != 0:
+        inventory_turnover = round(cost_of_revenue / avg_inventory, 1)
 
-    # 매출채권회전율
+    # 매출채권회전율 (매출 ÷ 평균 매출채권)
     receivables_turnover = None
-    if ts_revenue and accounts_receivable and accounts_receivable != 0:
-        receivables_turnover = round(ts_revenue / accounts_receivable, 1)
+    avg_ar = _ts_avg2("annualAccountsReceivable")
+    if ts_revenue and avg_ar and avg_ar != 0:
+        receivables_turnover = round(ts_revenue / avg_ar, 1)
 
-    # ROIC
+    # ROIC = NOPAT ÷ 투하자본(유이자부채 + 자기자본). NOPAT = 영업이익 × (1 - 유효세율).
+    # (영업손실이면 ROIC 음수가 정상이므로 영업이익 부호는 막지 않는다. 투하자본만 양수 요구.)
     roic = None
-    if operating_income_ts and total_assets and current_liabilities:
-        invested_capital = total_assets - current_liabilities
+    equity_ts = _ts_latest("annualStockholdersEquity")
+    total_debt_ts = _ts_latest("annualTotalDebt")
+    if operating_income_ts is not None and equity_ts is not None and total_debt_ts is not None:
+        invested_capital = total_debt_ts + equity_ts
         if invested_capital > 0:
-            effective_tax = (tax_rate / 100) if tax_rate else 0.21
+            # 유효세율은 0~100% 범위일 때만 사용, 아니면 미국 법인세 근사 21%
+            effective_tax = tax_rate / 100 if (tax_rate is not None and 0 <= tax_rate <= 100) else 0.21
             nopat = operating_income_ts * (1 - effective_tax)
             roic = round(nopat / invested_capital * 100, 2)
 
-    # 영업CF마진
+    # 영업CF마진 = 영업현금흐름 ÷ 매출.
+    # operating_cashflow(financialData)는 TTM이므로 분모도 TTM 매출(total_revenue)로 맞춘다
+    # (연간 ts_revenue를 쓰면 성장기업일수록 분모가 작아 마진이 과대됨 — 다른 마진 3형제도 전부 TTM).
+    # total_revenue(TTM)가 없을 때만 연간으로 폴백.
     ocf_margin = None
-    if operating_cashflow and ts_revenue and ts_revenue != 0:
-        ocf_margin = round(operating_cashflow / ts_revenue, 4)  # 비율로 저장 (프론트에서 *100)
+    rev_for_ocf = total_revenue or ts_revenue
+    if operating_cashflow and rev_for_ocf and rev_for_ocf != 0:
+        ocf_margin = round(operating_cashflow / rev_for_ocf, 4)  # 비율로 저장 (프론트에서 *100)
 
     # 설비투자비율
     capex_to_revenue = None
@@ -352,9 +462,7 @@ def get_overview(ticker: str):
         if prev_oi and prev_oi != 0:
             operating_income_growth = round((curr_oi - prev_oi) / abs(prev_oi) * 100, 2)
 
-    # 섹터 평균 지표
-    sector_avg = SECTOR_AVERAGES.get(sector, {})
-    # 섹터별 핵심 지표 목록
+    # 섹터별 핵심 지표 목록 (AI 프로필이 없을 때 폴백용)
     key_metrics = SECTOR_KEY_METRICS.get(sector, [])
 
     result = {
@@ -392,7 +500,6 @@ def get_overview(ticker: str):
         "beta": beta,
         "description": description,
         "earnings_date": earnings_date,
-        "sector_averages": sector_avg,
         "key_metrics": key_metrics,
         # ── 확장 지표 ──
         "net_income": net_income,
@@ -568,6 +675,184 @@ def _get_price_at_dates(ticker: str, dates: list):
             except Exception:
                 pass
     return result
+
+
+# ── SEC 장기 히스토리 병합 (차트) ──────────────────────────────────
+# Yahoo timeseries는 연간 ~4년만 주므로, SEC XBRL(10년+)을 회계연도 기준으로 병합해
+# 차트가 장기 히스토리를 그리게 한다. 외국 filer/미보고 블록은 빈 결과 → Yahoo 값 그대로(폴백).
+_sec_blocks_cache = {}
+_SEC_BLOCKS_TTL = 6 * 3600  # SEC 연간 데이터는 드물게 갱신 → 6시간 캐시
+
+# (metrics의 연간 절대지표 키, SEC building-block 키, Yahoo 연간 timeseries 필드).
+# 액면분할에 민감한 EPS/주식수/주당지표는 제외(SEC 원본 vs Yahoo 분할조정 → 병합 시 불연속).
+# EBITDA/FCF/total_debt/tangible_book은 SEC 단일개념이 없어 다음 단계에서 유도 처리.
+_SEC_ABS_MERGE = [
+    ("revenue", "revenue", "annualTotalRevenue"),
+    ("net_income", "net_income", "annualNetIncome"),
+    ("operating_income", "operating_income", "annualOperatingIncome"),
+    ("gross_profit", "gross_profit", "annualGrossProfit"),
+    ("total_assets", "total_assets", "annualTotalAssets"),
+    ("equity_hist", "stockholders_equity", "annualStockholdersEquity"),
+    ("liabilities_hist", "total_liabilities", "annualTotalLiabilitiesNetMinorityInterest"),
+    ("total_cash_hist", "cash", "annualCashAndCashEquivalents"),
+    ("pretax_income", "pretax_income", "annualPretaxIncome"),
+    ("interest_expense_hist", "interest_expense", "annualInterestExpense"),
+    ("accounts_receivable_hist", "accounts_receivable", "annualAccountsReceivable"),
+    ("inventory_hist", "inventory", "annualInventory"),
+    ("accounts_payable_hist", "accounts_payable", "annualAccountsPayable"),
+]
+
+
+def _get_sec_blocks_cached(ticker: str):
+    """SEC building-block을 TTL 캐시로 가져온다(느린 다중 HTTP를 반복하지 않도록)."""
+    from app.services import sec_client
+    key = ticker.upper()
+    now = time.time()
+    c = _sec_blocks_cache.get(key)
+    if c and now - c["ts"] < _SEC_BLOCKS_TTL:
+        return c["data"]
+    try:
+        data = sec_client.get_sec_building_blocks(ticker)
+    except Exception:
+        data = {}
+    _sec_blocks_cache[key] = {"ts": now, "data": data}
+    return data
+
+
+def _merge_sec_annual_history(ticker, metrics, get_yahoo):
+    """metrics의 연간 절대지표를 SEC 장기값과 병합해 확장한다(제자리 수정).
+
+    get_yahoo: get_metric_history 내부의 _get 클로저(Yahoo 연간 시계열 접근).
+    SEC가 없거나(외국 filer) 특정 블록 미보고면 해당 지표는 그대로 둔다(Yahoo 폴백).
+    """
+    from app.services import sec_client
+    blocks = _get_sec_blocks_cached(ticker)
+    if not blocks:
+        return
+    for mkey, blk, yfield in _SEC_ABS_MERGE:
+        sec_series = blocks.get(blk) or []
+        if not sec_series:
+            continue
+        merged = sec_client.merge_annual_by_fy(sec_series, get_yahoo(yfield))
+        if merged:
+            metrics[mkey] = merged
+
+
+# 비율/유도 지표를 계산할 building-block(키) → Yahoo 연간 필드.
+_SEC_RATIO_YFIELD = {
+    "revenue": "annualTotalRevenue",
+    "net_income": "annualNetIncome",
+    "operating_income": "annualOperatingIncome",
+    "gross_profit": "annualGrossProfit",
+    "total_assets": "annualTotalAssets",
+    "stockholders_equity": "annualStockholdersEquity",
+    "total_liabilities": "annualTotalLiabilitiesNetMinorityInterest",
+    "pretax_income": "annualPretaxIncome",
+    "accounts_receivable": "annualAccountsReceivable",
+    "inventory": "annualInventory",
+    "current_assets": "annualCurrentAssets",
+    "current_liabilities": "annualCurrentLiabilities",
+    "operating_cash_flow": "annualOperatingCashFlow",
+    "capex": "annualCapitalExpenditure",
+    "dividends_paid": "annualCashDividendsPaid",
+}
+
+
+def _derive_sec_ratios(ticker, metrics, get_yahoo):
+    """병합된 절대값(SEC⊕Yahoo)에서 연간 비율/유도 지표를 재계산해 장기화한다(제자리 수정).
+
+    겹치는 최근 연도는 SEC=Yahoo로 값이 정합하므로 기존과 동일하고, 옛 연도만 확장된다.
+    외국 filer 등 SEC가 없으면 병합=Yahoo(4년)와 같아 결과가 사실상 불변(무해).
+    회계연도(date 앞 4자리) 기준으로 분자·분모를 맞춰 SEC/Yahoo 날짜 미세차이를 흡수한다.
+    """
+    from app.services import sec_client
+    blocks = _get_sec_blocks_cached(ticker)
+    if not blocks:
+        return
+
+    # 각 블록의 SEC⊕Yahoo 병합을 fy(int) -> {"date","value"} 로
+    M = {}
+    for blk, yfield in _SEC_RATIO_YFIELD.items():
+        series = sec_client.merge_annual_by_fy(blocks.get(blk) or [], get_yahoo(yfield))
+        M[blk] = {int(p["date"][:4]): p for p in series if p.get("date")}
+
+    def _ratio(num_blk, den_blk, key, multiply=100, num_abs=False, den_positive=False):
+        num, den = M.get(num_blk, {}), M.get(den_blk, {})
+        res = []
+        for fy in sorted(set(num) & set(den)):
+            n, d = num[fy]["value"], den[fy]["value"]
+            if n is None or d is None or d == 0:
+                continue
+            if den_positive and d <= 0:
+                continue
+            if num_abs:
+                n = abs(n)
+            res.append({"date": num[fy]["date"], "value": round(n / d * multiply, 2)})
+        if res:
+            metrics[key] = res
+
+    _ratio("net_income", "revenue", "profit_margin_hist")
+    _ratio("operating_income", "revenue", "operating_margin_hist")
+    _ratio("gross_profit", "revenue", "gross_margin_hist")
+    _ratio("net_income", "stockholders_equity", "roe_hist")
+    _ratio("net_income", "total_assets", "roa_hist")
+    _ratio("total_liabilities", "stockholders_equity", "debt_to_equity_hist", multiply=1)
+    _ratio("revenue", "total_assets", "asset_turnover_hist", multiply=1)
+    _ratio("revenue", "inventory", "inventory_turnover_hist", multiply=1)
+    _ratio("revenue", "accounts_receivable", "receivables_turnover_hist", multiply=1)
+    _ratio("operating_cash_flow", "revenue", "ocf_margin_hist")
+    _ratio("capex", "revenue", "capex_to_revenue_hist", num_abs=True)
+    _ratio("dividends_paid", "net_income", "payout_ratio_hist", num_abs=True, den_positive=True)
+
+    # 유효세율 = (1 - net_income/pretax) * 100  (pretax != 0)
+    ni, pti = M.get("net_income", {}), M.get("pretax_income", {})
+    tax_by_fy, tax_res = {}, []
+    for fy in sorted(set(ni) & set(pti)):
+        n, p = ni[fy]["value"], pti[fy]["value"]
+        if n is not None and p not in (None, 0):
+            v = round((1 - n / p) * 100, 2)
+            tax_by_fy[fy] = v
+            tax_res.append({"date": pti[fy]["date"], "value": v})
+    if tax_res:
+        metrics["tax_rate_hist"] = tax_res
+
+    # 운전자본 = 유동자산 - 유동부채
+    ca, cl = M.get("current_assets", {}), M.get("current_liabilities", {})
+    wc = [{"date": ca[fy]["date"], "value": round(ca[fy]["value"] - cl[fy]["value"], 0)}
+          for fy in sorted(set(ca) & set(cl))
+          if ca[fy]["value"] is not None and cl[fy]["value"] is not None]
+    if wc:
+        metrics["working_capital_hist"] = wc
+
+    # ROIC = NOPAT / (총자산 - 유동부채), NOPAT = 영업이익 × (1 - 유효세율(없으면 21%))
+    oi, ta = M.get("operating_income", {}), M.get("total_assets", {})
+    roic = []
+    for fy in sorted(set(oi) & set(ta) & set(cl)):
+        o, t, c = oi[fy]["value"], ta[fy]["value"], cl[fy]["value"]
+        if o is None or t is None or c is None:
+            continue
+        ic = t - c
+        if ic <= 0:
+            continue
+        tax_r = tax_by_fy.get(fy, 21) / 100
+        roic.append({"date": oi[fy]["date"], "value": round(o * (1 - tax_r) / ic * 100, 2)})
+    if roic:
+        metrics["roic_hist"] = roic
+
+    # 성장률(YoY) = (당기-전기)/|전기| × 100
+    def _growth(blk, key):
+        m = M.get(blk, {})
+        fys = sorted(m)
+        res = []
+        for i in range(1, len(fys)):
+            prev, curr = m[fys[i - 1]]["value"], m[fys[i]]["value"]
+            if prev not in (None, 0) and curr is not None:
+                res.append({"date": m[fys[i]]["date"], "value": round((curr - prev) / abs(prev) * 100, 2)})
+        if res:
+            metrics[key] = res
+
+    _growth("net_income", "net_income_growth_hist")
+    _growth("operating_income", "operating_income_growth_hist")
 
 
 def get_metric_history(ticker: str):
@@ -1099,5 +1384,11 @@ def get_metric_history(ticker: str):
                 # 분기 배당금 × 4 / 시가총액 = 연환산 수익률
                 div_yield_q.append({"date": date, "value": round(div * 4 / mc * 100, 2)})
         metrics["dividend_yield_quarterly"] = div_yield_q
+
+    # ── SEC 장기 연간 히스토리 병합 (미국 us-gaap filer) ──
+    # 절대 달러 지표를 SEC(10년+)로 확장하고, 비율/유도 지표도 병합된 절대값에서 재계산.
+    # 외국 filer/미보고 블록은 Yahoo 값 그대로(폴백).
+    _merge_sec_annual_history(ticker, metrics, _get)
+    _derive_sec_ratios(ticker, metrics, _get)
 
     return metrics

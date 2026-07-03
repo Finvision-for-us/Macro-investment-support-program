@@ -112,7 +112,15 @@ async def init_db():
                 ticker TEXT PRIMARY KEY,
                 competitors_json TEXT,
                 key_metrics_json TEXT,
-                analyzed_at TEXT NOT NULL
+                analyzed_at TEXT NOT NULL,
+                profile_hash TEXT
             )
         """)
+        # ── additive migration (비파괴): 기존 DB에는 CREATE가 skip되므로
+        #    profile_hash 컬럼이 없으면 ALTER ADD COLUMN으로만 추가한다.
+        #    DROP/DELETE 금지 — 기존 cache row를 보존한다. 옛 row는 NULL로 남아 old cache로 감지된다.
+        cursor = await db.execute("PRAGMA table_info(stock_profile_ai)")
+        spa_cols = [row[1] for row in await cursor.fetchall()]
+        if "profile_hash" not in spa_cols:
+            await db.execute("ALTER TABLE stock_profile_ai ADD COLUMN profile_hash TEXT")
         await db.commit()
