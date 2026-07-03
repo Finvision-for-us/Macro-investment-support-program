@@ -775,6 +775,16 @@ def _derive_sec_ratios(ticker, metrics, get_yahoo):
     if tax_res:
         metrics["tax_rate_hist"] = tax_res
 
+    # FCF = 영업현금흐름 - capex. capex 블록은 이미 음수(negate)로 정규화되어 있으므로 더한다.
+    # (AAPL/KO에서 Yahoo annualFreeCashFlow와 정확 일치 검증. EBITDA/tangible_book/total_debt는
+    #  SEC 유도가 Yahoo와 정합하지 않아 확장하지 않음 → 해당 차트는 Yahoo 4년 유지.)
+    ocf_m, cx_m = M.get("operating_cash_flow", {}), M.get("capex", {})
+    fcf = [{"date": ocf_m[fy]["date"], "value": round(ocf_m[fy]["value"] + cx_m[fy]["value"], 0)}
+           for fy in sorted(set(ocf_m) & set(cx_m))
+           if ocf_m[fy]["value"] is not None and cx_m[fy]["value"] is not None]
+    if fcf:
+        metrics["fcf_hist"] = fcf
+
     # 운전자본 = 유동자산 - 유동부채
     ca, cl = M.get("current_assets", {}), M.get("current_liabilities", {})
     wc = [{"date": ca[fy]["date"], "value": round(ca[fy]["value"] - cl[fy]["value"], 0)}
