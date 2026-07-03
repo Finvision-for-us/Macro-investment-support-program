@@ -16,16 +16,18 @@ import re
 import requests
 from datetime import datetime
 
-from app.config import GOOGLE_API_KEY
+from app.config import GOOGLE_API_KEY, GEMINI_STOCK_PROFILE_MODEL
 from app.database import DB_PATH
 
 logger = logging.getLogger(__name__)
 
-GEMINI_MODEL = "gemini-2.5-flash-lite"
+# 모델은 config(env)에서 주입. .env의 GEMINI_STOCK_PROFILE_MODEL로 교체 가능.
+GEMINI_MODEL = GEMINI_STOCK_PROFILE_MODEL
 
 # profile 생성 설정의 의미적 버전. context/output schema 의미가 바뀔 때만 +1.
 # (함수 코드 자체는 hash에 넣지 않는다 — 무해한 refactor로 cache 전체가 무효화되는 것을 피하기 위함.)
-PROFILE_CONTEXT_VERSION = 3
+# v4: 비평(critic)에 '누락 보강'(additions, 이름→resolve+검증) 추가 — 출력 의미 변화로 캐시 재생성 필요.
+PROFILE_CONTEXT_VERSION = 4
 
 PROFILE_PROMPT = """[역할] 종목 프로파일링 전문가. 사업 구조를 분석하여 직접 경쟁사를 식별하고, 해당 종목에 최적화된 분석 지표를 선정.
 
@@ -161,8 +163,9 @@ def _sanitize_key_metrics(key_metrics):
         out.append({"metric": m, "reason": reason if isinstance(reason, str) else ""})
     return out
 
-# 비평(critic) 에이전트 프롬프트. 1차 생성 결과의 '판단'(직접성/주력영역 배치)만 재검토한다.
-# 티커는 바꾸지 않고(추측 금지), 회사 추가도 하지 않으며, 제거·재배치만 한다.
+# 비평(critic) 에이전트 프롬프트. 1차 생성 결과의 '판단'(직접성/주력영역 배치)을 재검토한다.
+# competitors: 기존 티커의 제거·재배치만(티커 추측·생성 금지).
+# additions: 누락된 '명백한 직접 경쟁사'를 회사 '이름'으로 제안 → 코드가 resolve+실재검증. 없으면 빈 배열.
 _CRITIC_PROMPT = """[역할] 경쟁사 분석 검수자. 다른 분석가가 작성한 '{ticker} ({company_name})의 경쟁사 분류'를 비판적으로 재검토하고, 틀린 부분만 고친다.
 
 [대상] {ticker} ({company_name}) | {sector} > {industry}
@@ -179,15 +182,23 @@ _CRITIC_PROMPT = """[역할] 경쟁사 분석 검수자. 다른 분석가가 작
 - 각 회사가 대상 기업과 '가장 크게 경쟁하는 주력 영역'에 배치됐는가.
   한 회사가 특정 영역에서 가장 크게 경쟁하면 그 영역에 둘 것.
   단, 여러 영역에서 대등하게 경쟁하는 경우(예: 종합 금융사끼리)에는 억지로 한 곳으로 몰지 말 것.
-- 틀린 게 없으면 원본을 그대로 유지할 것 (억지로 바꾸지 말 것).
+- 제거·재배치에 틀린 게 없으면 competitors는 원본 그대로 둘 것 (억지로 바꾸지 말 것).
+
+[누락 점검 — 중요]
+- 대상 기업의 각 주력 사업 영역에서, 목록에 '빠졌지만 명백하게 직접 경쟁하는 대표 기업'이 있으면 additions에 넣을 것.
+- additions의 회사는 미국 시장에서 투자 가능해야 한다(미국 상장 또는 ADR/OTC 거래). 미국에서 거래되지 않으면 넣지 말 것.
+- additions에는 ticker가 아니라 회사 '정식 이름'을 적을 것 (코드가 티커로 변환·실재검증한다). ticker를 지어내지 말 것.
+- 확실한 대표 직접 경쟁사만 넣을 것. 애매·부차적·틈새 경쟁자나 이미 목록에 있는 회사는 넣지 말 것. 없으면 additions는 빈 배열([]).
 
 [출력 규칙]
-- ticker는 원본에 있던 값만 사용할 것. 새 ticker를 만들거나 추측하지 말 것.
-- 원본에 없던 회사를 새로 추가하지 말 것 (제거·재배치만).
+- competitors.tickers는 원본에 있던 값만 사용(제거·재배치만). 새 ticker를 만들거나 추측하지 말 것. competitors에 새 회사를 넣지 말 것(추가는 additions로만).
 - 아래와 완전히 동일한 JSON 스키마로만 출력. 한국어. JSON 외 텍스트 금지.
 {{
   "competitors": [
     {{"business_area": "영역명", "tickers": ["T1"], "descriptions": ["T1 경쟁 이유"]}}
+  ],
+  "additions": [
+    {{"business_area": "영역명", "companies": ["회사 정식 이름"], "descriptions": ["이 회사가 직접 경쟁하는 이유"]}}
   ]
 }}
 """
@@ -539,12 +550,76 @@ def _extract_profile_inputs(ticker: str, overview: dict) -> dict:
     }
 
 
-async def _critique_competitors(ticker, overview, competitors):
-    """2차 Gemini 비평 패스: 경쟁사 직접성/주력영역만 재검토한다 (판단층, fail-soft).
+def _merge_competitor_groups(base, additions):
+    """비평 additions(resolve된 ticker 그룹)를 base competitors에 병합한다 (순수 함수, 네트워크 없음).
 
-    티커는 바꾸지 않고(추측 금지), 회사 추가 없이 제거·재배치만 한다.
+    - business_area가 같은 그룹이면 티커를 이어붙이고, 다른 area면 새 그룹으로 추가한다.
+    - 이미 base 어딘가에 존재하는 티커는 다시 넣지 않는다(중복 방지).
+    - descriptions 정렬을 티커와 맞춰 유지한다.
+    구조/자기티커/형식/실재성 최종 정제는 호출측의 _sanitize_competitors + 검증이 담당한다.
+    입력 리스트를 변형하지 않도록 그룹/리스트를 새로 만들어 반환한다.
+    """
+    def _area_key(a):
+        return a.strip().lower() if isinstance(a, str) else ""
+
+    merged = []
+    area_index = {}
+    for g in base if isinstance(base, list) else []:
+        if not isinstance(g, dict):
+            continue
+        ng = {
+            "business_area": g.get("business_area"),
+            "tickers": list(g.get("tickers", []) or []),
+            "descriptions": list(g.get("descriptions", []) or []),
+        }
+        merged.append(ng)
+        area_index.setdefault(_area_key(ng["business_area"]), ng)
+
+    if not isinstance(additions, list) or not additions:
+        return merged
+
+    existing = set()
+    for g in merged:
+        for t in g["tickers"]:
+            if isinstance(t, str):
+                existing.add(t.strip().upper())
+
+    for add in additions:
+        if not isinstance(add, dict):
+            continue
+        area = add.get("business_area")
+        tickers = add.get("tickers")
+        if not isinstance(area, str) or not area.strip() or not isinstance(tickers, list):
+            continue
+        descriptions = add.get("descriptions")
+        if not isinstance(descriptions, list):
+            descriptions = []
+        target = area_index.get(_area_key(area))
+        if target is None:
+            target = {"business_area": area, "tickers": [], "descriptions": []}
+            merged.append(target)
+            area_index[_area_key(area)] = target
+        for i, t in enumerate(tickers):
+            if not isinstance(t, str):
+                continue
+            sym = t.strip().upper()
+            if not sym or sym in existing:
+                continue
+            existing.add(sym)
+            target["tickers"].append(sym)
+            d = descriptions[i] if i < len(descriptions) and isinstance(descriptions[i], str) else ""
+            target["descriptions"].append(d)
+    return merged
+
+
+async def _critique_competitors(ticker, overview, competitors):
+    """2차 Gemini 비평 패스: 경쟁사 직접성/주력영역 재검토 + 누락 보강 (판단층, fail-soft).
+
+    competitors: 기존 티커의 제거·재배치만(티커 추측 금지).
+    additions: 누락된 명백한 직접 경쟁사를 '이름'으로 받아 _resolve_competitor_companies로
+      US 티커 변환·실재검증 후 병합한다(생성기와 동일한 할루시네이션 방어).
     실패(키 없음/빈 입력/HTTP 오류/파싱 실패)면 None을 반환하고, 호출측은 원본 competitors를 유지한다.
-    사실(티커 존재) 검증은 호출측의 _validate_competitor_tickers가 담당한다.
+    최종 티커 실재 검증은 호출측의 _validate_competitor_tickers가 담당한다.
     """
     if not GOOGLE_API_KEY:
         return None
@@ -585,6 +660,12 @@ async def _critique_competitors(ticker, overview, competitors):
         comps = result.get("competitors")
         if not isinstance(comps, list) or not comps:
             return None
+        # 누락 보강: additions는 '회사 이름'으로 제안됨 → 생성기와 동일 경로로
+        # resolve(이름→US 티커) + 실재검증을 태워 병합한다(할루시네이션 방어 동일).
+        additions = result.get("additions")
+        if isinstance(additions, list) and additions:
+            resolved_adds = await _resolve_competitor_companies(additions)
+            comps = _merge_competitor_groups(comps, resolved_adds)
         return comps
     except Exception as e:
         logger.error("critic error: %s", e)
