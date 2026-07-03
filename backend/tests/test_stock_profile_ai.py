@@ -236,5 +236,62 @@ class TestSanitizeKeyMetrics(unittest.TestCase):
         self.assertEqual(prompt_list, set(spa._ALLOWED_KEY_METRICS))
 
 
+class TestMergeCompetitorGroups(unittest.TestCase):
+    """_merge_competitor_groups: 비평 additions(resolve된 티커 그룹) 병합 (순수 함수).
+
+    - 기존 area면 append, 신규 area면 새 그룹, 이미 있는 티커는 중복 제거
+    - descriptions 정렬 유지, 입력(base) 불변
+    """
+
+    def _base(self):
+        return [
+            {"business_area": "스마트폰", "tickers": ["SSNLF", "XIACY"],
+             "descriptions": ["삼성", "샤오미"]},
+            {"business_area": "웨어러블", "tickers": ["SSNLF"],
+             "descriptions": ["갤워치"]},
+        ]
+
+    def test_append_new_and_dedupe_and_immutable(self):
+        base = self._base()
+        import copy
+        snap = copy.deepcopy(base)
+        adds = [
+            {"business_area": "웨어러블", "tickers": ["GRMN"], "descriptions": ["가민"]},
+            {"business_area": "홈 엔터테인먼트", "tickers": ["ROKU"], "descriptions": ["로쿠"]},
+            {"business_area": "스마트폰", "tickers": ["SSNLF"], "descriptions": ["중복무시"]},
+        ]
+        out = spa._merge_competitor_groups(base, adds)
+        d = {g["business_area"]: g for g in out}
+        self.assertEqual(d["웨어러블"]["tickers"], ["SSNLF", "GRMN"])
+        self.assertEqual(d["웨어러블"]["descriptions"], ["갤워치", "가민"])
+        self.assertEqual(d["홈 엔터테인먼트"]["tickers"], ["ROKU"])
+        self.assertEqual(d["스마트폰"]["tickers"], ["SSNLF", "XIACY"])  # 중복 무시
+        self.assertEqual(base, snap)  # 원본 불변
+
+    def test_none_and_empty_additions_return_copy(self):
+        base = self._base()
+        self.assertEqual(spa._merge_competitor_groups(base, None), base)
+        self.assertEqual(spa._merge_competitor_groups(base, []), base)
+        # 반환은 복제본이어야 함(원본과 리스트 식별자 분리)
+        out = spa._merge_competitor_groups(base, [])
+        out[0]["tickers"].append("ZZZZ")
+        self.assertNotIn("ZZZZ", base[0]["tickers"])
+
+    def test_malformed_additions_ignored(self):
+        base = self._base()
+        adds = ["not dict", 123, {"tickers": ["X"]},  # business_area 없음
+                {"business_area": "  ", "tickers": ["Y"]},  # 빈 area
+                {"business_area": "PC", "tickers": "notlist"}]  # tickers non-list
+        out = spa._merge_competitor_groups(base, adds)
+        self.assertEqual([g["business_area"] for g in out], ["스마트폰", "웨어러블"])
+
+    def test_area_match_case_insensitive(self):
+        base = [{"business_area": "PC", "tickers": ["HPQ"], "descriptions": ["d"]}]
+        adds = [{"business_area": " pc ", "tickers": ["DELL"], "descriptions": ["델"]}]
+        out = spa._merge_competitor_groups(base, adds)
+        self.assertEqual(len(out), 1)  # 같은 area로 병합
+        self.assertEqual(out[0]["tickers"], ["HPQ", "DELL"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
