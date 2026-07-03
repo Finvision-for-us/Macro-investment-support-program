@@ -348,7 +348,10 @@ def get_overview(ticker: str):
         return sum(vals) / len(vals) if vals else None
 
     # 절대 지표 (timeseries 우선, quoteSummary fallback)
-    net_income = _ts_latest("annualNetIncome") or net_income_qs
+    # 화면 표시용 순이익: 최신(TTM, netIncomeToCommon) 우선 → 매출(TTM)·마진(TTM)과 정합.
+    # 연간 순이익은 tax_rate 폴백 등 '연간끼리' 계산해야 하는 내부용으로 별도 보관.
+    net_income_annual = _ts_latest("annualNetIncome")
+    net_income = net_income_qs or net_income_annual
     pretax_income = _ts_latest("annualPretaxIncome")
     ebit_val = _ts_latest("annualEBIT")
     interest_expense = _ts_latest("annualInterestExpense")
@@ -370,8 +373,8 @@ def get_overview(ticker: str):
     if pretax_income and pretax_income > 0:
         if income_tax is not None:
             tax_rate = round(income_tax / pretax_income * 100, 2)
-        elif net_income is not None:
-            tax_rate = round((1 - net_income / pretax_income) * 100, 2)
+        elif net_income_annual is not None:
+            tax_rate = round((1 - net_income_annual / pretax_income) * 100, 2)
 
     # 운전자본
     working_capital = None
