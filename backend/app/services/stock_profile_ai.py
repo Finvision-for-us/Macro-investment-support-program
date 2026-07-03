@@ -25,7 +25,7 @@ GEMINI_MODEL = "gemini-2.5-flash-lite"
 
 # profile 생성 설정의 의미적 버전. context/output schema 의미가 바뀔 때만 +1.
 # (함수 코드 자체는 hash에 넣지 않는다 — 무해한 refactor로 cache 전체가 무효화되는 것을 피하기 위함.)
-PROFILE_CONTEXT_VERSION = 2
+PROFILE_CONTEXT_VERSION = 3
 
 PROFILE_PROMPT = """[역할] 종목 프로파일링 전문가. 사업 구조를 분석하여 직접 경쟁사를 식별하고, 해당 종목에 최적화된 분석 지표를 선정.
 
@@ -53,13 +53,12 @@ PROFILE_PROMPT = """[역할] 종목 프로파일링 전문가. 사업 구조를 
   약한 3개보다 확실한 2개가 낫다. 총 개수를 억지로 채우지 말 것.
 - 대상 기업이 그 영역에서 실제 사업을 하지 않으면 그 영역 자체를 만들지 말 것.
 
-[ticker 규칙]
-- tickers에는 '미국에서 실제 조회 가능한' ticker symbol만 넣을 것 (NYSE/NASDAQ + ADR/OTC 허용).
-- 회사명(예: "SAMSUNG")을 ticker 자리에 쓰지 말 것. ticker를 추측/변형하지 말 것.
-- 아래 주요 해외 기업은 반드시 이 미국 거래 ticker를 그대로 사용할 것 (다른 표기 금지):
-  삼성전자=SSNLF, 샤오미=XIACY, 레노버=LNVGY
-- 위 목록에 없는 해외 기업은, 정확한 미국 거래 ticker를 확신할 수 없으면 생략할 것 (ticker 추측 금지).
-- 비상장 제외. 영역당 최대 3개.
+[회사 규칙]
+- companies에는 회사의 '정식 명칭'을 쓸 것 (ticker/심볼/약어가 아니라 실제 회사 이름).
+  예: "삼성전자", "Xiaomi", "Toyota Motor", "Taiwan Semiconductor".
+- 모호하지 않게 구별 가능한 이름을 쓸 것 (예: 'BYD'만 쓰지 말고 'BYD Company').
+- 비상장 회사는 제외. 영역당 최대 3개.
+- (참고: ticker는 이후 시스템이 회사명을 조회해 자동으로 붙인다. 모델은 이름만 정확히 대면 된다.)
 
 [각 경쟁사 self-check]
 - 넣기 전에 스스로 확인: "이 회사는 이 영역에서 대상 기업과 지금 실제로 경쟁하는가? 구체적 제품이 있는가?" 아니면 제외.
@@ -80,7 +79,7 @@ PROFILE_PROMPT = """[역할] 종목 프로파일링 전문가. 사업 구조를 
 [출력] JSON만. 한국어.
 {{
   "competitors": [
-    {{"business_area": "영역명", "tickers": ["T1","T2"], "descriptions": ["T1 경쟁 이유","T2 경쟁 이유"]}}
+    {{"business_area": "영역명", "companies": ["회사 정식명1","회사 정식명2"], "descriptions": ["회사1 경쟁 이유","회사2 경쟁 이유"]}}
   ],
   "key_metrics": [
     {{"metric": "지표ID", "reason": "선택 이유"}}
@@ -166,6 +165,10 @@ async def get_stock_profile(ticker: str, overview: dict = None) -> dict:
     # 3) Gemini 분석
     profile = await _analyze_with_gemini(ticker, overview)
     if profile:
+        # 3.3) 모델이 낸 회사 '이름'을 US 티커로 해석 (코드+Yahoo, 하드코딩 없음).
+        #      resolve 실패(미국 조회 불가)한 회사는 제외. 이후 단계는 기존 ticker 구조 위에서 동작한다.
+        profile["competitors"] = await _resolve_competitor_companies(profile.get("competitors", []))
+
         # 3.5) 비평 에이전트 (판단층, fail-soft): 직접성/주력영역을 2차 Gemini로 재검토.
         #      실패(503/파싱오류 등)면 None → 원본 competitors 유지. 티커 사실검증은 아래 단계가 담당.
         critiqued = await _critique_competitors(ticker, overview, profile.get("competitors", []))
@@ -367,6 +370,67 @@ async def _validate_competitor_tickers(tickers) -> set:
 
     results = await asyncio.gather(*[_check(s) for s in symbols])
     return {s for s in results if s}
+
+
+async def _resolve_competitor_companies(competitors):
+    """모델이 낸 competitors(각 group에 'companies' 회사명 리스트)를 US 티커 구조로 변환한다.
+
+    각 회사명을 yfinance_client.resolve_us_ticker로 미국 거래 ticker로 해석한다(병렬).
+    해석 실패(None)한 회사는 제외하고 descriptions 정렬을 유지한다.
+    ticker가 0개가 된 group은 제거한다.
+    반환 형태는 기존 저장 스키마와 동일: [{"business_area", "tickers":[...], "descriptions":[...]}].
+    (하드코딩 없음 — 이름→티커는 resolve_us_ticker가 Yahoo 검색으로 처리)
+    """
+    if not isinstance(competitors, list):
+        return []
+    from app.services import yfinance_client
+
+    # 모든 (group_idx, company_idx) → 회사명 을 모아 병렬 resolve
+    idx = []
+    names = []
+    for gi, group in enumerate(competitors):
+        if not isinstance(group, dict):
+            continue
+        companies = group.get("companies")
+        if not isinstance(companies, list):
+            continue
+        for ci, name in enumerate(companies):
+            if isinstance(name, str) and name.strip():
+                idx.append((gi, ci))
+                names.append(name.strip())
+
+    resolved = await asyncio.gather(
+        *[asyncio.to_thread(yfinance_client.resolve_us_ticker, n) for n in names]
+    )
+    name_to_ticker = {pos: tk for pos, tk in zip(idx, resolved)}
+
+    out = []
+    for gi, group in enumerate(competitors):
+        if not isinstance(group, dict):
+            continue
+        area = group.get("business_area")
+        if not isinstance(area, str) or not area.strip():
+            continue
+        companies = group.get("companies")
+        if not isinstance(companies, list):
+            continue
+        descriptions = group.get("descriptions")
+        if not isinstance(descriptions, list):
+            descriptions = []
+
+        seen = set()
+        kept_t = []
+        kept_d = []
+        for ci, name in enumerate(companies):
+            tk = name_to_ticker.get((gi, ci))
+            if not tk or tk in seen:
+                continue
+            seen.add(tk)
+            kept_t.append(tk)
+            kept_d.append(descriptions[ci] if ci < len(descriptions) and isinstance(descriptions[ci], str) else "")
+        if kept_t:
+            out.append({"business_area": area, "tickers": kept_t, "descriptions": kept_d})
+    return out
 
 
 def _build_financial_context(overview: dict) -> str:
