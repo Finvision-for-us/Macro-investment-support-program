@@ -14,7 +14,11 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.services.sec_client import _reduce_units_to_annual, SEC_CONCEPT_MAP
+from app.services.sec_client import (
+    _reduce_units_to_annual,
+    SEC_CONCEPT_MAP,
+    merge_annual_by_fy,
+)
 
 
 def U(start, end, val, filed, form="10-K"):
@@ -125,6 +129,48 @@ class TestConceptMapWellFormed(unittest.TestCase):
             self.assertIn(spec.get("unit"), self.ALLOWED_UNITS, key)
             if "negate" in spec:
                 self.assertIsInstance(spec["negate"], bool, key)
+
+
+class TestMergeAnnualByFy(unittest.TestCase):
+    """merge_annual_by_fy: SEC(장기) ⊕ Yahoo(최근) 회계연도 병합 (순수 함수)."""
+
+    def _sec(self, *pairs):
+        return [{"fy": int(e[:4]), "end": e, "value": v} for e, v in pairs]
+
+    def _yahoo(self, *pairs):
+        return [{"date": d, "value": v} for d, v in pairs]
+
+    def test_sec_extends_history_and_overrides_overlap(self):
+        sec = self._sec(("2020-09-26", 274), ("2021-09-25", 365), ("2022-09-24", 394))
+        yahoo = self._yahoo(("2021-09-30", 365), ("2022-09-30", 394))  # 겹침
+        out = merge_annual_by_fy(sec, yahoo)
+        # 3개 연도, 겹치는 해는 SEC 날짜(end)로 통일, 오래된 2020은 SEC에서만
+        self.assertEqual([p["date"] for p in out],
+                         ["2020-09-26", "2021-09-25", "2022-09-24"])
+        self.assertEqual([p["value"] for p in out], [274, 365, 394])
+
+    def test_yahoo_fills_year_sec_lacks(self):
+        # SEC엔 없고 Yahoo에만 있는 최신 회계연도(예: 10-K 미제출)는 Yahoo로 채움
+        sec = self._sec(("2024-09-28", 391))
+        yahoo = self._yahoo(("2024-09-30", 391), ("2025-09-30", 416))
+        out = merge_annual_by_fy(sec, yahoo)
+        self.assertEqual([p["date"] for p in out], ["2024-09-28", "2025-09-30"])
+        self.assertEqual(out[-1]["value"], 416)  # 2025는 Yahoo
+
+    def test_empty_sec_returns_yahoo(self):
+        yahoo = self._yahoo(("2024-09-30", 391), ("2025-09-30", 416))
+        out = merge_annual_by_fy([], yahoo)
+        self.assertEqual([p["value"] for p in out], [391, 416])
+
+    def test_both_empty(self):
+        self.assertEqual(merge_annual_by_fy([], []), [])
+        self.assertEqual(merge_annual_by_fy(None, None), [])
+
+    def test_bad_points_skipped(self):
+        sec = [{"end": None, "value": 1}, {"end": "2020-09-26", "value": None}, 123]
+        yahoo = [{"date": "2019-09-28", "value": 200}, "x"]
+        out = merge_annual_by_fy(sec, yahoo)
+        self.assertEqual(out, [{"date": "2019-09-28", "value": 200}])
 
 
 if __name__ == "__main__":

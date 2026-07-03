@@ -231,3 +231,44 @@ def get_sec_building_blocks(ticker: str, cik: str = None, blocks: list = None):
             series = [{"fy": p["fy"], "end": p["end"], "value": -p["value"]} for p in series]
         out[key] = series
     return out
+
+
+def merge_annual_by_fy(sec_series, yahoo_series):
+    """SEC 연간 시계열(장기)과 Yahoo 연간 시계열(최근)을 회계연도 기준으로 병합한다 (순수 함수).
+
+    SEC를 우선(실제 공시·장기)하고, SEC에 없는 회계연도만 Yahoo로 채운다
+    (가장 최신 FY가 아직 10-K에 안 잡힌 경우 등). 회계연도 키 = 기간 end/date의 앞 4자리(연도).
+    SEC·Yahoo는 이미 값이 정합함을 검증했으므로 겹치는 해는 SEC 날짜로 통일한다.
+
+    sec_series: [{"fy","end","value"}, ...] (get_annual_concept_series 형식). 빈 리스트면 Yahoo만.
+    yahoo_series: [{"date","value"}, ...] (기존 timeseries 형식).
+    반환: [{"date","value"}, ...] (date 오름차순). 프론트 차트가 쓰는 형식과 동일.
+    """
+    by_fy = {}  # fy(int) -> {"date","value"}
+    for p in yahoo_series or []:
+        if not isinstance(p, dict):
+            continue
+        d = p.get("date")
+        v = p.get("value")
+        if not d or v is None:
+            continue
+        try:
+            fy = int(str(d)[:4])
+        except ValueError:
+            continue
+        by_fy[fy] = {"date": d, "value": v}
+    for p in sec_series or []:
+        if not isinstance(p, dict):
+            continue
+        end = p.get("end")
+        v = p.get("value")
+        if not end or v is None:
+            continue
+        try:
+            fy = int(str(end)[:4])
+        except ValueError:
+            continue
+        by_fy[fy] = {"date": end, "value": v}  # SEC 우선(덮어쓰기)
+    out = list(by_fy.values())
+    out.sort(key=lambda x: x["date"])
+    return out
