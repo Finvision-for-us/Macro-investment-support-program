@@ -1,3 +1,4 @@
+import re
 import requests
 import threading
 import time
@@ -116,10 +117,85 @@ def search_ticker(query: str):
                     "name": q.get("longname") or q.get("shortname", ""),
                     "exchange": q.get("exchDisp", ""),
                     "sector": q.get("sector", ""),
+                    "quote_type": q.get("quoteType", ""),
                 })
         return results
     except Exception:
         return []
+
+
+# ── 이름 → 미국 거래 ticker 해석 ─────────────────────────────────
+# Yahoo 검색 결과에서 '실제 회사(EQUITY)'이며 '미국에서 거래되는' ticker를 고른다.
+# 회사별 하드코딩 없음. NYSE/NASDAQ 우선, 없으면 OTC. 펀드/ETF·이름 불일치는 제외.
+_US_PRIMARY_EXCH = {
+    "NYSE", "NASDAQ", "NasdaqGS", "NasdaqGM", "NasdaqCM",
+    "NYSEArca", "NYSE American", "NYSEAmerican",
+}
+_FUND_WORDS = {"etf", "fund", "futures", "index", "etn", "leveraged"}
+_NAME_STOP = {
+    "the", "co", "ltd", "inc", "corp", "corporation", "company",
+    "group", "holding", "holdings", "limited", "plc", "sa", "ag", "nv",
+}
+
+
+def _name_tokens(s):
+    return set(re.findall(r"[a-z0-9]+", (s or "").lower()))
+
+
+def _name_match_ratio(query, cand_name):
+    """질의 회사명의 핵심 토큰이 후보 회사명에 포함된 비율 (0~1). stopword 제외."""
+    q = _name_tokens(query) - _NAME_STOP
+    c = _name_tokens(cand_name) - _NAME_STOP
+    if not q:
+        return 0.0
+    return len(q & c) / len(q)
+
+
+def _is_fund_name(name):
+    return bool(_name_tokens(name) & _FUND_WORDS)
+
+
+def _is_us_primary_exch(e):
+    return e in _US_PRIMARY_EXCH
+
+
+def _is_otc_exch(e):
+    return "OTC" in (e or "") or e in ("Pink Sheets", "Other OTC")
+
+
+def _select_us_ticker(query, quotes, min_name_match=0.5):
+    """search_ticker 결과(quotes)에서 최적의 미국 거래 ticker 1개를 고른다 (순수 함수, network 없음).
+
+    조건: quote_type == EQUITY, 펀드/ETF 이름 아님, 회사명 유사도 >= min_name_match.
+    우선순위: 미국 정규거래소(NYSE/NASDAQ) > OTC. 같은 tier면 이름 유사도 높은 것.
+    없으면 None.
+    """
+    if not isinstance(quotes, list):
+        return None
+    eq = [
+        q for q in quotes
+        if isinstance(q, dict)
+        and q.get("quote_type") == "EQUITY"
+        and not _is_fund_name(q.get("name", ""))
+        and _name_match_ratio(query, q.get("name", "")) >= min_name_match
+    ]
+    t1 = [q for q in eq if _is_us_primary_exch(q.get("exchange", ""))]
+    t2 = [q for q in eq if _is_otc_exch(q.get("exchange", ""))]
+    tier = t1 or t2
+    if not tier:
+        return None
+    tier.sort(key=lambda q: _name_match_ratio(query, q.get("name", "")), reverse=True)
+    return tier[0].get("ticker") or None
+
+
+def resolve_us_ticker(name):
+    """회사 이름을 미국 거래 ticker로 해석한다 (Yahoo 검색 기반, 회사별 하드코딩 없음).
+
+    못 찾거나 네트워크 실패면 None. 실제 선택 로직은 _select_us_ticker(순수 함수)가 담당한다.
+    """
+    if not name or not isinstance(name, str):
+        return None
+    return _select_us_ticker(name, search_ticker(name))
 
 
 # ── 유틸리티 ─────────────────────────────────────────────────────
