@@ -222,6 +222,10 @@ def get_overview(ticker: str):
         "annualTangibleBookValue", "annualOperatingIncome",
         "annualCapitalExpenditure", "annualCostOfRevenue", "annualTotalRevenue",
         "annualStockholdersEquity", "annualTotalDebt",
+        # 손익계산서 흐름 항목의 TTM 표시용(분기 4개 합). net_income(TTM)과 같은 그룹의
+        # pretax_income·EBIT를 TTM으로 맞춰 '순이익 > 세전이익' 같은 기준혼용 오표시를 없앤다.
+        # 필드 총 20개 — Yahoo timeseries 잘림 없음(실측 확인).
+        "quarterlyPretaxIncome", "quarterlyEBIT",
     ]
 
     # Run all 3 API calls in parallel
@@ -347,13 +351,25 @@ def get_overview(ticker: str):
         vals = [p["value"] for p in pts[-2:] if p.get("value") is not None]
         return sum(vals) / len(vals) if vals else None
 
+    def _ts_ttm(base):
+        """손익계산서 흐름 항목의 TTM = 분기 최근 4개 합. 4개 미만이면 None(폴백은 호출측).
+        base는 'PretaxIncome'처럼 'quarterly' 접두어를 뗀 이름."""
+        pts = [p["value"] for p in ts.get("quarterly" + base, []) if p.get("value") is not None]
+        return sum(pts[-4:]) if len(pts) >= 4 else None
+
     # 절대 지표 (timeseries 우선, quoteSummary fallback)
     # 화면 표시용 순이익: 최신(TTM, netIncomeToCommon) 우선 → 매출(TTM)·마진(TTM)과 정합.
     # 연간 순이익은 tax_rate 폴백 등 '연간끼리' 계산해야 하는 내부용으로 별도 보관.
     net_income_annual = _ts_latest("annualNetIncome")
     net_income = net_income_qs or net_income_annual
-    pretax_income = _ts_latest("annualPretaxIncome")
-    ebit_val = _ts_latest("annualEBIT")
+    # 표시용 pretax_income·EBIT는 TTM(분기4합) 우선 → net_income(TTM)과 기준 정합.
+    # 분기 데이터 부족시 annual 폴백. 단, tax_rate는 '연간끼리' 계산해야 하므로
+    # annual pretax(pretax_income_annual)를 별도 보존한다(net_income_annual과 동일 원리).
+    pretax_income_annual = _ts_latest("annualPretaxIncome")
+    _pretax_ttm = _ts_ttm("PretaxIncome")
+    pretax_income = _pretax_ttm if _pretax_ttm is not None else pretax_income_annual
+    _ebit_ttm = _ts_ttm("EBIT")
+    ebit_val = _ebit_ttm if _ebit_ttm is not None else _ts_latest("annualEBIT")
     interest_expense = _ts_latest("annualInterestExpense")
     income_tax = _ts_latest("annualIncomeTaxExpense")
     accounts_receivable = _ts_latest("annualAccountsReceivable")
@@ -369,12 +385,14 @@ def get_overview(ticker: str):
 
     # 계산 지표
     # 유효세율 (세전이익이 '양수'일 때만 — 적자면 유효세율이 무의미하므로 None)
+    # 표시용 pretax_income은 TTM이므로, 여기서는 반드시 annual pretax(pretax_income_annual)와
+    # annual net_income으로 '연간끼리' 계산한다(기간 정합).
     tax_rate = None
-    if pretax_income and pretax_income > 0:
+    if pretax_income_annual and pretax_income_annual > 0:
         if income_tax is not None:
-            tax_rate = round(income_tax / pretax_income * 100, 2)
+            tax_rate = round(income_tax / pretax_income_annual * 100, 2)
         elif net_income_annual is not None:
-            tax_rate = round((1 - net_income_annual / pretax_income) * 100, 2)
+            tax_rate = round((1 - net_income_annual / pretax_income_annual) * 100, 2)
 
     # 운전자본
     working_capital = None
