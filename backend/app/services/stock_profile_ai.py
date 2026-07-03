@@ -56,6 +56,10 @@ PROFILE_PROMPT = """[역할] 종목 프로파일링 전문가. 사업 구조를 
 [회사 규칙]
 - companies에는 회사의 '정식 명칭'을 쓸 것 (ticker/심볼/약어가 아니라 실제 회사 이름).
   예: "삼성전자", "Xiaomi", "Toyota Motor", "Taiwan Semiconductor".
+- 미국 증시에 '상장된 법인명(모회사)'을 쓸 것. 브랜드명이 상장 법인명과 다르면 상장 법인명을 쓸 것.
+  예: Google이 아니라 "Alphabet", Facebook이 아니라 "Meta Platforms".
+- 제품·서비스·앱·브랜드가 아니라 '회사'를 쓸 것.
+  예: Chrome, YouTube, Android, Gmail, AWS는 회사가 아니라 제품/서비스이므로 쓰지 말 것.
 - 모호하지 않게 구별 가능한 이름을 쓸 것 (예: 'BYD'만 쓰지 말고 'BYD Company').
 - 비상장 회사는 제외. 영역당 최대 3개.
 - (참고: ticker는 이후 시스템이 회사명을 조회해 자동으로 붙인다. 모델은 이름만 정확히 대면 된다.)
