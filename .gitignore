@@ -12,8 +12,15 @@ venv/
 node_modules/
 dist/
 
-# Database (finvision.db는 AI 분석 캐시 포함하여 공유)
-# *.db
+# Database — 바이너리 SQLite는 추적하지 않음 (캐시는 재생성/별도 공유)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.bak
+
+# 파이프라인 생성물 (수집 원본/산출물 — 재생성됨)
+data/
 
 # IDE
 .vscode/

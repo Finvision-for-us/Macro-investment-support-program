@@ -1,7 +1,25 @@
 import aiosqlite
 import os
+import shutil
+from datetime import datetime
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "finvision.db")
+
+
+def _backup_db(reason: str) -> str | None:
+    """파괴적 마이그레이션 직전 DB 스냅샷 백업. 실패해도 기동은 계속."""
+    if not os.path.exists(DB_PATH):
+        return None
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dst = f"{DB_PATH}.{ts}.{reason}.bak"
+    try:
+        shutil.copy2(DB_PATH, dst)
+        print(f"[init_db] DB 백업 생성: {os.path.basename(dst)}")
+        return dst
+    except Exception as e:  # noqa: BLE001
+        print(f"[init_db] DB 백업 실패(무시하고 진행): {e}")
+        return None
+
 
 async def get_db():
     async with aiosqlite.connect(DB_PATH) as db:
@@ -24,6 +42,9 @@ async def init_db():
         cursor = await db.execute("PRAGMA table_info(earnings_surprises)")
         cols = [row[1] for row in await cursor.fetchall()]
         if cols and ("period_end" not in cols or "estimate_verified" not in cols):
+            # 캐시 테이블을 재생성(DROP)하기 전에 스냅샷 백업 — 재계산 비용이 큰
+            # earnings 캐시(수천 행)를 실수로 잃지 않도록 보험.
+            _backup_db("earnings_migration")
             await db.execute("DROP TABLE IF EXISTS earnings_surprises")
             await db.execute("DROP TABLE IF EXISTS earnings_price_reactions")
             await db.execute("DELETE FROM cache_metadata WHERE data_type IN ('earnings_surprises','price_reactions')")

@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -166,22 +167,25 @@ def score_candidates(
         llm_fn = make_gemini_llm()
 
     total = len(result.stories)
-    scored: list[Story] = []
-    for i, story in enumerate(result.stories, 1):
+
+    def _score_one(args: tuple) -> Story:
+        i, story = args
         kind = "STORY" if len(story.event_ids) > 1 else "SIGNAL"
         on_log(f"[score {i}/{total}] {kind} {story.id[:8]}")
         try:
-            updated = analyze_story(
+            return analyze_story(
                 story,
                 result.events_by_id,
                 result.shallow_reports,
                 result.deep_reports,
                 llm_fn=llm_fn,
             )
-            scored.append(updated)
         except Exception as ex:  # noqa: BLE001
             on_log(f"[score:err] {story.id[:8]} {str(ex)[:80]}")
-            scored.append(story)
+            return story
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        scored = list(pool.map(_score_one, enumerate(result.stories, 1)))
 
     scored.sort(key=lambda s: -s.aggregated_impact)
     return scored

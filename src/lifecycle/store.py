@@ -30,6 +30,14 @@ LifecycleState = Literal["active", "evolving", "resolved"]
 DATE_FMT = "%Y-%m-%d"
 
 
+class SourceRef(BaseModel):
+    """스토리를 구성한 뉴스 기사 출처 1건."""
+
+    title: str
+    url: str
+    publisher: str = ""
+
+
 class LifecycleStory(BaseModel):
     """Story 에 시간축 메타데이터를 부여한 스냅샷 단위."""
 
@@ -42,6 +50,8 @@ class LifecycleStory(BaseModel):
     event_ids: list[str] = Field(default_factory=list)
     # M3.5: 1·2·3차 파급효과 (narratives 단계 산출). 빈 list 면 UI 펼침 영역 숨김.
     ripple_effects: list[RippleEffect] = Field(default_factory=list)
+    # 출처 뉴스 기사 목록 (event_ids → Event.source_urls 에서 수집)
+    sources: list[SourceRef] = Field(default_factory=list)
 
     # lifecycle 메타
     state: LifecycleState = "active"
@@ -81,13 +91,32 @@ def snapshot_path(date_str: str) -> Path:
     return LIFECYCLE_DIR / f"{date_str}.json"
 
 
-def from_story(story: Story, on_date: str) -> LifecycleStory:
+def from_story(
+    story: Story,
+    on_date: str,
+    events_by_id: dict | None = None,
+) -> LifecycleStory:
     """``Story`` (M2 산출물) → 새 ``LifecycleStory``.
 
     이 시점에는 어제와의 연결 정보가 없으므로 ``state='active'``,
     ``first_seen_date == last_seen_date == on_date`` 로 초기화.
     이후 ``link.py`` 가 parent/similarity/state 를 갱신한다.
+
+    ``events_by_id`` 를 넘기면 각 이벤트의 source_urls → sources 로 채운다.
     """
+    sources: list[SourceRef] = []
+    if events_by_id:
+        seen_urls: set[str] = set()
+        for eid in story.event_ids:
+            ev = events_by_id.get(eid)
+            if not ev:
+                continue
+            publisher = ev.publishers[0] if ev.publishers else ""
+            for url in ev.source_urls[:3]:
+                if url and url not in seen_urls and len(sources) < 10:
+                    seen_urls.add(url)
+                    sources.append(SourceRef(title=ev.title, url=url, publisher=publisher))
+
     return LifecycleStory(
         story_id=story.id,
         title=story.title,
@@ -97,6 +126,7 @@ def from_story(story: Story, on_date: str) -> LifecycleStory:
         score=float(story.aggregated_impact),
         event_ids=list(story.event_ids),
         ripple_effects=list(story.ripple_effects),
+        sources=sources,
         state="active",
         first_seen_date=on_date,
         last_seen_date=on_date,

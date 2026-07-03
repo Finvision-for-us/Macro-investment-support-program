@@ -1,26 +1,16 @@
-import os
 import sys
-from datetime import datetime, timedelta, timezone
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add project root to sys.path
 ROOT = Path(__file__).parent.absolute()
 sys.path.insert(0, str(ROOT))
 
-from ingest2.candidates.run_live import WINDOW_HOURS, DEEP_CLASSIFY_LIMIT, TOP_K, MAX_DEEP, DEEP_HIGH_VALUE_SIGNALS, SMOKE_DB
-from ingest2.analyze.score import make_gemini_llm as make_impact_llm, score_candidates
-from ingest2.classify.basic import run_classify
-from ingest2.classify.deep import make_gemini_llm, run_deep_classify
-from ingest2.classify.tickers import TickerMap
-from ingest2.collect.registry import all_collectors
-from ingest2.dedup.cluster import dedup_passed
-from ingest2.filter.basic import run_filter
-from ingest2.run import run
-from ingest2.store.news_store import NewsStore
-from ingest2.store.raw_store import RawStore
-from ingest2.candidates.pipeline import CandidateConfig, generate_candidates
+from ingest2.pipeline_core import SMOKE_DB, PipelineParams, run_core
 
-# src imports
+# src imports — 이 스크립트만의 후처리(§8~§11)
 from src.causal.ripple import generate_ripples
 from src.lifecycle.store import from_story, save_snapshot, load_previous_snapshot
 from src.lifecycle import link as life_link, state as life_state
@@ -36,76 +26,45 @@ def main() -> None:
     except Exception:
         pass
 
-    # Optional: clean smoke db for fresh run
-    db_path = ROOT / SMOKE_DB
-    if db_path.exists():
-        print(f"Removing old smoke db at {db_path} for a fresh run...")
-        try:
-            db_path.unlink()
-        except Exception as e:
-            print(f"Could not remove old smoke db (probably locked): {e}")
+    pipeline_t0 = time.perf_counter()
+    timings: dict[str, float] = {}
 
-    until = datetime.now(timezone.utc)
-    since = until - timedelta(hours=WINDOW_HOURS)
-
-    news_store = NewsStore(str(db_path))
-    raw_store = RawStore()
-
-    _hr("1. 수집 (ingest2)")
-    stats = run(all_collectors(), since, until, raw_store=raw_store, news_store=news_store)
-    print(f"fetched={stats.fetched} new={stats.stored_new} dup={stats.duplicates}")
-    print("by source:", {k: v for k, v in stats.per_source.items()})
-
-    _hr("2. 1차 필터")
-    fstats = run_filter(news_store, cutoff_hours=WINDOW_HOURS)
-    print(fstats)
-
-    _hr("3. 경량 분류 (결정론)")
-    tmap = TickerMap.from_sec()
-    cstats = run_classify(news_store, tmap)
-    print({k: (dict(v) if hasattr(v, "items") else v) for k, v in cstats.items()})
-
-    _hr("4. 깊은 분류 (Gemini, 간접티커 보강)")
-    try:
-        dstats = run_deep_classify(news_store, make_gemini_llm(), limit=DEEP_CLASSIFY_LIMIT)
-        print({k: (dict(v) if hasattr(v, "items") else v) for k, v in dstats.items()})
-    except Exception as ex:
-        print(f"(skipped: {ex})")
-
-    _hr("5. 중복 제거")
-    clusters = dedup_passed(news_store)
-    print(f"clusters={len(clusters)}")
-
-    _hr("6. §7 후보 생성 + 리서치")
-    config = CandidateConfig(
-        top_k=TOP_K,
-        max_deep=MAX_DEEP,
-        deep_high_value_signals=DEEP_HIGH_VALUE_SIGNALS,
-    )
-    result = generate_candidates(clusters, config, on_log=print)
-
-    _hr("7. §8 AI 영향도 스코어")
-    stories = score_candidates(result, llm_fn=make_impact_llm(), on_log=print)
+    # §1~§7: 코어에 위임 (web은 매 실행 새 수집 → fresh=True)
+    db_path = str(ROOT / SMOKE_DB)
+    core = run_core(PipelineParams(db_path=db_path, fresh=True))
+    stories = core.stories
+    news_store = core.news_store
+    if core.timings:
+        timings.update(core.timings)
     print(f"Scored {len(stories)} stories.")
 
     _hr("8. M3.5 파급효과 (Ripple Effects) 생성")
-    enriched_stories = []
-    for i, story in enumerate(stories, 1):
+    t0 = time.perf_counter()
+    total_stories = len(stories)
+
+    def _enrich_ripple(args: tuple) -> object:
+        i, story = args
         if not story.title:
-            enriched_stories.append(story)
-            continue
-        print(f"[{i}/{len(stories)}] Generating ripple effects for: {story.title[:60]}")
+            return story
+        print(f"[{i}/{total_stories}] Generating ripple effects for: {story.title[:60]}")
         try:
             ripples = generate_ripples(story)
-            story = story.model_copy(update={"ripple_effects": ripples})
-            print(f"   -> Added {len(ripples)} ripple effects.")
+            print(f"   -> [{i}/{total_stories}] Added {len(ripples)} ripple effects.")
+            return story.model_copy(update={"ripple_effects": ripples})
         except Exception as e:
-            print(f"   -> Failed to generate ripples: {e}")
-        enriched_stories.append(story)
+            print(f"   -> [{i}/{total_stories}] Failed: {e}")
+            return story
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        enriched_stories = list(pool.map(_enrich_ripple, enumerate(stories, 1)))
+    timings["§8 리플생성"] = time.perf_counter() - t0
+    print(f"  → {timings['§8 리플생성']:.1f}s")
 
     _hr("9. M4 Lifecycle 매칭 및 상태 결정")
+    t0 = time.perf_counter()
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    lifecycle_stories = [from_story(s, on_date=date_str) for s in enriched_stories]
+    events_by_id = core.result.events_by_id
+    lifecycle_stories = [from_story(s, on_date=date_str, events_by_id=events_by_id) for s in enriched_stories]
 
     prev = load_previous_snapshot(date_str)
     if prev is not None:
@@ -115,8 +74,11 @@ def main() -> None:
     else:
         print("No yesterday snapshot found. All stories initialized as active.")
         final_stories = lifecycle_stories
+    timings["§9 라이프사이클"] = time.perf_counter() - t0
+    print(f"  → {timings['§9 라이프사이클']:.1f}s")
 
     _hr("10. 거시지표 (FRED) 및 테마 생성")
+    t0 = time.perf_counter()
     macro_events = []
     try:
         macro_events = macro_fred.fetch_macro_events(emit_days=14, sigma_threshold=1.0)
@@ -131,8 +93,11 @@ def main() -> None:
         print(f"Generated {len(themes)} themes.")
     except Exception as e:
         print(f"Failed to generate themes: {e}")
+    timings["§10 매크로+테마"] = time.perf_counter() - t0
+    print(f"  → {timings['§10 매크로+테마']:.1f}s")
 
     _hr("11. UI 소스 파일 저장 (data/stories_latest.json)")
+    t0 = time.perf_counter()
     snap_path = save_snapshot(
         final_stories,
         date_str=date_str,
@@ -145,8 +110,24 @@ def main() -> None:
     )
     print(f"Saved snapshot -> {snap_path}")
     print(f"Updated UI file -> {latest_path}")
+    timings["§11 저장"] = time.perf_counter() - t0
+    print(f"  → {timings['§11 저장']:.1f}s")
 
     news_store.close()
+
+    # ── 전체 타이밍 요약 ──
+    total = time.perf_counter() - pipeline_t0
+    timings["[전체 합계]"] = total
+    max_sec = max(timings.values())
+    print("\n" + "═" * 46)
+    print("⏱  전체 파이프라인 소요시간 요약")
+    print("─" * 46)
+    for label, sec in timings.items():
+        bar = "█" * max(1, int(sec / max_sec * 22))
+        marker = " ◀ 최장" if sec == max(v for k, v in timings.items() if k != "[전체 합계]") else ""
+        print(f"  {label:<18} {sec:6.1f}s  {bar}{marker}")
+    print("═" * 46)
+
     print("\n[SUCCESS] ingest2 pipeline run successfully and UI data updated!")
     print("Now you can open a new terminal, run Next.js app, and view it on http://localhost:3000/today")
 

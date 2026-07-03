@@ -40,8 +40,7 @@ export default async function TodayPage() {
   const data = await readStoriesLatest();
   if (!data) return <EmptyState reason="no-file" />;
 
-  // M3.5 수정: 오늘 신호 있는 스토리만 Top 10 후보 — carry-over 가 테마와 어긋나는 문제 방지
-  const top = topStories(data.stories, 10, data.date);
+  const top = topStories(data.stories, data.date);
   if (top.length === 0) return <EmptyState reason="no-stories" />;
 
   return <TodayBoard data={data} topStories={top} />;

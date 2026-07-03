@@ -44,6 +44,12 @@ export interface Theme {
   direction: Direction;
 }
 
+export interface SourceRef {
+  title: string;
+  url: string;
+  publisher: string;
+}
+
 export interface LifecycleStory {
   story_id: string;
   title: string;
@@ -59,6 +65,7 @@ export interface LifecycleStory {
   first_seen_date: string;
   last_seen_date: string;
   ripple_effects: RippleEffect[];
+  sources: SourceRef[];
 }
 
 export interface StoriesLatest {
@@ -78,7 +85,6 @@ export interface StoriesLatest {
  */
 export function topStories(
   stories: LifecycleStory[],
-  n = 10,
   onlyDate?: string
 ): LifecycleStory[] {
   return stories
@@ -87,8 +93,7 @@ export function topStories(
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       return b.first_seen_date.localeCompare(a.first_seen_date);
-    })
-    .slice(0, n);
+    });
 }
 
 export function countByState(

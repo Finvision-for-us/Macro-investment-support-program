@@ -4,12 +4,14 @@ import MacroView from './components/views/MacroView'
 import StockView from './components/views/StockView'
 import PortfolioView from './components/views/PortfolioView'
 import DeepResearchView from './components/views/DeepResearchView'
+import Ingest2View from './components/views/Ingest2View'
 
 const VIEWS = {
   macro:        MacroView,
   stock:        StockView,
   portfolio:    PortfolioView,
   deepResearch: DeepResearchView,
+  ingest2:      Ingest2View,
 }
 
 export default function App() {
