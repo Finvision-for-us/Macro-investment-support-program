@@ -1,5 +1,6 @@
 import requests
 from datetime import date
+from concurrent.futures import ThreadPoolExecutor
 
 HEADERS = {"User-Agent": "FinVision personal-research-tool contact@example.com"}
 
@@ -218,18 +219,25 @@ def get_sec_building_blocks(ticker: str, cik: str = None, blocks: list = None):
     if cik is None:
         cik = get_cik(ticker)
     keys = blocks if blocks else list(SEC_CONCEPT_MAP.keys())
-    out = {}
-    for key in keys:
+    if not cik:
+        return {k: [] for k in keys}
+
+    def _fetch(key):
         spec = SEC_CONCEPT_MAP.get(key)
         if not spec:
-            out[key] = []
-            continue
+            return key, []
         series = get_annual_concept_series(
             ticker, spec["concepts"], instant=spec["instant"], cik=cik, unit=spec["unit"]
-        ) if cik else []
+        )
         if spec.get("negate"):  # Yahoo 부호 규약에 맞추기(예: capex 음수)
             series = [{"fy": p["fy"], "end": p["end"], "value": -p["value"]} for p in series]
-        out[key] = series
+        return key, series
+
+    # 개념 호출을 병렬화하되 SEC 10req/s 제한을 존중해 동시성 제한(max_workers=4).
+    out = {}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for key, series in pool.map(_fetch, keys):
+            out[key] = series
     return out
 
 

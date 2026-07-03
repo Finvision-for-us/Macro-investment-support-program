@@ -636,6 +636,67 @@ def _get_price_at_dates(ticker: str, dates: list):
     return result
 
 
+# ── SEC 장기 히스토리 병합 (차트) ──────────────────────────────────
+# Yahoo timeseries는 연간 ~4년만 주므로, SEC XBRL(10년+)을 회계연도 기준으로 병합해
+# 차트가 장기 히스토리를 그리게 한다. 외국 filer/미보고 블록은 빈 결과 → Yahoo 값 그대로(폴백).
+_sec_blocks_cache = {}
+_SEC_BLOCKS_TTL = 6 * 3600  # SEC 연간 데이터는 드물게 갱신 → 6시간 캐시
+
+# (metrics의 연간 절대지표 키, SEC building-block 키, Yahoo 연간 timeseries 필드).
+# 액면분할에 민감한 EPS/주식수/주당지표는 제외(SEC 원본 vs Yahoo 분할조정 → 병합 시 불연속).
+# EBITDA/FCF/total_debt/tangible_book은 SEC 단일개념이 없어 다음 단계에서 유도 처리.
+_SEC_ABS_MERGE = [
+    ("revenue", "revenue", "annualTotalRevenue"),
+    ("net_income", "net_income", "annualNetIncome"),
+    ("operating_income", "operating_income", "annualOperatingIncome"),
+    ("gross_profit", "gross_profit", "annualGrossProfit"),
+    ("total_assets", "total_assets", "annualTotalAssets"),
+    ("equity_hist", "stockholders_equity", "annualStockholdersEquity"),
+    ("liabilities_hist", "total_liabilities", "annualTotalLiabilitiesNetMinorityInterest"),
+    ("total_cash_hist", "cash", "annualCashAndCashEquivalents"),
+    ("pretax_income", "pretax_income", "annualPretaxIncome"),
+    ("interest_expense_hist", "interest_expense", "annualInterestExpense"),
+    ("accounts_receivable_hist", "accounts_receivable", "annualAccountsReceivable"),
+    ("inventory_hist", "inventory", "annualInventory"),
+    ("accounts_payable_hist", "accounts_payable", "annualAccountsPayable"),
+]
+
+
+def _get_sec_blocks_cached(ticker: str):
+    """SEC building-block을 TTL 캐시로 가져온다(느린 다중 HTTP를 반복하지 않도록)."""
+    from app.services import sec_client
+    key = ticker.upper()
+    now = time.time()
+    c = _sec_blocks_cache.get(key)
+    if c and now - c["ts"] < _SEC_BLOCKS_TTL:
+        return c["data"]
+    try:
+        data = sec_client.get_sec_building_blocks(ticker)
+    except Exception:
+        data = {}
+    _sec_blocks_cache[key] = {"ts": now, "data": data}
+    return data
+
+
+def _merge_sec_annual_history(ticker, metrics, get_yahoo):
+    """metrics의 연간 절대지표를 SEC 장기값과 병합해 확장한다(제자리 수정).
+
+    get_yahoo: get_metric_history 내부의 _get 클로저(Yahoo 연간 시계열 접근).
+    SEC가 없거나(외국 filer) 특정 블록 미보고면 해당 지표는 그대로 둔다(Yahoo 폴백).
+    """
+    from app.services import sec_client
+    blocks = _get_sec_blocks_cached(ticker)
+    if not blocks:
+        return
+    for mkey, blk, yfield in _SEC_ABS_MERGE:
+        sec_series = blocks.get(blk) or []
+        if not sec_series:
+            continue
+        merged = sec_client.merge_annual_by_fy(sec_series, get_yahoo(yfield))
+        if merged:
+            metrics[mkey] = merged
+
+
 def get_metric_history(ticker: str):
     """주요 재무 지표의 연도별/분기별 히스토리를 timeseries API로 반환"""
 
@@ -1165,5 +1226,9 @@ def get_metric_history(ticker: str):
                 # 분기 배당금 × 4 / 시가총액 = 연환산 수익률
                 div_yield_q.append({"date": date, "value": round(div * 4 / mc * 100, 2)})
         metrics["dividend_yield_quarterly"] = div_yield_q
+
+    # ── SEC 장기 연간 히스토리 병합 (미국 us-gaap filer) ──
+    # 절대 달러 지표를 SEC(10년+)로 확장. 외국 filer/미보고 블록은 Yahoo 값 그대로.
+    _merge_sec_annual_history(ticker, metrics, _get)
 
     return metrics
