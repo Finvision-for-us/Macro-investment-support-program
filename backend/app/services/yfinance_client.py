@@ -14,21 +14,6 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-# ── 섹터별 평균 지표 (S&P500 기준 근사치) ──────────────────────────
-SECTOR_AVERAGES = {
-    "Technology":              {"pe": 30.0, "pb": 8.0, "dividend_yield": 0.008, "profit_margin": 0.20, "eps_growth": 0.15, "roe": 0.25, "roa": 0.10, "debt_to_equity": 0.80, "current_ratio": 2.0, "operating_margin": 0.22, "fcf_yield": 0.04, "asset_turnover": 0.70, "inventory_turnover": 25.0, "receivables_turnover": 8.0, "ocf_margin": 0.25, "tax_rate": 15.0, "payout_ratio": 25.0, "roic": 20.0},
-    "Healthcare":              {"pe": 22.0, "pb": 4.0, "dividend_yield": 0.015, "profit_margin": 0.15, "eps_growth": 0.10, "roe": 0.18, "roa": 0.08, "debt_to_equity": 0.70, "current_ratio": 1.8, "operating_margin": 0.15, "fcf_yield": 0.05, "asset_turnover": 0.50, "inventory_turnover": 5.0, "receivables_turnover": 6.0, "ocf_margin": 0.20, "tax_rate": 16.0, "payout_ratio": 35.0, "roic": 12.0},
-    "Financial Services":      {"pe": 14.0, "pb": 1.5, "dividend_yield": 0.025, "profit_margin": 0.25, "eps_growth": 0.08, "roe": 0.12, "roa": 0.01, "debt_to_equity": 3.00, "current_ratio": None, "operating_margin": 0.30, "fcf_yield": 0.06, "asset_turnover": 0.05, "inventory_turnover": None, "receivables_turnover": None, "ocf_margin": 0.30, "tax_rate": 18.0, "payout_ratio": 35.0, "roic": 8.0},
-    "Consumer Cyclical":       {"pe": 25.0, "pb": 5.0, "dividend_yield": 0.012, "profit_margin": 0.08, "eps_growth": 0.12, "roe": 0.20, "roa": 0.07, "debt_to_equity": 1.20, "current_ratio": 1.5, "operating_margin": 0.10, "fcf_yield": 0.04, "asset_turnover": 1.00, "inventory_turnover": 8.0, "receivables_turnover": 10.0, "ocf_margin": 0.12, "tax_rate": 20.0, "payout_ratio": 30.0, "roic": 15.0},
-    "Consumer Defensive":      {"pe": 22.0, "pb": 4.0, "dividend_yield": 0.025, "profit_margin": 0.10, "eps_growth": 0.06, "roe": 0.22, "roa": 0.08, "debt_to_equity": 1.10, "current_ratio": 1.3, "operating_margin": 0.12, "fcf_yield": 0.05, "asset_turnover": 0.80, "inventory_turnover": 8.0, "receivables_turnover": 12.0, "ocf_margin": 0.14, "tax_rate": 22.0, "payout_ratio": 55.0, "roic": 14.0},
-    "Energy":                  {"pe": 12.0, "pb": 2.0, "dividend_yield": 0.035, "profit_margin": 0.10, "eps_growth": 0.05, "roe": 0.15, "roa": 0.06, "debt_to_equity": 0.50, "current_ratio": 1.2, "operating_margin": 0.15, "fcf_yield": 0.08, "asset_turnover": 0.60, "inventory_turnover": 12.0, "receivables_turnover": 8.0, "ocf_margin": 0.20, "tax_rate": 22.0, "payout_ratio": 45.0, "roic": 10.0},
-    "Industrials":             {"pe": 20.0, "pb": 4.0, "dividend_yield": 0.018, "profit_margin": 0.10, "eps_growth": 0.10, "roe": 0.18, "roa": 0.06, "debt_to_equity": 1.00, "current_ratio": 1.5, "operating_margin": 0.12, "fcf_yield": 0.05, "asset_turnover": 0.80, "inventory_turnover": 7.0, "receivables_turnover": 7.0, "ocf_margin": 0.14, "tax_rate": 21.0, "payout_ratio": 35.0, "roic": 12.0},
-    "Communication Services":  {"pe": 18.0, "pb": 3.0, "dividend_yield": 0.015, "profit_margin": 0.15, "eps_growth": 0.12, "roe": 0.15, "roa": 0.05, "debt_to_equity": 1.20, "current_ratio": 1.4, "operating_margin": 0.18, "fcf_yield": 0.05, "asset_turnover": 0.40, "inventory_turnover": None, "receivables_turnover": 6.0, "ocf_margin": 0.22, "tax_rate": 18.0, "payout_ratio": 30.0, "roic": 10.0},
-    "Utilities":               {"pe": 18.0, "pb": 2.0, "dividend_yield": 0.035, "profit_margin": 0.12, "eps_growth": 0.04, "roe": 0.10, "roa": 0.03, "debt_to_equity": 1.50, "current_ratio": 0.8, "operating_margin": 0.20, "fcf_yield": 0.04, "asset_turnover": 0.30, "inventory_turnover": None, "receivables_turnover": 10.0, "ocf_margin": 0.25, "tax_rate": 20.0, "payout_ratio": 65.0, "roic": 5.0},
-    "Real Estate":             {"pe": 35.0, "pb": 2.0, "dividend_yield": 0.038, "profit_margin": 0.25, "eps_growth": 0.05, "roe": 0.08, "roa": 0.03, "debt_to_equity": 1.30, "current_ratio": 1.0, "operating_margin": 0.30, "fcf_yield": 0.05, "asset_turnover": 0.10, "inventory_turnover": None, "receivables_turnover": 15.0, "ocf_margin": 0.35, "tax_rate": 5.0, "payout_ratio": 70.0, "roic": 4.0},
-    "Basic Materials":         {"pe": 15.0, "pb": 2.5, "dividend_yield": 0.020, "profit_margin": 0.10, "eps_growth": 0.07, "roe": 0.14, "roa": 0.06, "debt_to_equity": 0.60, "current_ratio": 1.8, "operating_margin": 0.14, "fcf_yield": 0.05, "asset_turnover": 0.70, "inventory_turnover": 6.0, "receivables_turnover": 7.0, "ocf_margin": 0.15, "tax_rate": 22.0, "payout_ratio": 40.0, "roic": 10.0},
-}
-
 # ── 섹터별 핵심 지표 (해당 섹터에서 가장 중요하게 봐야 할 지표) ────────
 SECTOR_KEY_METRICS = {
     "Technology":              ["pe_ratio", "revenue_growth", "profit_margin", "roe", "fcf", "roic", "ocf_margin"],
@@ -436,9 +421,7 @@ def get_overview(ticker: str):
         if prev_oi and prev_oi != 0:
             operating_income_growth = round((curr_oi - prev_oi) / abs(prev_oi) * 100, 2)
 
-    # 섹터 평균 지표
-    sector_avg = SECTOR_AVERAGES.get(sector, {})
-    # 섹터별 핵심 지표 목록
+    # 섹터별 핵심 지표 목록 (AI 프로필이 없을 때 폴백용)
     key_metrics = SECTOR_KEY_METRICS.get(sector, [])
 
     result = {
@@ -476,7 +459,6 @@ def get_overview(ticker: str):
         "beta": beta,
         "description": description,
         "earnings_date": earnings_date,
-        "sector_averages": sector_avg,
         "key_metrics": key_metrics,
         # ── 확장 지표 ──
         "net_income": net_income,
