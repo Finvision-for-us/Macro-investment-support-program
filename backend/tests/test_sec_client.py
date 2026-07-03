@@ -14,7 +14,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.services.sec_client import _reduce_units_to_annual
+from app.services.sec_client import _reduce_units_to_annual, SEC_CONCEPT_MAP
 
 
 def U(start, end, val, filed, form="10-K"):
@@ -108,6 +108,23 @@ class TestReduceUnitsGuards(unittest.TestCase):
             U("2021-09-26", "2022-09-24", None, "2022-10-28"),              # val None
         ]
         self.assertEqual(_reduce_units_to_annual(units, False), {})
+
+
+class TestConceptMapWellFormed(unittest.TestCase):
+    """SEC_CONCEPT_MAP 구조 검증 (오타/누락 방지, network 없음)."""
+
+    ALLOWED_UNITS = {"USD", "shares", "USD/shares"}
+
+    def test_each_spec_valid(self):
+        self.assertTrue(SEC_CONCEPT_MAP)
+        for key, spec in SEC_CONCEPT_MAP.items():
+            self.assertIsInstance(spec.get("concepts"), list, key)
+            self.assertTrue(spec["concepts"], key)  # 비어있지 않음
+            self.assertTrue(all(isinstance(c, str) and c for c in spec["concepts"]), key)
+            self.assertIsInstance(spec.get("instant"), bool, key)
+            self.assertIn(spec.get("unit"), self.ALLOWED_UNITS, key)
+            if "negate" in spec:
+                self.assertIsInstance(spec["negate"], bool, key)
 
 
 if __name__ == "__main__":
