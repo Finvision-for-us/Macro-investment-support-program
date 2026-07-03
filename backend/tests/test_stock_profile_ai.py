@@ -166,5 +166,36 @@ class TestCritiqueGuards(unittest.TestCase):
         self.assertIsNone(asyncio.run(spa._critique_competitors("AAPL", {}, None)))
 
 
+class TestResolveCompetitorCompanies(unittest.TestCase):
+    """_resolve_competitor_companies: 회사명→티커 변환 (resolve_us_ticker를 stub, network 없음)."""
+
+    def test_resolves_names_drops_unresolved_aligns_desc(self):
+        from app.services import yfinance_client
+        mapping = {"삼성전자": "SSNLF", "Xiaomi": "XIACY", "UnknownCo": None, "HP": "HPQ"}
+        orig = yfinance_client.resolve_us_ticker
+        yfinance_client.resolve_us_ticker = lambda n: mapping.get((n or "").strip())
+        try:
+            comps = [
+                {"business_area": "스마트폰", "companies": ["삼성전자", "UnknownCo", "Xiaomi"],
+                 "descriptions": ["d-sam", "d-unk", "d-xia"]},
+                {"business_area": "PC", "companies": ["HP"], "descriptions": ["d-hp"]},
+                {"business_area": "빈", "companies": ["UnknownCo"], "descriptions": ["x"]},
+            ]
+            out = asyncio.run(spa._resolve_competitor_companies(comps))
+        finally:
+            yfinance_client.resolve_us_ticker = orig
+        # 스마트폰: 삼성/샤오미만, UnknownCo 제외, descriptions 정렬 유지
+        self.assertEqual(out[0]["business_area"], "스마트폰")
+        self.assertEqual(out[0]["tickers"], ["SSNLF", "XIACY"])
+        self.assertEqual(out[0]["descriptions"], ["d-sam", "d-xia"])
+        # PC 유지
+        self.assertEqual(out[1]["tickers"], ["HPQ"])
+        # 전부 미해석인 '빈' group은 제거 → 총 2개
+        self.assertEqual(len(out), 2)
+
+    def test_non_list_input(self):
+        self.assertEqual(asyncio.run(spa._resolve_competitor_companies(None)), [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
