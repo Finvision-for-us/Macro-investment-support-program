@@ -413,10 +413,14 @@ def get_overview(ticker: str):
             nopat = operating_income_ts * (1 - effective_tax)
             roic = round(nopat / invested_capital * 100, 2)
 
-    # 영업CF마진
+    # 영업CF마진 = 영업현금흐름 ÷ 매출.
+    # operating_cashflow(financialData)는 TTM이므로 분모도 TTM 매출(total_revenue)로 맞춘다
+    # (연간 ts_revenue를 쓰면 성장기업일수록 분모가 작아 마진이 과대됨 — 다른 마진 3형제도 전부 TTM).
+    # total_revenue(TTM)가 없을 때만 연간으로 폴백.
     ocf_margin = None
-    if operating_cashflow and ts_revenue and ts_revenue != 0:
-        ocf_margin = round(operating_cashflow / ts_revenue, 4)  # 비율로 저장 (프론트에서 *100)
+    rev_for_ocf = total_revenue or ts_revenue
+    if operating_cashflow and rev_for_ocf and rev_for_ocf != 0:
+        ocf_margin = round(operating_cashflow / rev_for_ocf, 4)  # 비율로 저장 (프론트에서 *100)
 
     # 설비투자비율
     capex_to_revenue = None
