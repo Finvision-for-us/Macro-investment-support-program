@@ -222,6 +222,7 @@ def get_overview(ticker: str):
         "annualTangibleBookValue", "annualOperatingIncome",
         "annualCapitalExpenditure", "annualCostOfRevenue", "annualTotalRevenue",
         "annualStockholdersEquity", "annualTotalDebt",
+        "annualTotalLiabilitiesNetMinorityInterest",  # 부채비율(총부채/자기자본) 카드 계산용
         # 손익계산서 흐름 항목의 TTM 표시용(분기 4개 합). net_income(TTM)과 같은 그룹의
         # pretax_income·EBIT를 TTM으로 맞춰 '순이익 > 세전이익' 같은 기준혼용 오표시를 없앤다.
         # 필드 총 20개 — Yahoo timeseries 잘림 없음(실측 확인).
@@ -287,10 +288,10 @@ def get_overview(ticker: str):
     roe = _safe_raw(fin_data, "returnOnEquity")
     # ROA (Return on Assets)
     roa = _safe_raw(fin_data, "returnOnAssets")
-    # 부채비율 (Debt-to-Equity)
-    debt_to_equity = _safe_raw(fin_data, "debtToEquity")
-    if debt_to_equity is not None:
-        debt_to_equity = debt_to_equity / 100.0  # Yahoo는 %로 줌, 비율로 변환
+    # 부채비율 (Debt-to-Equity) = 총부채(Liabilities) / 자기자본.
+    # 값은 아래 timeseries 처리 후 계산한다(차트 debt_to_equity_hist와 동일 정의로 통일).
+    # (기존엔 Yahoo debtToEquity=유이자부채/자기자본이라 라벨 '부채비율'·차트와 정의가 어긋났음.)
+    debt_to_equity = None
     # 유동비율 (Current Ratio)
     current_ratio = _safe_raw(fin_data, "currentRatio")
     # 영업이익률 (Operating Margin)
@@ -382,6 +383,13 @@ def get_overview(ticker: str):
     operating_income_ts = _ts_latest("annualOperatingIncome")
     capex = _ts_latest("annualCapitalExpenditure")
     ts_revenue = _ts_latest("annualTotalRevenue") or total_revenue
+
+    # 부채비율 = 총부채(TotalLiabilitiesNetMinorityInterest) / 자기자본.
+    # 차트 debt_to_equity_hist와 동일한 필드·정의를 써서 카드=차트로 통일한다(값 배수, %아님).
+    total_liabilities_ts = _ts_latest("annualTotalLiabilitiesNetMinorityInterest")
+    equity_bs = _ts_latest("annualStockholdersEquity")
+    if total_liabilities_ts is not None and equity_bs and equity_bs != 0:
+        debt_to_equity = total_liabilities_ts / equity_bs
 
     # 계산 지표
     # 유효세율 (세전이익이 '양수'일 때만 — 적자면 유효세율이 무의미하므로 None)
