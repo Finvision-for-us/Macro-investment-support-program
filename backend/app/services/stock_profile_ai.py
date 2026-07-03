@@ -25,7 +25,7 @@ GEMINI_MODEL = "gemini-2.5-flash-lite"
 
 # profile 생성 설정의 의미적 버전. context/output schema 의미가 바뀔 때만 +1.
 # (함수 코드 자체는 hash에 넣지 않는다 — 무해한 refactor로 cache 전체가 무효화되는 것을 피하기 위함.)
-PROFILE_CONTEXT_VERSION = 1
+PROFILE_CONTEXT_VERSION = 2
 
 PROFILE_PROMPT = """[역할] 종목 프로파일링 전문가. 사업 구조를 분석하여 직접 경쟁사를 식별하고, 해당 종목에 최적화된 분석 지표를 선정.
 
@@ -117,6 +117,37 @@ _MIN_VALID_COMPETITOR_TICKERS = 2
 # ticker 형식 1차 필터. 형식만으로는 'SAMSUNG' 같은 회사명을 못 거른다(실재성은 validator가 담당).
 _TICKER_FORMAT_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 
+# 비평(critic) 에이전트 프롬프트. 1차 생성 결과의 '판단'(직접성/주력영역 배치)만 재검토한다.
+# 티커는 바꾸지 않고(추측 금지), 회사 추가도 하지 않으며, 제거·재배치만 한다.
+_CRITIC_PROMPT = """[역할] 경쟁사 분석 검수자. 다른 분석가가 작성한 '{ticker} ({company_name})의 경쟁사 분류'를 비판적으로 재검토하고, 틀린 부분만 고친다.
+
+[대상] {ticker} ({company_name}) | {sector} > {industry}
+[사업] {description}
+
+[검토 대상 경쟁사 분류(JSON)]
+{competitors_json}
+
+[검토 기준]
+- 영역(business_area)은 대상 기업의 실제 사업 구분을 따르며, 제품군·서비스·고객군·사업부문 등 무엇이든 될 수 있다.
+- 각 회사가 대상 기업의 '직접' 경쟁사인가 (같은 제품/서비스/고객을 두고 실제로 경쟁). 아니면 제거.
+- 대상 기업이 그 회사의 '고객'이면 경쟁사가 아니다 → 제거.
+- 해당 사업에서 철수했거나 실질 점유가 없으면 → 제거.
+- 각 회사가 대상 기업과 '가장 크게 경쟁하는 주력 영역'에 배치됐는가.
+  한 회사가 특정 영역에서 가장 크게 경쟁하면 그 영역에 둘 것.
+  단, 여러 영역에서 대등하게 경쟁하는 경우(예: 종합 금융사끼리)에는 억지로 한 곳으로 몰지 말 것.
+- 틀린 게 없으면 원본을 그대로 유지할 것 (억지로 바꾸지 말 것).
+
+[출력 규칙]
+- ticker는 원본에 있던 값만 사용할 것. 새 ticker를 만들거나 추측하지 말 것.
+- 원본에 없던 회사를 새로 추가하지 말 것 (제거·재배치만).
+- 아래와 완전히 동일한 JSON 스키마로만 출력. 한국어. JSON 외 텍스트 금지.
+{{
+  "competitors": [
+    {{"business_area": "영역명", "tickers": ["T1"], "descriptions": ["T1 경쟁 이유"]}}
+  ]
+}}
+"""
+
 
 async def get_stock_profile(ticker: str, overview: dict = None) -> dict:
     """종목별 AI 프로필 (경쟁사 + 핵심지표) 반환. DB 캐시 우선."""
@@ -135,6 +166,12 @@ async def get_stock_profile(ticker: str, overview: dict = None) -> dict:
     # 3) Gemini 분석
     profile = await _analyze_with_gemini(ticker, overview)
     if profile:
+        # 3.5) 비평 에이전트 (판단층, fail-soft): 직접성/주력영역을 2차 Gemini로 재검토.
+        #      실패(503/파싱오류 등)면 None → 원본 competitors 유지. 티커 사실검증은 아래 단계가 담당.
+        critiqued = await _critique_competitors(ticker, overview, profile.get("competitors", []))
+        if critiqued is not None:
+            profile["competitors"] = critiqued
+
         # competitor 정제 (저장 전, fail-closed). raw model output을 그대로 저장하지 않는다.
         #   (1) 구조 정제: 형식/중복/self/정렬 — 순수 함수, 네트워크 없음
         #   (2) 실재성 병렬 검증: 후보 ticker를 get_overview로 병렬 조회 (stock.py peer 조회와 동일 패턴)
@@ -388,6 +425,58 @@ def _extract_profile_inputs(ticker: str, overview: dict) -> dict:
         "description": description,
         "financial_context": _build_financial_context(overview),
     }
+
+
+async def _critique_competitors(ticker, overview, competitors):
+    """2차 Gemini 비평 패스: 경쟁사 직접성/주력영역만 재검토한다 (판단층, fail-soft).
+
+    티커는 바꾸지 않고(추측 금지), 회사 추가 없이 제거·재배치만 한다.
+    실패(키 없음/빈 입력/HTTP 오류/파싱 실패)면 None을 반환하고, 호출측은 원본 competitors를 유지한다.
+    사실(티커 존재) 검증은 호출측의 _validate_competitor_tickers가 담당한다.
+    """
+    if not GOOGLE_API_KEY:
+        return None
+    if not isinstance(competitors, list) or not competitors:
+        return None
+
+    inputs = _extract_profile_inputs(ticker, overview)
+    try:
+        prompt = _CRITIC_PROMPT.format(
+            ticker=ticker,
+            company_name=inputs["company_name"],
+            sector=inputs["sector"],
+            industry=inputs["industry"],
+            description=inputs["description"],
+            competitors_json=json.dumps(competitors, ensure_ascii=False),
+        )
+    except Exception as e:
+        logger.warning("critic prompt format error: %s", e)
+        return None
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GOOGLE_API_KEY}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 2000,
+            "responseMimeType": "application/json",
+        },
+    }
+    try:
+        resp = await asyncio.to_thread(lambda: requests.post(url, json=payload, timeout=30))
+        if resp.status_code != 200:
+            logger.error("critic Gemini error %s: %s", resp.status_code, resp.text[:200])
+            return None
+        data = resp.json()
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        result = json.loads(text)
+        comps = result.get("competitors")
+        if not isinstance(comps, list) or not comps:
+            return None
+        return comps
+    except Exception as e:
+        logger.error("critic error: %s", e)
+        return None
 
 
 async def _analyze_with_gemini(ticker: str, overview: dict) -> dict | None:

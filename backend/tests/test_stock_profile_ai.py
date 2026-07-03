@@ -156,5 +156,15 @@ class TestValidateParallel(unittest.TestCase):
         self.assertEqual(asyncio.run(spa._validate_competitor_tickers(set())), set())
 
 
+class TestCritiqueGuards(unittest.TestCase):
+    """_critique_competitors: 빈/비정상 입력은 network 없이 None 반환(fail-soft early-return)."""
+
+    def test_empty_competitors_returns_none_without_network(self):
+        self.assertIsNone(asyncio.run(spa._critique_competitors("AAPL", {}, [])))
+
+    def test_non_list_competitors_returns_none_without_network(self):
+        self.assertIsNone(asyncio.run(spa._critique_competitors("AAPL", {}, None)))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
