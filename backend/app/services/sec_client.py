@@ -201,7 +201,8 @@ SEC_CONCEPT_MAP = {
     # capex: SEC 'Payments…'는 양수(지출액)지만 Yahoo는 음수(현금유출)로 준다 → 병합 부호 정합 위해 음수화.
     "capex": {"concepts": ["PaymentsToAcquirePropertyPlantAndEquipment"], "instant": False,
               "unit": "USD", "negate": True},
-    "dividends_paid": {"concepts": ["PaymentsOfDividends"], "instant": False, "unit": "USD"},
+    # dividends_paid: SEC 'PaymentsOfDividends'는 양수(지급액)지만 Yahoo는 음수(현금유출) → 부호 정합 위해 음수화.
+    "dividends_paid": {"concepts": ["PaymentsOfDividends"], "instant": False, "unit": "USD", "negate": True},
     # ── 재무상태 (instant, USD) ──
     "total_assets": {"concepts": ["Assets"], "instant": True, "unit": "USD"},
     "stockholders_equity": {"concepts": ["StockholdersEquity"], "instant": True, "unit": "USD"},
@@ -247,6 +248,26 @@ def get_sec_building_blocks(ticker: str, cik: str = None, blocks: list = None):
     with ThreadPoolExecutor(max_workers=4) as pool:
         for key, series in pool.map(_fetch, keys):
             out[key] = series
+
+    # total_liabilities 폴백: 일부 filer(예: KO)는 'Liabilities'를 단일 개념으로 태깅하지 않는다.
+    #   회계항등식 Liabilities = Assets - 총자본. 총자본은 '소수주주지분 포함' 자본을 써야
+    #   Yahoo의 TotalLiabilitiesNetMinorityInterest와 정확히 일치한다(KO 검증: 정확 일치).
+    #   EquityInclNCI 개념이 없으면(소수주주 없는 회사) StockholdersEquity와 동일하므로 그걸 폴백.
+    if not out.get("total_liabilities") and out.get("total_assets"):
+        equity_incl = get_annual_concept_series(
+            ticker, ["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+            instant=True, cik=cik,
+        )
+        equity_series = equity_incl or out.get("stockholders_equity") or []
+        eq_by_fy = {p["fy"]: p for p in equity_series}
+        derived = []
+        for a in out["total_assets"]:
+            e = eq_by_fy.get(a["fy"])
+            if e and a["value"] is not None and e["value"] is not None:
+                derived.append({"fy": a["fy"], "end": a["end"], "value": a["value"] - e["value"]})
+        if derived:
+            out["total_liabilities"] = derived
+
     return out
 
 
