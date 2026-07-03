@@ -677,6 +677,184 @@ def _get_price_at_dates(ticker: str, dates: list):
     return result
 
 
+# ── SEC 장기 히스토리 병합 (차트) ──────────────────────────────────
+# Yahoo timeseries는 연간 ~4년만 주므로, SEC XBRL(10년+)을 회계연도 기준으로 병합해
+# 차트가 장기 히스토리를 그리게 한다. 외국 filer/미보고 블록은 빈 결과 → Yahoo 값 그대로(폴백).
+_sec_blocks_cache = {}
+_SEC_BLOCKS_TTL = 6 * 3600  # SEC 연간 데이터는 드물게 갱신 → 6시간 캐시
+
+# (metrics의 연간 절대지표 키, SEC building-block 키, Yahoo 연간 timeseries 필드).
+# 액면분할에 민감한 EPS/주식수/주당지표는 제외(SEC 원본 vs Yahoo 분할조정 → 병합 시 불연속).
+# EBITDA/FCF/total_debt/tangible_book은 SEC 단일개념이 없어 다음 단계에서 유도 처리.
+_SEC_ABS_MERGE = [
+    ("revenue", "revenue", "annualTotalRevenue"),
+    ("net_income", "net_income", "annualNetIncome"),
+    ("operating_income", "operating_income", "annualOperatingIncome"),
+    ("gross_profit", "gross_profit", "annualGrossProfit"),
+    ("total_assets", "total_assets", "annualTotalAssets"),
+    ("equity_hist", "stockholders_equity", "annualStockholdersEquity"),
+    ("liabilities_hist", "total_liabilities", "annualTotalLiabilitiesNetMinorityInterest"),
+    ("total_cash_hist", "cash", "annualCashAndCashEquivalents"),
+    ("pretax_income", "pretax_income", "annualPretaxIncome"),
+    ("interest_expense_hist", "interest_expense", "annualInterestExpense"),
+    ("accounts_receivable_hist", "accounts_receivable", "annualAccountsReceivable"),
+    ("inventory_hist", "inventory", "annualInventory"),
+    ("accounts_payable_hist", "accounts_payable", "annualAccountsPayable"),
+]
+
+
+def _get_sec_blocks_cached(ticker: str):
+    """SEC building-block을 TTL 캐시로 가져온다(느린 다중 HTTP를 반복하지 않도록)."""
+    from app.services import sec_client
+    key = ticker.upper()
+    now = time.time()
+    c = _sec_blocks_cache.get(key)
+    if c and now - c["ts"] < _SEC_BLOCKS_TTL:
+        return c["data"]
+    try:
+        data = sec_client.get_sec_building_blocks(ticker)
+    except Exception:
+        data = {}
+    _sec_blocks_cache[key] = {"ts": now, "data": data}
+    return data
+
+
+def _merge_sec_annual_history(ticker, metrics, get_yahoo):
+    """metrics의 연간 절대지표를 SEC 장기값과 병합해 확장한다(제자리 수정).
+
+    get_yahoo: get_metric_history 내부의 _get 클로저(Yahoo 연간 시계열 접근).
+    SEC가 없거나(외국 filer) 특정 블록 미보고면 해당 지표는 그대로 둔다(Yahoo 폴백).
+    """
+    from app.services import sec_client
+    blocks = _get_sec_blocks_cached(ticker)
+    if not blocks:
+        return
+    for mkey, blk, yfield in _SEC_ABS_MERGE:
+        sec_series = blocks.get(blk) or []
+        if not sec_series:
+            continue
+        merged = sec_client.merge_annual_by_fy(sec_series, get_yahoo(yfield))
+        if merged:
+            metrics[mkey] = merged
+
+
+# 비율/유도 지표를 계산할 building-block(키) → Yahoo 연간 필드.
+_SEC_RATIO_YFIELD = {
+    "revenue": "annualTotalRevenue",
+    "net_income": "annualNetIncome",
+    "operating_income": "annualOperatingIncome",
+    "gross_profit": "annualGrossProfit",
+    "total_assets": "annualTotalAssets",
+    "stockholders_equity": "annualStockholdersEquity",
+    "total_liabilities": "annualTotalLiabilitiesNetMinorityInterest",
+    "pretax_income": "annualPretaxIncome",
+    "accounts_receivable": "annualAccountsReceivable",
+    "inventory": "annualInventory",
+    "current_assets": "annualCurrentAssets",
+    "current_liabilities": "annualCurrentLiabilities",
+    "operating_cash_flow": "annualOperatingCashFlow",
+    "capex": "annualCapitalExpenditure",
+    "dividends_paid": "annualCashDividendsPaid",
+}
+
+
+def _derive_sec_ratios(ticker, metrics, get_yahoo):
+    """병합된 절대값(SEC⊕Yahoo)에서 연간 비율/유도 지표를 재계산해 장기화한다(제자리 수정).
+
+    겹치는 최근 연도는 SEC=Yahoo로 값이 정합하므로 기존과 동일하고, 옛 연도만 확장된다.
+    외국 filer 등 SEC가 없으면 병합=Yahoo(4년)와 같아 결과가 사실상 불변(무해).
+    회계연도(date 앞 4자리) 기준으로 분자·분모를 맞춰 SEC/Yahoo 날짜 미세차이를 흡수한다.
+    """
+    from app.services import sec_client
+    blocks = _get_sec_blocks_cached(ticker)
+    if not blocks:
+        return
+
+    # 각 블록의 SEC⊕Yahoo 병합을 fy(int) -> {"date","value"} 로
+    M = {}
+    for blk, yfield in _SEC_RATIO_YFIELD.items():
+        series = sec_client.merge_annual_by_fy(blocks.get(blk) or [], get_yahoo(yfield))
+        M[blk] = {int(p["date"][:4]): p for p in series if p.get("date")}
+
+    def _ratio(num_blk, den_blk, key, multiply=100, num_abs=False, den_positive=False):
+        num, den = M.get(num_blk, {}), M.get(den_blk, {})
+        res = []
+        for fy in sorted(set(num) & set(den)):
+            n, d = num[fy]["value"], den[fy]["value"]
+            if n is None or d is None or d == 0:
+                continue
+            if den_positive and d <= 0:
+                continue
+            if num_abs:
+                n = abs(n)
+            res.append({"date": num[fy]["date"], "value": round(n / d * multiply, 2)})
+        if res:
+            metrics[key] = res
+
+    _ratio("net_income", "revenue", "profit_margin_hist")
+    _ratio("operating_income", "revenue", "operating_margin_hist")
+    _ratio("gross_profit", "revenue", "gross_margin_hist")
+    _ratio("net_income", "stockholders_equity", "roe_hist")
+    _ratio("net_income", "total_assets", "roa_hist")
+    _ratio("total_liabilities", "stockholders_equity", "debt_to_equity_hist", multiply=1)
+    _ratio("revenue", "total_assets", "asset_turnover_hist", multiply=1)
+    _ratio("revenue", "inventory", "inventory_turnover_hist", multiply=1)
+    _ratio("revenue", "accounts_receivable", "receivables_turnover_hist", multiply=1)
+    _ratio("operating_cash_flow", "revenue", "ocf_margin_hist")
+    _ratio("capex", "revenue", "capex_to_revenue_hist", num_abs=True)
+    _ratio("dividends_paid", "net_income", "payout_ratio_hist", num_abs=True, den_positive=True)
+
+    # 유효세율 = (1 - net_income/pretax) * 100  (pretax != 0)
+    ni, pti = M.get("net_income", {}), M.get("pretax_income", {})
+    tax_by_fy, tax_res = {}, []
+    for fy in sorted(set(ni) & set(pti)):
+        n, p = ni[fy]["value"], pti[fy]["value"]
+        if n is not None and p not in (None, 0):
+            v = round((1 - n / p) * 100, 2)
+            tax_by_fy[fy] = v
+            tax_res.append({"date": pti[fy]["date"], "value": v})
+    if tax_res:
+        metrics["tax_rate_hist"] = tax_res
+
+    # 운전자본 = 유동자산 - 유동부채
+    ca, cl = M.get("current_assets", {}), M.get("current_liabilities", {})
+    wc = [{"date": ca[fy]["date"], "value": round(ca[fy]["value"] - cl[fy]["value"], 0)}
+          for fy in sorted(set(ca) & set(cl))
+          if ca[fy]["value"] is not None and cl[fy]["value"] is not None]
+    if wc:
+        metrics["working_capital_hist"] = wc
+
+    # ROIC = NOPAT / (총자산 - 유동부채), NOPAT = 영업이익 × (1 - 유효세율(없으면 21%))
+    oi, ta = M.get("operating_income", {}), M.get("total_assets", {})
+    roic = []
+    for fy in sorted(set(oi) & set(ta) & set(cl)):
+        o, t, c = oi[fy]["value"], ta[fy]["value"], cl[fy]["value"]
+        if o is None or t is None or c is None:
+            continue
+        ic = t - c
+        if ic <= 0:
+            continue
+        tax_r = tax_by_fy.get(fy, 21) / 100
+        roic.append({"date": oi[fy]["date"], "value": round(o * (1 - tax_r) / ic * 100, 2)})
+    if roic:
+        metrics["roic_hist"] = roic
+
+    # 성장률(YoY) = (당기-전기)/|전기| × 100
+    def _growth(blk, key):
+        m = M.get(blk, {})
+        fys = sorted(m)
+        res = []
+        for i in range(1, len(fys)):
+            prev, curr = m[fys[i - 1]]["value"], m[fys[i]]["value"]
+            if prev not in (None, 0) and curr is not None:
+                res.append({"date": m[fys[i]]["date"], "value": round((curr - prev) / abs(prev) * 100, 2)})
+        if res:
+            metrics[key] = res
+
+    _growth("net_income", "net_income_growth_hist")
+    _growth("operating_income", "operating_income_growth_hist")
+
+
 def get_metric_history(ticker: str):
     """주요 재무 지표의 연도별/분기별 히스토리를 timeseries API로 반환"""
 
@@ -1206,5 +1384,11 @@ def get_metric_history(ticker: str):
                 # 분기 배당금 × 4 / 시가총액 = 연환산 수익률
                 div_yield_q.append({"date": date, "value": round(div * 4 / mc * 100, 2)})
         metrics["dividend_yield_quarterly"] = div_yield_q
+
+    # ── SEC 장기 연간 히스토리 병합 (미국 us-gaap filer) ──
+    # 절대 달러 지표를 SEC(10년+)로 확장하고, 비율/유도 지표도 병합된 절대값에서 재계산.
+    # 외국 filer/미보고 블록은 Yahoo 값 그대로(폴백).
+    _merge_sec_annual_history(ticker, metrics, _get)
+    _derive_sec_ratios(ticker, metrics, _get)
 
     return metrics
