@@ -120,6 +120,47 @@ _MIN_VALID_COMPETITOR_TICKERS = 2
 # ticker 형식 1차 필터. 형식만으로는 'SAMSUNG' 같은 회사명을 못 거른다(실재성은 validator가 담당).
 _TICKER_FORMAT_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 
+# key_metrics whitelist. PROFILE_PROMPT '선택 가능 목록'과 동일해야 한다.
+# (이 30개는 모두 프론트 METRIC_INFO에 존재 = 렌더 가능. 목록 밖 metric은 카드가 안 그려진다.)
+_ALLOWED_KEY_METRICS = frozenset({
+    "pe_ratio", "forward_pe", "pb_ratio", "ev_to_ebitda", "profit_margin",
+    "operating_margin", "gross_margin", "roe", "roa", "roic", "total_revenue",
+    "net_income", "ebitda", "debt_to_equity", "current_ratio", "total_debt",
+    "total_cash", "asset_turnover", "inventory_turnover", "ocf_margin",
+    "capex_to_revenue", "revenue_per_share", "dividend_yield", "payout_ratio",
+    "revenue_growth", "eps_growth", "net_income_growth", "operating_income_growth",
+    "beta", "fcf",
+})
+
+
+def _sanitize_key_metrics(key_metrics):
+    """key_metrics를 저장 전 정제한다 (순수 함수, 네트워크 없음).
+
+    - non-list / non-dict 방어
+    - metric을 trim/lowercase 정규화
+    - whitelist(_ALLOWED_KEY_METRICS) 밖 metric 제거 (프론트 METRIC_INFO에 없어 렌더 불가하므로)
+    - 중복 metric 제거(첫 것 유지)
+    - reason은 문자열만 유지(없으면 "")
+    반환: [{"metric": ..., "reason": ...}]
+    """
+    if not isinstance(key_metrics, list):
+        return []
+    seen = set()
+    out = []
+    for item in key_metrics:
+        if not isinstance(item, dict):
+            continue
+        m = item.get("metric")
+        if not isinstance(m, str):
+            continue
+        m = m.strip().lower()
+        if m not in _ALLOWED_KEY_METRICS or m in seen:
+            continue
+        seen.add(m)
+        reason = item.get("reason")
+        out.append({"metric": m, "reason": reason if isinstance(reason, str) else ""})
+    return out
+
 # 비평(critic) 에이전트 프롬프트. 1차 생성 결과의 '판단'(직접성/주력영역 배치)만 재검토한다.
 # 티커는 바꾸지 않고(추측 금지), 회사 추가도 하지 않으며, 제거·재배치만 한다.
 _CRITIC_PROMPT = """[역할] 경쟁사 분석 검수자. 다른 분석가가 작성한 '{ticker} ({company_name})의 경쟁사 분류'를 비판적으로 재검토하고, 틀린 부분만 고친다.
@@ -188,6 +229,9 @@ async def get_stock_profile(ticker: str, overview: dict = None) -> dict:
         valid_tickers = await _validate_competitor_tickers(candidate_tickers)
         sanitized = _filter_competitors_by_valid(structural, valid_tickers)
         profile["competitors"] = sanitized
+
+        # key_metrics 정제: whitelist(프론트 렌더 가능) 밖 metric 제거 (순수, 네트워크 없음)
+        profile["key_metrics"] = _sanitize_key_metrics(profile.get("key_metrics", []))
 
         # 저장 가드: valid competitor가 기준 미달이면 새 profile을 저장하지 않는다.
         # (cache miss 경로이므로 덮어쓸 기존 cache는 없다. 저장만 보류하고 결과는 그대로 반환한다.)
