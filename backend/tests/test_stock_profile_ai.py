@@ -197,5 +197,44 @@ class TestResolveCompetitorCompanies(unittest.TestCase):
         self.assertEqual(asyncio.run(spa._resolve_competitor_companies(None)), [])
 
 
+class TestSanitizeKeyMetrics(unittest.TestCase):
+    """_sanitize_key_metrics: whitelist 밖 제거 + 정규화 + 중복 제거 (순수, network 없음)."""
+
+    def test_drops_out_of_whitelist_and_keeps_valid(self):
+        km = [
+            {"metric": "roe", "reason": "r1"},
+            {"metric": "PE_Ratio", "reason": "r2"},      # 대소문자 정규화 → pe_ratio (허용)
+            {"metric": "dividend_growth", "reason": "r3"},  # whitelist 밖 → 제거
+            {"metric": "made_up_metric", "reason": "r4"},   # 없는 것 → 제거
+            {"metric": "fcf", "reason": "r5"},
+        ]
+        out = spa._sanitize_key_metrics(km)
+        self.assertEqual([m["metric"] for m in out], ["roe", "pe_ratio", "fcf"])
+        self.assertEqual(out[0]["reason"], "r1")
+
+    def test_dedupe_and_missing_reason(self):
+        km = [
+            {"metric": "roe", "reason": "a"},
+            {"metric": "roe", "reason": "dup"},   # 중복 → 제거
+            {"metric": "beta"},                    # reason 없음 → ""
+        ]
+        out = spa._sanitize_key_metrics(km)
+        self.assertEqual([m["metric"] for m in out], ["roe", "beta"])
+        self.assertEqual(out[1]["reason"], "")
+
+    def test_non_list_and_non_dict(self):
+        self.assertEqual(spa._sanitize_key_metrics(None), [])
+        self.assertEqual(spa._sanitize_key_metrics("x"), [])
+        self.assertEqual(spa._sanitize_key_metrics(["notdict", 5, {"metric": "roe"}]),
+                         [{"metric": "roe", "reason": ""}])
+
+    def test_whitelist_matches_prompt_list(self):
+        # whitelist가 PROFILE_PROMPT의 '선택 가능 목록'과 정확히 일치하는지(드리프트 방지)
+        import re as _re
+        line = [l for l in spa.PROFILE_PROMPT.splitlines() if l.startswith("선택 가능 목록:")][0]
+        prompt_list = set(t.strip() for t in line.split(":", 1)[1].split(","))
+        self.assertEqual(prompt_list, set(spa._ALLOWED_KEY_METRICS))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
