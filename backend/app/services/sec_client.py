@@ -1,40 +1,49 @@
+import logging
 import requests
 from datetime import date
 from concurrent.futures import ThreadPoolExecutor
 
-HEADERS = {"User-Agent": "FinVision personal-research-tool contact@example.com"}
+logger = logging.getLogger(__name__)
 
-def get_cik(ticker: str):
-    url = "https://efts.sec.gov/LATEST/search-index?q=%22{}%22&dateRange=custom&startdt=2020-01-01&forms=10-K".format(ticker)
-    # CIK 조회
-    try:
-        resp = requests.get(
-            f"https://www.sec.gov/cgi-bin/browse-edgar?company=&CIK={ticker}&type=10-K&dateb=&owner=include&count=1&search_text=&action=getcompany&output=atom",
-            headers=HEADERS, timeout=10
-        )
-        import xml.etree.ElementTree as ET
-        root = ET.fromstring(resp.text)
-        ns = {"atom": "http://www.w3.org/2005/Atom"}
-        for entry in root.findall("atom:entry", ns):
-            cik_elem = entry.find(".//atom:CIK", ns)
-            if cik_elem is not None:
-                return cik_elem.text.zfill(10)
-    except:
-        pass
+HEADERS = {
+    "User-Agent": "FinVision admin@finvision.app",
+    "Accept-Encoding": "gzip, deflate",
+}
 
-    # 대체: company_tickers.json
+# ── ticker → CIK 매핑 (SEC company_tickers.json, 1회 로드/캐시) ──
+# 프로젝트 전체의 단일 CIK 소스. (이전에 earnings_analyzer에 중복 구현이 있었으나 이리로 통합.)
+_cik_cache: dict = {}   # {TICKER: 10자리 zero-padded CIK}
+_cik_loaded = False
+
+
+def _load_cik_map():
+    """SEC company_tickers.json에서 전체 ticker→CIK 매핑을 1회 로드/캐시한다."""
+    global _cik_loaded
+    if _cik_loaded:
+        return
     try:
         resp = requests.get(
             "https://www.sec.gov/files/company_tickers.json",
-            headers=HEADERS, timeout=10
+            headers=HEADERS, timeout=15,
         )
-        tickers = resp.json()
-        for _, v in tickers.items():
-            if v.get("ticker", "").upper() == ticker.upper():
-                return str(v["cik_str"]).zfill(10)
-    except:
-        pass
-    return None
+        resp.raise_for_status()
+        for entry in resp.json().values():
+            t = (entry.get("ticker") or "").upper()
+            cik = entry.get("cik_str")
+            if t and cik:
+                _cik_cache[t] = str(cik).zfill(10)
+        _cik_loaded = True
+        logger.info("SEC CIK map loaded: %d tickers", len(_cik_cache))
+    except Exception as e:
+        logger.warning("SEC CIK map load failed: %s", e)
+
+
+def get_cik(ticker: str):
+    """ticker → 10자리 zero-padded CIK. 못 찾으면 None. (company_tickers.json 캐시 기반)"""
+    if not ticker:
+        return None
+    _load_cik_map()
+    return _cik_cache.get(ticker.upper())
 
 def get_filings(ticker: str, form_types: list = None, limit: int = 20):
     if form_types is None:
