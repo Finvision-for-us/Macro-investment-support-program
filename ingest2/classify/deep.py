@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import get_args
 
 from pydantic import BaseModel
@@ -118,18 +119,42 @@ def run_deep_classify(
     limit: int | None = None,
     only_missing_indirect: bool = True,
 ) -> dict:
-    """filter 통과분을 깊은 분류. 비용 제어용 limit/only_missing 지원."""
+    """filter 통과분을 깊은 분류. Gemini 호출 병렬, DB 쓰기 순차.
+
+    SQLite 연결은 스레드 공유 불가 → LLM 호출만 ThreadPoolExecutor,
+    apply/update는 메인 스레드에서 처리.
+    """
     stats = {"called": 0, "with_indirect": 0, "not_relevant": 0, "errors": 0, "events": Counter()}
+
+    # 대상 아이템 수집 (limit 적용)
+    targets: list = []
     for item in list(news_store.iter_items()):
         if item.filter_status != "passed":
             continue
         if only_missing_indirect and item.tickers_indirect:
             continue
-        if limit is not None and stats["called"] >= limit:
+        if limit is not None and len(targets) >= limit:
             break
-        try:
-            dc = deep_classify(item, llm)
-        except Exception:  # noqa: BLE001 — 한 건 실패가 배치를 막지 않게
+        targets.append(item)
+
+    if not targets:
+        return stats
+
+    # Gemini 호출 병렬 (DB 접근 없음)
+    results: dict[str, DeepClassification | None] = {}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futs = {pool.submit(deep_classify, item, llm): item for item in targets}
+        for fut in as_completed(futs):
+            item = futs[fut]
+            try:
+                results[item.item_id] = fut.result()
+            except Exception:  # noqa: BLE001
+                results[item.item_id] = None
+
+    # DB 쓰기 순차 (단일 스레드)
+    for item in targets:
+        dc = results.get(item.item_id)
+        if dc is None:
             stats["errors"] += 1
             continue
         apply(item, dc)
@@ -141,4 +166,5 @@ def run_deep_classify(
             stats["not_relevant"] += 1
         if item.event_type:
             stats["events"][item.event_type] += 1
+
     return stats

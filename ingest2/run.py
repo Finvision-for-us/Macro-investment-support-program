@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -33,12 +34,25 @@ def run(
     news_store = news_store or NewsStore()
     stats = RunStats()
 
-    for col in collectors:
+    cols = list(collectors)
+
+    # ① 병렬 fetch — 네트워크 I/O만, DB 접근 없음
+    def _fetch(col: BaseCollector) -> tuple[BaseCollector, list]:
+        try:
+            return col, col.fetch(since, until)
+        except Exception:  # noqa: BLE001 — 한 소스 실패가 배치를 막지 않게
+            return col, []
+
+    with ThreadPoolExecutor(max_workers=len(cols)) as pool:
+        fetched_pairs = list(pool.map(_fetch, cols))
+
+    # ② 순차 저장 — SQLite 단일 연결 보호
+    for col, raws in fetched_pairs:
         s = stats.per_source.setdefault(col.source_id, {"fetched": 0, "new": 0, "dup": 0})
-        for raw in col.fetch(since, until):
-            raw_store.save(raw)                  # ① 원본 보관 (보험)
-            item = col.normalize(raw)            # ② 공통 스키마 변환
-            inserted = news_store.save(item)     # ③ 정규화 저장 (중복 자동 차단)
+        for raw in raws:
+            raw_store.save(raw)                  # 원본 보관 (보험)
+            item = col.normalize(raw)            # 공통 스키마 변환
+            inserted = news_store.save(item)     # 정규화 저장 (중복 자동 차단)
             stats.fetched += 1
             s["fetched"] += 1
             if inserted:

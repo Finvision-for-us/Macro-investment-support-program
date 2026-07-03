@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 from google.genai import types
@@ -27,6 +28,7 @@ EMBEDDING_SIM_THRESHOLD = 0.55
 LLM_CONFIDENCE_THRESHOLD = 0.5
 CLAIM_MATCH_THRESHOLD = 0.62  # claim ↔ event 텍스트 매칭 임계값 (1차 후보)
 CLAIM_VERIFY_CONFIDENCE_THRESHOLD = 0.5  # LLM 검증 후 채택 임계값
+MAX_CANDIDATE_PAIRS = 120  # LLM 호출 상한 — 유사도↓ 티커 순으로 상위만
 
 
 # ============================================================
@@ -40,7 +42,12 @@ def candidate_pairs(
     events: list[Event],
     embeddings: np.ndarray,
 ) -> list[dict]:
-    """티커/시간/유사도 중 하나라도 통과한 (i, j) 쌍 리스트."""
+    """공유 티커 or 의미 유사도가 있는 (i, j) 쌍 — 상위 MAX_CANDIDATE_PAIRS만 반환.
+
+    time_close 단독은 제거: 수집 창이 12~48h이면 모든 쌍이 통과해
+    LLM 호출이 폭발하는 문제를 방지한다. 인과 후보는 내용 유사성/티커 공유가
+    기준이어야 한다.
+    """
     n = len(events)
     if n < 2:
         return []
@@ -51,22 +58,22 @@ def candidate_pairs(
         for j in range(i + 1, n):
             a, b = events[i], events[j]
             shared = set(a.tickers_mentioned) & set(b.tickers_mentioned)
-            time_diff = abs((a.occurred_at - b.occurred_at).total_seconds())
-            time_close = time_diff < TIME_WINDOW_DAYS * 86400
             sim_val = float(sim[i, j]) if sim is not None else 0.0
             sim_close = sim_val >= EMBEDDING_SIM_THRESHOLD
 
-            if shared or time_close or sim_close:
+            if shared or sim_close:
                 pairs.append(
                     {
                         "i": i,
                         "j": j,
                         "shared_tickers": sorted(shared),
-                        "time_close": time_close,
                         "sim": sim_val,
                     }
                 )
-    return pairs
+
+    # 공유 티커 수 → 유사도 내림차순으로 정렬 후 상한 적용
+    pairs.sort(key=lambda p: (-len(p["shared_tickers"]), -p["sim"]))
+    return pairs[:MAX_CANDIDATE_PAIRS]
 
 
 # ============================================================
@@ -145,44 +152,39 @@ def infer_pairwise(
     *,
     on_progress=None,
 ) -> list[CausalEdge]:
-    """Top N 이벤트들에 pairwise LLM 검증."""
+    """Top N 이벤트들에 pairwise LLM 검증 (ThreadPoolExecutor 병렬)."""
     pairs = candidate_pairs(events, embeddings)
-    edges: list[CausalEdge] = []
-    for idx, pair in enumerate(pairs, 1):
+    if not pairs:
+        return []
+
+    def _process(pair: dict) -> CausalEdge | None:
         i, j = pair["i"], pair["j"]
         a, b = events[i], events[j]
-        if on_progress:
-            on_progress(idx, len(pairs), a, b)
         try:
             res = _check_pair(a, b)
-        except Exception as e:  # noqa: BLE001
-            if on_progress:
-                on_progress(idx, len(pairs), a, b, error=str(e)[:80])
-            continue
-
+        except Exception:  # noqa: BLE001
+            return None
         rel = res.get("relationship", "unrelated")
         conf = float(res.get("confidence", 0.0) or 0.0)
-        if rel not in ("A_causes_B", "B_causes_A"):
-            continue
-        if conf < LLM_CONFIDENCE_THRESHOLD:
-            continue
-
-        if rel == "A_causes_B":
-            from_id, to_id = a.id, b.id
-        else:
-            from_id, to_id = b.id, a.id
-
-        edges.append(
-            CausalEdge(
-                from_event_id=from_id,
-                to_event_id=to_id,
-                confidence=conf,
-                direction=res.get("direction", "uncertain"),
-                mechanism=str(res.get("mechanism", ""))[:300],
-                source_urls=[],
-                inferred_by="pairwise_llm",
-            )
+        if rel not in ("A_causes_B", "B_causes_A") or conf < LLM_CONFIDENCE_THRESHOLD:
+            return None
+        from_id = a.id if rel == "A_causes_B" else b.id
+        to_id = b.id if rel == "A_causes_B" else a.id
+        return CausalEdge(
+            from_event_id=from_id,
+            to_event_id=to_id,
+            confidence=conf,
+            direction=res.get("direction", "uncertain"),
+            mechanism=str(res.get("mechanism", ""))[:300],
+            source_urls=[],
+            inferred_by="pairwise_llm",
         )
+
+    edges: list[CausalEdge] = []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for edge in pool.map(_process, pairs):
+            if edge is not None:
+                edges.append(edge)
     return edges
 
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 from uuid import uuid4
 
@@ -218,9 +219,15 @@ def build_themes(
     groups = cluster_themes(
         stories, sim_threshold=sim_threshold, min_size=min_size, embed_fn=embed_fn
     )
+    if not groups:
+        return []
+
+    # 테마 명명만 병렬 (클러스터링은 이미 결정론적으로 완료됨)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        names = list(pool.map(name_fn, groups))
+
     themes: list[Theme] = []
-    for g in groups:
-        name, desc = name_fn(g)
+    for g, (name, desc) in zip(groups, names):
         score, tickers, direction = _aggregate(g)
         themes.append(
             Theme(
