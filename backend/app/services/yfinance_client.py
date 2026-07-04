@@ -930,6 +930,42 @@ def _extend_eps_with_sec(ticker, metrics):
         metrics["eps_growth_hist"] = growth
 
 
+def _extend_per_share_with_sec(ticker, metrics):
+    """주당지표(주당매출·BPS·주당배당)를 SEC로 장기화한다(제자리 수정).
+
+    이 지표들은 '달러값 ÷ 주식수'인데 달러값(매출·자기자본·배당)은 이미 SEC 장기 확보돼 있고
+    주식수만 분할 민감하다. 그래서 기말주식수를 '현재 기준'으로 분할조정(multiply)한 뒤 나눈다.
+    주식수 없으면(외국 filer 등) 그대로 둔다(Yahoo 폴백).
+    """
+    from app.services import sec_client
+    shares_raw = sec_client.get_annual_shares_with_filed(ticker)
+    if not shares_raw:
+        return
+    splits = _get_splits(ticker)
+    adj = sec_client.split_adjust_by_filed(shares_raw, splits, multiply=True)  # 현재 기준 주식수
+    shares_by_fy = {p["fy"]: p for p in adj if p.get("value")}
+    if not shares_by_fy:
+        return
+    blocks = _get_sec_blocks_cached(ticker)
+
+    def _per_share(block_key, metric_key, absval=False):
+        series = blocks.get(block_key) or []
+        sec_ps = []
+        for p in series:
+            sh = shares_by_fy.get(p["fy"])
+            if sh and sh["value"] and p.get("value") is not None:
+                v = abs(p["value"]) if absval else p["value"]
+                sec_ps.append({"fy": p["fy"], "end": p["end"], "value": round(v / sh["value"], 4)})
+        if sec_ps:
+            merged = sec_client.merge_annual_by_fy(sec_ps, metrics.get(metric_key, []))
+            if merged:
+                metrics[metric_key] = merged
+
+    _per_share("revenue", "revenue_per_share_hist")
+    _per_share("stockholders_equity", "bps_hist")
+    _per_share("dividends_paid", "dividend_per_share_hist", absval=True)
+
+
 def get_metric_history(ticker: str):
     """주요 재무 지표의 연도별/분기별 히스토리를 timeseries API로 반환"""
 
@@ -1466,5 +1502,6 @@ def get_metric_history(ticker: str):
     _merge_sec_annual_history(ticker, metrics, _get)
     _derive_sec_ratios(ticker, metrics, _get)
     _extend_eps_with_sec(ticker, metrics)
+    _extend_per_share_with_sec(ticker, metrics)
 
     return metrics

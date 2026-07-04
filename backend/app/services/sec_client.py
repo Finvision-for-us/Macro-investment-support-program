@@ -160,12 +160,14 @@ def get_annual_eps_diluted_with_filed(ticker: str, cik: str = None):
     return out
 
 
-def split_adjust_by_filed(raw, splits):
-    """as-reported 주당지표를 완전 분할조정한다 (순수 함수, network 없음).
+def split_adjust_by_filed(raw, splits, multiply=False):
+    """as-reported 값을 완전 분할조정한다 (순수 함수, network 없음).
 
     raw: [{"fy","end","value","filed"}] (get_annual_eps_diluted_with_filed 형식).
     splits: {날짜(YYYY-MM-DD): 비율}. 각 값은 filed일까지의 분할이 이미 반영돼 있으므로
-            'filed일 이후'에 일어난 분할 비율만 곱해 나눈다(이중조정 방지 → 분할 지점 단차 없음).
+            'filed일 이후'에 일어난 분할 비율만 반영한다(이중조정 방지 → 분할 지점 단차 없음).
+    multiply: False면 나눈다(주당지표=EPS·BPS 등, 분할 시 감소).
+              True면 곱한다(주식수, 분할 시 증가) — '현재 기준' 환산.
     반환: [{"fy","end","value"}] (분할조정 값, end 오름차순).
     """
     if not isinstance(raw, list):
@@ -184,9 +186,40 @@ def split_adjust_by_filed(raw, splits):
             if sd > filed and ratio:
                 factor *= ratio
         if factor:
-            out.append({"fy": p.get("fy"), "end": p["end"], "value": round(v / factor, 4)})
+            val = v * factor if multiply else v / factor
+            out.append({"fy": p.get("fy"), "end": p["end"], "value": round(val, 0 if multiply else 4)})
     out.sort(key=lambda x: x["end"])
     return out
+
+
+def get_annual_shares_with_filed(ticker: str, cik: str = None):
+    """기말 발행주식수를 회계연도별로(filed 포함) 반환한다. 분할조정용.
+
+    회사마다 네임스페이스가 달라 us-gaap(CommonStockSharesOutstanding) 실패 시
+    dei(EntityCommonStockSharesOutstanding)로 폴백한다. (예: KO는 dei에만 있음)
+    반환: [{"fy","end","value","filed"}] (end 오름차순). 없으면 빈 리스트.
+    """
+    if cik is None:
+        cik = get_cik(ticker)
+    if not cik:
+        return []
+    for ns, concept in (("us-gaap", "CommonStockSharesOutstanding"),
+                        ("dei", "EntityCommonStockSharesOutstanding")):
+        url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/{ns}/{concept}.json"
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=15)
+            if resp.status_code != 200:
+                continue
+            units = resp.json().get("units", {}).get("shares", [])
+        except Exception:
+            continue
+        by_fy = _reduce_units_to_annual(units, instant=True)
+        if by_fy:
+            out = [{"fy": fy, "end": d["end"], "value": d["value"], "filed": d["filed"]}
+                   for fy, d in by_fy.items()]
+            out.sort(key=lambda x: x["end"])
+            return out
+    return []
 
 
 def _reduce_units_to_annual(units, instant):

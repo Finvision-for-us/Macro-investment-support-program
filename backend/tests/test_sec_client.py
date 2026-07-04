@@ -202,6 +202,13 @@ class TestSplitAdjustByFiled(unittest.TestCase):
         raw = self._raw((2024, "2024-09-28", 6.08, "2024-11-01"))
         self.assertEqual(split_adjust_by_filed(raw, {})[0]["value"], 6.08)
 
+    def test_multiply_for_shares(self):
+        # 주식수는 분할 시 증가 → multiply=True. 분할 前 filed 값은 ×4(현재 기준).
+        raw = self._raw((2019, "2019-09-28", 1.0e9, "2019-10-30"))
+        splits = {"2020-08-31": 4.0}
+        out = split_adjust_by_filed(raw, splits, multiply=True)
+        self.assertEqual(out[0]["value"], 4.0e9)   # 10억 × 4
+
     def test_guards(self):
         self.assertEqual(split_adjust_by_filed(None, {}), [])
         self.assertEqual(split_adjust_by_filed([{"value": 1}], {}), [])  # end 없음
