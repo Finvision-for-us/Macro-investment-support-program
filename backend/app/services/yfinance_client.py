@@ -873,6 +873,63 @@ def _derive_sec_ratios(ticker, metrics, get_yahoo):
     _growth("operating_income", "operating_income_growth_hist")
 
 
+def _get_splits(ticker):
+    """Yahoo 액면분할 이력 {날짜(YYYY-MM-DD): 비율}. 실패시 {}.
+    오래된(1970년 이전) 음수 timestamp도 안전하게 파싱한다."""
+    import datetime
+    try:
+        r = requests.get(
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker.upper()}",
+            headers=HEADERS,
+            params={"range": "max", "interval": "3mo", "events": "splits"},
+            timeout=15,
+        )
+        r.raise_for_status()
+        ev = r.json()["chart"]["result"][0].get("events", {}).get("splits", {})
+    except Exception:
+        return {}
+    epoch = datetime.datetime(1970, 1, 1)
+    out = {}
+    for s in ev.values():
+        try:
+            d = (epoch + datetime.timedelta(seconds=s["date"])).strftime("%Y-%m-%d")
+            den = s.get("denominator")
+            if den:
+                out[d] = s["numerator"] / den
+        except Exception:
+            continue
+    return out
+
+
+def _extend_eps_with_sec(ticker, metrics):
+    """eps_hist(Yahoo ~4년)를 SEC as-reported EPS를 분할조정해 장기화한다(제자리 수정).
+
+    SEC EPS는 filed(보고)일까지의 분할이 이미 반영돼 있으므로 'filed일 이후' 분할로만 나눈다
+    (period end 기준으로 조정하면 이중조정 → 분할 지점 단차 발생. filed 기준이라야 매끄럽다).
+    확장된 EPS에서 eps_growth_hist(YoY)도 재계산한다. 외국 filer 등 SEC EPS 없으면 그대로 둔다.
+    """
+    from app.services import sec_client
+    raw = sec_client.get_annual_eps_diluted_with_filed(ticker)
+    if not raw:
+        return
+    splits = _get_splits(ticker)  # {date: ratio}
+    adjusted = sec_client.split_adjust_by_filed(raw, splits)
+    merged = sec_client.merge_annual_by_fy(adjusted, metrics.get("eps_hist", []))
+    if not merged:
+        return
+    metrics["eps_hist"] = merged
+    # eps_growth도 확장된 EPS에서 재계산(YoY)
+    m = {int(p["date"][:4]): p for p in merged if p.get("date")}
+    fys = sorted(m)
+    growth = []
+    for i in range(1, len(fys)):
+        prev, curr = m[fys[i - 1]]["value"], m[fys[i]]["value"]
+        if prev not in (None, 0) and curr is not None:
+            growth.append({"date": m[fys[i]]["date"], "value": round((curr - prev) / abs(prev) * 100, 2)})
+    if growth:
+        metrics["eps_growth_hist"] = growth
+
+
 def get_metric_history(ticker: str):
     """주요 재무 지표의 연도별/분기별 히스토리를 timeseries API로 반환"""
 
@@ -1408,5 +1465,6 @@ def get_metric_history(ticker: str):
     # 외국 filer/미보고 블록은 Yahoo 값 그대로(폴백).
     _merge_sec_annual_history(ticker, metrics, _get)
     _derive_sec_ratios(ticker, metrics, _get)
+    _extend_eps_with_sec(ticker, metrics)
 
     return metrics

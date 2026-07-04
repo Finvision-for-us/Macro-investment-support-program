@@ -18,6 +18,7 @@ from app.services.sec_client import (
     _reduce_units_to_annual,
     SEC_CONCEPT_MAP,
     merge_annual_by_fy,
+    split_adjust_by_filed,
 )
 
 
@@ -171,6 +172,40 @@ class TestMergeAnnualByFy(unittest.TestCase):
         yahoo = [{"date": "2019-09-28", "value": 200}, "x"]
         out = merge_annual_by_fy(sec, yahoo)
         self.assertEqual(out, [{"date": "2019-09-28", "value": 200}])
+
+
+class TestSplitAdjustByFiled(unittest.TestCase):
+    """split_adjust_by_filed: filed일 이후 분할로만 조정 (순수 함수)."""
+
+    def _raw(self, *tuples):  # (fy, end, value, filed)
+        return [{"fy": fy, "end": e, "value": v, "filed": f} for fy, e, v, f in tuples]
+
+    def test_adjust_only_by_splits_after_filed(self):
+        # 2020년 4:1 분할. FY2019 값은 분할 前 filed → ÷4. FY2021 값은 분할 後 filed → 그대로.
+        raw = self._raw(
+            (2019, "2019-09-28", 12.0, "2019-10-30"),   # 분할 전 보고
+            (2021, "2021-09-25", 5.61, "2021-10-29"),   # 분할 후 보고(이미 조정됨)
+        )
+        splits = {"2020-08-31": 4.0}
+        out = {p["fy"]: p["value"] for p in split_adjust_by_filed(raw, splits)}
+        self.assertEqual(out[2019], 3.0)     # 12.0 / 4
+        self.assertEqual(out[2021], 5.61)    # 그대로
+
+    def test_multiple_splits_compound(self):
+        # 2014년 7:1 + 2020년 4:1. 둘 다 이후 filed면 ÷28.
+        raw = self._raw((2013, "2013-09-28", 39.2, "2013-10-30"))
+        splits = {"2014-06-09": 7.0, "2020-08-31": 4.0}
+        out = split_adjust_by_filed(raw, splits)
+        self.assertEqual(out[0]["value"], round(39.2 / 28, 4))
+
+    def test_no_splits_returns_values(self):
+        raw = self._raw((2024, "2024-09-28", 6.08, "2024-11-01"))
+        self.assertEqual(split_adjust_by_filed(raw, {})[0]["value"], 6.08)
+
+    def test_guards(self):
+        self.assertEqual(split_adjust_by_filed(None, {}), [])
+        self.assertEqual(split_adjust_by_filed([{"value": 1}], {}), [])  # end 없음
+        self.assertEqual(split_adjust_by_filed([{"end": "2020-01-01", "value": None, "filed": "x"}], {}), [])
 
 
 if __name__ == "__main__":
