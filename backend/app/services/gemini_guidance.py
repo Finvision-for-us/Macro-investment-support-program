@@ -1113,6 +1113,14 @@ def _qkey(date_str):
         return None
 
 
+def _next_qkey(qk):
+    """(연,분기) → 다음 달력분기. 콜(분기 P)의 가이던스는 대개 P+1 분기 대상."""
+    if not qk:
+        return None
+    y, q = qk
+    return (y + 1, 1) if q == 4 else (y, q + 1)
+
+
 def _is_single_quarter_target(target_period):
     """target_period가 '단일 분기'로 보이면 True. 연간/반기 가이던스는 이번 대조에서 제외."""
     t = (target_period or "").lower()
@@ -1133,29 +1141,20 @@ def _classify_vs_range(actual, low, high):
     return "within"
 
 
-def evaluate_guidance_accuracy(guidance_list, ordered_period_ends, actuals):
-    """경영진 forward_guidance를 다음 분기 실제값과 대조한다 (순수 함수, network 없음).
+def evaluate_guidance_accuracy(guidance_list, actuals):
+    """경영진 forward_guidance를 '다음 분기' 실제값과 대조한다 (순수 함수, network 없음).
 
     guidance_list: [{"period_end", "forward_guidance": [{metric, low, high, unit, target_period, verbatim}]}]
-                   (period_end = 콜이 열린 분기).
-    ordered_period_ends: 실적 분기 period_end 오름차순 리스트 (다음 분기 P+1 찾기용).
+                   (period_end = 콜이 열린 분기). 대상 분기는 P의 다음 달력분기로 산정한다.
     actuals: {(metric, (연,분기)): 실제값}. (연,분기)는 _qkey 형식.
     반환: {"items":[...판정...], "within":int, "evaluated":int, "hit_rate":float|None}
     """
-    order = [pe for pe in (ordered_period_ends or []) if pe]
-    order.sort()
-    idx = {pe: i for i, pe in enumerate(order)}
-
     items, within, evaluated = [], 0, 0
     for g in guidance_list or []:
         if not isinstance(g, dict):
             continue
         pe = g.get("period_end")
-        i = idx.get(pe)
-        if i is None or i + 1 >= len(order):
-            continue  # 다음 분기 실적이 아직 없음
-        target_pe = order[i + 1]
-        target_q = _qkey(target_pe)
+        target_q = _next_qkey(_qkey(pe))
         if target_q is None:
             continue
         for it in (g.get("forward_guidance") or []):
@@ -1175,7 +1174,7 @@ def evaluate_guidance_accuracy(guidance_list, ordered_period_ends, actuals):
                 within += 1
             items.append({
                 "call_period_end": pe,
-                "target_period_end": target_pe,
+                "target_quarter": f"{target_q[0]}Q{target_q[1]}",
                 "metric": it.get("metric"),
                 "low": low, "high": high, "unit": it.get("unit"),
                 "actual": round(actual, 2) if isinstance(actual, (int, float)) else actual,
@@ -1183,8 +1182,19 @@ def evaluate_guidance_accuracy(guidance_list, ordered_period_ends, actuals):
                 "verbatim": it.get("verbatim"),
             })
     hit_rate = round(within / evaluated * 100, 1) if evaluated else None
-    return {"items": sorted(items, key=lambda x: x["target_period_end"], reverse=True),
+    return {"items": sorted(items, key=lambda x: x["call_period_end"], reverse=True),
             "within": within, "evaluated": evaluated, "hit_rate": hit_rate}
+
+
+def compute_guidance_track_record(ticker: str, guidance_list: list) -> dict:
+    """종목의 '경영진 가이던스 적중률'을 계산한다. (guidance_list = _get_cached_guidance 결과)
+
+    구조화 forward_guidance(수치형)를 다음 분기 실제값과 대조. 실제값은 Yahoo 분기에서 소싱.
+    """
+    if not guidance_list:
+        return {"items": [], "within": 0, "evaluated": 0, "hit_rate": None}
+    actuals = source_quarterly_actuals(ticker)
+    return evaluate_guidance_accuracy(guidance_list, actuals)
 
 
 def source_quarterly_actuals(ticker: str) -> dict:

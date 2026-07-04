@@ -52,22 +52,20 @@ class TestHelpers(unittest.TestCase):
 
 
 class TestEvaluate(unittest.TestCase):
-    ORDER = ["2024-09-28", "2024-12-28", "2025-03-29", "2025-06-28"]
-
+    # 콜 period_end = 2024-12-28 (2024 Q4) → 대상 다음 분기 = 2025 Q1
     def _g(self, items):
         return [{"period_end": "2024-12-28", "forward_guidance": items}]
 
     def test_hit_within_range(self):
-        # Dec콜 → 3월분기(2025 Q1 달력) 대상. 실제 47.05 → within
         g = self._g([{"metric": "gross_margin", "low": 46.5, "high": 47.5,
                       "unit": "%", "target_period": "2025 Q2"}])
         actuals = {("gross_margin", (2025, 1)): 47.05}
-        r = evaluate_guidance_accuracy(g, self.ORDER, actuals)
+        r = evaluate_guidance_accuracy(g, actuals)
         self.assertEqual(r["evaluated"], 1)
         self.assertEqual(r["within"], 1)
         self.assertEqual(r["hit_rate"], 100.0)
         self.assertEqual(r["items"][0]["verdict"], "within")
-        self.assertEqual(r["items"][0]["target_period_end"], "2025-03-29")
+        self.assertEqual(r["items"][0]["target_quarter"], "2025Q1")
 
     def test_above_and_below(self):
         g = self._g([
@@ -75,7 +73,7 @@ class TestEvaluate(unittest.TestCase):
             {"metric": "eps", "low": 1.9, "high": 2.0, "unit": "USD", "target_period": "Q"},
         ])
         actuals = {("gross_margin", (2025, 1)): 48.2, ("eps", (2025, 1)): 1.65}
-        r = evaluate_guidance_accuracy(g, self.ORDER, actuals)
+        r = evaluate_guidance_accuracy(g, actuals)
         verdicts = {it["metric"]: it["verdict"] for it in r["items"]}
         self.assertEqual(verdicts["gross_margin"], "above")
         self.assertEqual(verdicts["eps"], "below")
@@ -83,34 +81,34 @@ class TestEvaluate(unittest.TestCase):
         self.assertEqual(r["hit_rate"], 0.0)
 
     def test_qualitative_skipped(self):
-        # low/high 둘 다 None(정성적) → 대조 불가로 스킵
         g = self._g([{"metric": "revenue_growth", "low": None, "high": None,
                       "unit": "%", "target_period": "Q", "verbatim": "low single digit"}])
-        r = evaluate_guidance_accuracy(g, self.ORDER, {("revenue_growth", (2025, 1)): 5.0})
+        r = evaluate_guidance_accuracy(g, {("revenue_growth", (2025, 1)): 5.0})
         self.assertEqual(r["evaluated"], 0)
 
     def test_annual_target_skipped(self):
         g = self._g([{"metric": "gross_margin", "low": 46, "high": 47,
                       "unit": "%", "target_period": "FY2025 연간"}])
-        r = evaluate_guidance_accuracy(g, self.ORDER, {("gross_margin", (2025, 1)): 46.5})
+        r = evaluate_guidance_accuracy(g, {("gross_margin", (2025, 1)): 46.5})
         self.assertEqual(r["evaluated"], 0)
 
-    def test_no_next_quarter_skipped(self):
-        # 마지막 분기에 낸 가이던스는 대상 분기 실적이 아직 없어 스킵
-        g = [{"period_end": "2025-06-28", "forward_guidance":
+    def test_q4_wraps_to_next_year(self):
+        # 9월분기(Q3) 콜 → 다음 분기 Q4
+        g = [{"period_end": "2024-09-28", "forward_guidance":
               [{"metric": "gross_margin", "low": 46, "high": 47, "unit": "%", "target_period": "Q"}]}]
-        r = evaluate_guidance_accuracy(g, self.ORDER, {("gross_margin", (2025, 3)): 46.5})
-        self.assertEqual(r["evaluated"], 0)
+        r = evaluate_guidance_accuracy(g, {("gross_margin", (2024, 4)): 46.5})
+        self.assertEqual(r["items"][0]["target_quarter"], "2024Q4")
+        self.assertEqual(r["items"][0]["verdict"], "within")
 
     def test_missing_actual_skipped(self):
         g = self._g([{"metric": "gross_margin", "low": 46.5, "high": 47.5,
                       "unit": "%", "target_period": "Q"}])
-        r = evaluate_guidance_accuracy(g, self.ORDER, {})  # 실제값 없음
+        r = evaluate_guidance_accuracy(g, {})  # 실제값 없음
         self.assertEqual(r["evaluated"], 0)
 
     def test_empty_and_none(self):
-        self.assertEqual(evaluate_guidance_accuracy([], self.ORDER, {})["evaluated"], 0)
-        self.assertEqual(evaluate_guidance_accuracy(None, None, None)["evaluated"], 0)
+        self.assertEqual(evaluate_guidance_accuracy([], {})["evaluated"], 0)
+        self.assertEqual(evaluate_guidance_accuracy(None, None)["evaluated"], 0)
 
 
 if __name__ == "__main__":

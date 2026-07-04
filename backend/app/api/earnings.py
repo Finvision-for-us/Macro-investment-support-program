@@ -12,6 +12,7 @@ from app.services.gemini_guidance import (
     compute_theme_patterns,
     is_available as gemini_available,
     _get_cached_guidance,
+    compute_guidance_track_record,
 )
 
 router = APIRouter(prefix="/api/stock", tags=["earnings"])
@@ -55,6 +56,7 @@ async def guidance(ticker: str, max_quarters: int = 20):
                 "ticker": ticker,
                 "guidance": cached,
                 "theme_patterns": theme_patterns,
+                "track_record": compute_guidance_track_record(ticker, cached),
                 "total_analyzed": len(cached),
                 "gemini_enabled": True,
                 "cached": True,
@@ -94,6 +96,7 @@ async def guidance(ticker: str, max_quarters: int = 20):
             "ticker": ticker,
             "guidance": guidance_list,
             "theme_patterns": theme_patterns,
+            "track_record": compute_guidance_track_record(ticker, guidance_list),
             "total_analyzed": len(guidance_list),
             "gemini_enabled": True,
         }
