@@ -1054,6 +1054,47 @@ export default function EarningsSimulator({ ticker }) {
 
               {guidanceData && (
                 <div className="p-4 space-y-4">
+                  {/* 경영진 가이던스 적중률 (경영진이 제시한 수치 가이던스 vs 실제 결과) */}
+                  {guidanceData.track_record?.evaluated > 0 && (
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">
+                          경영진 가이던스 적중률
+                          <span className="ml-1 normal-case text-[9px] text-slate-400 font-normal">
+                            (경영진 제시 수치 vs 실제)
+                          </span>
+                        </div>
+                        <span className="text-[13px] font-bold text-indigo-700">
+                          {guidanceData.track_record.hit_rate}%
+                          <span className="text-[9px] text-slate-400 font-normal ml-1">
+                            ({guidanceData.track_record.within}/{guidanceData.track_record.evaluated})
+                          </span>
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {guidanceData.track_record.items.slice(0, 6).map((it, i) => {
+                          const color = it.verdict === 'within' ? '#059669' : (it.verdict === 'above' ? '#2563eb' : '#dc2626')
+                          const label = it.verdict === 'within' ? '적중' : (it.verdict === 'above' ? '상회' : '하회')
+                          const metricKo = { gross_margin: '총마진', operating_margin: '영업마진', revenue: '매출', revenue_growth: '매출성장', eps: 'EPS' }[it.metric] || it.metric
+                          const pct = it.unit === '%' ? '%' : ''
+                          return (
+                            <div key={i} className="flex items-center gap-2 text-[10px] flex-wrap">
+                              <span className="text-slate-400 font-mono w-12">{it.target_quarter}</span>
+                              <span className="text-slate-600 w-14">{metricKo}</span>
+                              <span className="text-slate-500 font-mono">
+                                가이던스 {it.low}{it.low !== it.high ? `~${it.high}` : ''}{pct}
+                              </span>
+                              <span className="text-slate-300">→</span>
+                              <span className="font-mono font-semibold" style={{ color }}>실제 {it.actual}{pct}</span>
+                              <span className="text-[8px] px-1.5 py-0.5 rounded-full font-semibold"
+                                style={{ color, backgroundColor: `${color}15` }}>{label}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* 테마 패턴 요약 */}
                   {guidanceData.theme_patterns?.themes && Object.keys(guidanceData.theme_patterns.themes).length > 0 && (
                     <div>
