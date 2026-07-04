@@ -1143,6 +1143,18 @@ export default function EarningsSimulator({ ticker }) {
                                 }`}>
                                   {g.source_type === 'transcript' ? 'Earnings Call' : '8-K Filing'}
                                 </span>
+                                {/* 원문 보기 — 트랜스크립트(Motley Fool)/8-K(SEC) 원본 링크. 실제 URL일 때만. */}
+                                {g.filing_url?.startsWith('http') && (
+                                  <a
+                                    href={g.filing_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[8px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-colors"
+                                    title={g.source_type === 'transcript' ? '어닝콜 원문 트랜스크립트 보기' : '8-K 공시 원문 보기'}
+                                  >
+                                    원문 보기 ↗
+                                  </a>
+                                )}
                               </div>
                               {reaction != null && (
                                 <span className="text-[11px] font-bold font-mono" style={{ color: reaction > 0 ? '#059669' : '#dc2626' }}>
