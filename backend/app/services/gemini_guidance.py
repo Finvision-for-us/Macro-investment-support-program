@@ -1095,3 +1095,128 @@ def compute_theme_patterns(guidance_list: list, earnings_history: list) -> dict:
         "themes": dict(sorted(themes_result.items(), key=lambda x: x[1]["count"], reverse=True)),
         "all_themes": sorted(all_themes),
     }
+
+
+# ── 가이던스 vs 실제 대조 (경영진 가이던스 track record) ──────────────
+# 콜(분기 P)에서 낸 forward_guidance는 대개 '다음 분기(P+1)' 대상 → P+1 실적과 대조.
+# 순수 함수는 network 없음(테스트 용이). 실제값 소싱은 별도 함수가 담당.
+
+_ANNUAL_TARGET_HINTS = ("fy", "연간", "full year", "full-year", "하반기", "상반기", "연중", "회계연도", "annual")
+
+
+def _qkey(date_str):
+    """날짜 문자열 → (연, 달력분기) 튜플. 실적 period_end(2025-03-29)와 Yahoo 분기(2025-03-31)를
+    같은 달력분기로 정렬시키기 위함. 실패 시 None."""
+    try:
+        return (int(str(date_str)[:4]), (int(str(date_str)[5:7]) - 1) // 3 + 1)
+    except (ValueError, TypeError, IndexError):
+        return None
+
+
+def _is_single_quarter_target(target_period):
+    """target_period가 '단일 분기'로 보이면 True. 연간/반기 가이던스는 이번 대조에서 제외."""
+    t = (target_period or "").lower()
+    return not any(h in t for h in _ANNUAL_TARGET_HINTS)
+
+
+def _classify_vs_range(actual, low, high):
+    """실제값이 가이던스 범위 대비 어디인지. within(적중)/above(상회)/below(하회)/None."""
+    if actual is None or (low is None and high is None):
+        return None
+    # 편면 범위 지원: 하한만이면 '이상', 상한만이면 '이하'로 판정(점으로 붕괴시키지 않음).
+    if low is not None and high is not None and low > high:
+        low, high = high, low
+    if low is not None and actual < low:
+        return "below"
+    if high is not None and actual > high:
+        return "above"
+    return "within"
+
+
+def evaluate_guidance_accuracy(guidance_list, ordered_period_ends, actuals):
+    """경영진 forward_guidance를 다음 분기 실제값과 대조한다 (순수 함수, network 없음).
+
+    guidance_list: [{"period_end", "forward_guidance": [{metric, low, high, unit, target_period, verbatim}]}]
+                   (period_end = 콜이 열린 분기).
+    ordered_period_ends: 실적 분기 period_end 오름차순 리스트 (다음 분기 P+1 찾기용).
+    actuals: {(metric, (연,분기)): 실제값}. (연,분기)는 _qkey 형식.
+    반환: {"items":[...판정...], "within":int, "evaluated":int, "hit_rate":float|None}
+    """
+    order = [pe for pe in (ordered_period_ends or []) if pe]
+    order.sort()
+    idx = {pe: i for i, pe in enumerate(order)}
+
+    items, within, evaluated = [], 0, 0
+    for g in guidance_list or []:
+        if not isinstance(g, dict):
+            continue
+        pe = g.get("period_end")
+        i = idx.get(pe)
+        if i is None or i + 1 >= len(order):
+            continue  # 다음 분기 실적이 아직 없음
+        target_pe = order[i + 1]
+        target_q = _qkey(target_pe)
+        if target_q is None:
+            continue
+        for it in (g.get("forward_guidance") or []):
+            if not isinstance(it, dict):
+                continue
+            low, high = it.get("low"), it.get("high")
+            if low is None and high is None:
+                continue  # 정성적 가이던스 → 수치 대조 불가
+            if not _is_single_quarter_target(it.get("target_period")):
+                continue  # 연간/반기 가이던스 제외(이번 버전)
+            actual = actuals.get((it.get("metric"), target_q))
+            if actual is None:
+                continue
+            verdict = _classify_vs_range(actual, low, high)
+            evaluated += 1
+            if verdict == "within":
+                within += 1
+            items.append({
+                "call_period_end": pe,
+                "target_period_end": target_pe,
+                "metric": it.get("metric"),
+                "low": low, "high": high, "unit": it.get("unit"),
+                "actual": round(actual, 2) if isinstance(actual, (int, float)) else actual,
+                "verdict": verdict,
+                "verbatim": it.get("verbatim"),
+            })
+    hit_rate = round(within / evaluated * 100, 1) if evaluated else None
+    return {"items": sorted(items, key=lambda x: x["target_period_end"], reverse=True),
+            "within": within, "evaluated": evaluated, "hit_rate": hit_rate}
+
+
+def source_quarterly_actuals(ticker: str) -> dict:
+    """가이던스 대조용 분기별 실제값 {(metric, (연,분기)): 값}을 Yahoo에서 소싱한다.
+
+    지원 지표: gross_margin/operating_margin(%), revenue(USD), revenue_growth(% YoY), eps.
+    (opex/tax_rate 등은 분기 실제 소싱이 불안정해 이번 버전 제외 — 대조 안 되면 그 항목은 스킵됨.)
+    """
+    from app.services import yfinance_client as yf
+    fields = ["quarterlyGrossProfit", "quarterlyOperatingIncome", "quarterlyTotalRevenue",
+              "quarterlyDilutedEPS"]
+    ts = yf._yf_timeseries(ticker, fields)
+
+    def _by_q(key):
+        return {_qkey(p["date"]): p["value"] for p in ts.get(key, []) if p.get("date") and p.get("value") is not None}
+
+    gp, oi, rev, eps = _by_q("quarterlyGrossProfit"), _by_q("quarterlyOperatingIncome"), \
+        _by_q("quarterlyTotalRevenue"), _by_q("quarterlyDilutedEPS")
+
+    out = {}
+    for q, r in rev.items():
+        if not r:
+            continue
+        if q in gp:
+            out[("gross_margin", q)] = round(gp[q] / r * 100, 2)
+        if q in oi:
+            out[("operating_margin", q)] = round(oi[q] / r * 100, 2)
+        out[("revenue", q)] = r
+        # 전년 동분기 대비 매출 성장률
+        prev = (q[0] - 1, q[1])
+        if prev in rev and rev[prev]:
+            out[("revenue_growth", q)] = round((r - rev[prev]) / abs(rev[prev]) * 100, 2)
+    for q, e in eps.items():
+        out[("eps", q)] = e
+    return out
