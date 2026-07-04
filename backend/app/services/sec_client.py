@@ -1,9 +1,32 @@
 import logging
+import time
 import requests
 from datetime import date
 from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
+
+
+def _fetch_concept_units(cik, namespace, concept, unit, retries=3):
+    """SEC companyconcept에서 특정 단위(unit)의 units 리스트를 반환한다 (재시도 포함).
+
+    일시적 실패(429 rate-limit / 5xx / 네트워크 오류)는 짧게 백오프하며 재시도하고,
+    404(개념 미태깅)는 즉시 빈 리스트를 준다(재시도 무의미). 이로써 병렬 조회 중
+    rate-limit로 일부 개념이 누락돼 커버리지가 들쭉날쭉해지는 것을 막는다.
+    """
+    url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/{namespace}/{concept}.json"
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=15)
+            if resp.status_code == 200:
+                return resp.json().get("units", {}).get(unit, [])
+            if resp.status_code == 404:
+                return []  # 개념 미태깅 — 재시도해도 없음
+        except Exception:
+            pass
+        time.sleep(0.6 * (attempt + 1))  # 0.6s, 1.2s 백오프
+    logger.warning("SEC concept fetch failed after %d retries: %s/%s", retries, namespace, concept)
+    return []
 
 HEADERS = {
     "User-Agent": "FinVision admin@finvision.app",
@@ -114,14 +137,7 @@ def get_annual_concept_series(ticker: str, concepts: list, instant: bool = False
 
     by_fy = {}  # fy(int) -> {"end": str, "value": num, "filed": str}
     for concept in concepts:
-        url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/{concept}.json"
-        try:
-            resp = requests.get(url, headers=HEADERS, timeout=15)
-            if resp.status_code != 200:
-                continue
-            units = resp.json().get("units", {}).get(unit, [])
-        except Exception:
-            continue
+        units = _fetch_concept_units(cik, "us-gaap", concept, unit)
         # 여러 concept의 연도별 값을 latest-filed 기준으로 병합(정정/전환기 처리)
         for fy, d in _reduce_units_to_annual(units, instant).items():
             prev = by_fy.get(fy)
@@ -145,14 +161,7 @@ def get_annual_eps_diluted_with_filed(ticker: str, cik: str = None):
         cik = get_cik(ticker)
     if not cik:
         return []
-    url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/EarningsPerShareDiluted.json"
-    try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
-        if resp.status_code != 200:
-            return []
-        units = resp.json().get("units", {}).get("USD/shares", [])
-    except Exception:
-        return []
+    units = _fetch_concept_units(cik, "us-gaap", "EarningsPerShareDiluted", "USD/shares")
     by_fy = _reduce_units_to_annual(units, instant=False)
     out = [{"fy": fy, "end": d["end"], "value": d["value"], "filed": d["filed"]}
            for fy, d in by_fy.items()]
@@ -205,14 +214,7 @@ def get_annual_shares_with_filed(ticker: str, cik: str = None):
         return []
     for ns, concept in (("us-gaap", "CommonStockSharesOutstanding"),
                         ("dei", "EntityCommonStockSharesOutstanding")):
-        url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/{ns}/{concept}.json"
-        try:
-            resp = requests.get(url, headers=HEADERS, timeout=15)
-            if resp.status_code != 200:
-                continue
-            units = resp.json().get("units", {}).get("shares", [])
-        except Exception:
-            continue
+        units = _fetch_concept_units(cik, ns, concept, "shares")
         by_fy = _reduce_units_to_annual(units, instant=True)
         if by_fy:
             out = [{"fy": fy, "end": d["end"], "value": d["value"], "filed": d["filed"]}
@@ -274,8 +276,12 @@ def _reduce_units_to_annual(units, instant):
 # 상위에서 Yahoo로 폴백한다. (EBITDA·FCF·EBIT·total_debt·tangible_book 등 '유도 필요' 항목은 다음 단계에서 처리)
 SEC_CONCEPT_MAP = {
     # ── 손익 (flow, USD) ──
+    # SalesRevenueGoodsNet은 상품매출(서비스 제외)이라 마지막에 둔다: 총매출 개념(Revenues 등)이
+    # 있으면 latest-filed로 그쪽이 이기고, 총개념이 없는 옛 해(예: KO 2007~2015)만 이걸로 채운다.
+    # (검증: MSFT 2015는 총매출 93.6B 유지, KO는 10→19년으로 확장)
     "revenue": {"concepts": ["RevenueFromContractWithCustomerExcludingAssessedTax",
-                             "Revenues", "SalesRevenueNet"], "instant": False, "unit": "USD"},
+                             "Revenues", "SalesRevenueNet", "SalesRevenueGoodsNet"],
+                "instant": False, "unit": "USD"},
     "net_income": {"concepts": ["NetIncomeLoss"], "instant": False, "unit": "USD"},
     "operating_income": {"concepts": ["OperatingIncomeLoss"], "instant": False, "unit": "USD"},
     "gross_profit": {"concepts": ["GrossProfit"], "instant": False, "unit": "USD"},
