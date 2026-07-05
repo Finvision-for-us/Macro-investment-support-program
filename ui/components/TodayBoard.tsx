@@ -84,8 +84,13 @@ export function TodayBoard({ data, topStories }: Props) {
               {topStories.length}건
             </span>
             <span className="font-bold px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">
-              테마 {data.themes.length}개
+              테마 {data.themes.filter((t) => t.tier !== "minor").length}개
             </span>
+            {data.themes.some((t) => t.tier === "minor") && (
+              <span className="font-bold px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">
+                단독 {data.themes.filter((t) => t.tier === "minor").length}
+              </span>
+            )}
             <span className="h-3 w-px bg-zinc-300 dark:bg-zinc-700" />
             <span 
               title="오늘 새로 등장"
