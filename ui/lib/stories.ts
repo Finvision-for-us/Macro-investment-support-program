@@ -34,6 +34,8 @@ export interface MacroEvent {
   summary_ko: string;
 }
 
+export type ThemeTier = "headline" | "major" | "minor";
+
 export interface Theme {
   id: string;
   name: string;
@@ -42,6 +44,7 @@ export interface Theme {
   aggregate_score: number;
   affected_tickers: string[];
   direction: Direction;
+  tier?: ThemeTier;
 }
 
 export interface SourceRef {

@@ -18,7 +18,7 @@ import json
 import re
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable
+from typing import Callable, Literal
 from uuid import uuid4
 
 import numpy as np
@@ -32,8 +32,11 @@ from src.config import GEMINI_MODEL_FAST
 from src.cost_guard import log_call
 from src.llm import gemini_client, retry_gemini
 
-THEME_SIMILARITY_THRESHOLD = 0.70  # narrative 추상도 감안 — clustering 의 0.82 보다 낮음
+THEME_SIMILARITY_THRESHOLD = 0.70  # 응집도 높은 클러스터를 직접 테마로 사용
 MIN_THEME_SIZE = 1
+
+# UI 위계: headline(히어로 1개) / major(주요 테마 그리드) / minor(기타 단신, 접힘)
+ThemeTier = Literal["headline", "major", "minor"]
 
 
 class Theme(BaseModel):
@@ -46,6 +49,7 @@ class Theme(BaseModel):
     aggregate_score: float
     affected_tickers: list[str] = Field(default_factory=list)
     direction: Direction = "uncertain"
+    tier: ThemeTier = "major"  # 병합 후 부여되는 표시 위계
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +208,7 @@ def name_theme(stories: list[Story]) -> tuple[str, str]:
         return head, ""
 
 
+
 def build_themes(
     stories: list[Story],
     *,
@@ -212,9 +217,10 @@ def build_themes(
     embed_fn: Callable[[list[str]], np.ndarray] = embed_texts,
     name_fn: Callable[[list[Story]], tuple[str, str]] = name_theme,
 ) -> list[Theme]:
-    """원샷: 클러스터링 → 명명 → Theme 객체 list. 점수 합 내림차순.
+    """클러스터링 → 명명 → tier 부여 → Theme list.
 
-    ``name_fn`` 주입으로 테스트에서 LLM 호출 회피 가능.
+    다중 스토리 클러스터는 LLM 명명(name_fn), 단독 클러스터는 스토리 제목을 이름으로
+    사용하고 minor tier 로 분류한다. ``name_fn`` 주입으로 LLM 회피 가능 (테스트 용도).
     """
     groups = cluster_themes(
         stories, sim_threshold=sim_threshold, min_size=min_size, embed_fn=embed_fn
@@ -222,22 +228,56 @@ def build_themes(
     if not groups:
         return []
 
-    # 테마 명명만 병렬 (클러스터링은 이미 결정론적으로 완료됨)
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        names = list(pool.map(name_fn, groups))
+    multi_groups = [g for g in groups if len(g) > 1]
+    single_groups = [g for g in groups if len(g) == 1]
+
+    entries: list[dict] = []
+    if multi_groups:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            names = list(pool.map(name_fn, multi_groups))
+        for g, (nm, ds) in zip(multi_groups, names):
+            entries.append({"stories": g, "name": nm, "desc": ds, "is_misc": False})
+
+    for g in single_groups:
+        entries.append({
+            "stories": g,
+            "name": (g[0].title or "단독 시그널")[:80],
+            "desc": "",
+            "is_misc": True,
+        })
+
+    # 집계
+    built: list[dict] = []
+    for e in entries:
+        score, tickers, direction = _aggregate(e["stories"])
+        built.append({**e, "score": score, "tickers": tickers, "direction": direction})
+
+    # tier: 기타=minor, 비-기타 중 최고점=headline, 나머지=major
+    non_misc = [i for i, b in enumerate(built) if not b["is_misc"]]
+    headline_i = max(non_misc, key=lambda i: built[i]["score"]) if non_misc else None
 
     themes: list[Theme] = []
-    for g, (name, desc) in zip(groups, names):
-        score, tickers, direction = _aggregate(g)
+    for i, b in enumerate(built):
+        if b["is_misc"]:
+            tier: ThemeTier = "minor"
+        elif i == headline_i:
+            tier = "headline"
+        else:
+            tier = "major"
         themes.append(
             Theme(
                 id=uuid4().hex[:12],
-                name=name,
-                description=desc,
-                story_ids=[s.id for s in g],
-                aggregate_score=round(score, 4),
-                affected_tickers=tickers,
-                direction=direction,
+                name=b["name"],
+                description=b["desc"],
+                story_ids=[s.id for s in b["stories"]],
+                aggregate_score=round(b["score"], 4),
+                affected_tickers=b["tickers"],
+                direction=b["direction"],
+                tier=tier,
             )
         )
+
+    # headline → major(점수순) → minor
+    order = {"headline": 0, "major": 1, "minor": 2}
+    themes.sort(key=lambda t: (order[t.tier], -t.aggregate_score))
     return themes
