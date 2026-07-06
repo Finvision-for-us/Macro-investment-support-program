@@ -59,9 +59,6 @@ Return ONLY JSON in this exact shape:
 """
 
 
-_TICKER_PATTERN = re.compile(r"\b([A-Z]{1,5})\b")
-_ETC_SUFFIX = re.compile(r"\s*등\s*")  # Korean "etc."
-
 MULTI_TICKER_THRESHOLD = 3  # 직접 티커 >= 이 값이면 매크로 스토리로 판단
 
 
@@ -72,8 +69,9 @@ def _scrub_title_tickers(
 ) -> str:
     """제목에서 불필요한 티커 심볼을 제거한다.
 
-    - indirect 티커: 항상 제거 (AI 추론이므로 제목에 쓰면 안 됨)
-    - direct 티커: 3개 이상이면 제거 (매크로 스토리 — 특정 종목이 주인공이 아님)
+    - indirect 티커: 항상 제거
+    - direct 티커: 3개 이상이면 제거 (매크로 스토리)
+    - 예외: (TICKER) 괄호 표기법은 보존 (회사명(MU) 패턴 — 이미 한국어 회사명이 앞에 있음)
     """
     to_strip: set[str] = set(indirect)
     if len(direct) >= MULTI_TICKER_THRESHOLD:
@@ -82,19 +80,33 @@ def _scrub_title_tickers(
     if not to_strip:
         return title
 
+    # (TICKER) 형식 심볼은 제거 대상에서 제외 — 이미 한국어 회사명이 앞에 있음
+    paren_tickers = {
+        m.group(1)
+        for m in re.finditer(r"\(([A-Z]{1,5})\)", title)
+    }
+    to_strip -= paren_tickers
+
     # 긴 심볼부터 제거해 부분치환 방지
     for ticker in sorted(to_strip, key=len, reverse=True):
-        # "GOOGL 등" / "GOOGL" 패턴 모두 처리
+        # \b 대신 ASCII 전용 비인접 조건 사용:
+        # Python 유니코드 모드에서 한국어 조사(와·과·등)가 \w로 처리되어
+        # \b가 한국어 조사 앞에서 경계를 인식하지 못하는 문제를 회피.
         title = re.sub(
-            rf"\b{re.escape(ticker)}\b\s*(?:등\s*)?",
-            "",
+            rf"(?<![A-Za-z]){re.escape(ticker)}(?![A-Za-z])\s*(?:등|와|과|및)?\s*",
+            " ",
             title,
         )
 
-    # 후처리: 이중 공백, 콜론/구분자 단독 잔류, 앞뒤 공백
-    title = re.sub(r"[ \t]{2,}", " ", title)
-    title = re.sub(r"[:·—\-]\s*$", "", title).strip()
-    title = re.sub(r"^[:·—\-]\s*", "", title).strip()
+    # 후처리
+    title = re.sub(r"\(\s*\)", "", title)        # 빈 괄호 ()
+    title = re.sub(r"\s+·\s+", " ", title)       # 단독 중점 " · " → 공백
+    title = re.sub(r"·\s*·", "·", title)         # 이중 중점
+    title = re.sub(r"[,·]\s*$", "", title)        # 끝 구분자
+    title = re.sub(r"^[,·]\s*", "", title)        # 시작 구분자
+    title = re.sub(r"[ \t]{2,}", " ", title)      # 이중 공백
+    title = re.sub(r"[:—\-]\s*$", "", title).strip()
+    title = re.sub(r"^[:—\-]\s*", "", title).strip()
     return title or (direct[0] if direct else "(제목 없음)")
 
 
