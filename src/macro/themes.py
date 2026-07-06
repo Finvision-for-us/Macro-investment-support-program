@@ -32,7 +32,7 @@ from src.config import GEMINI_MODEL_FAST
 from src.cost_guard import log_call
 from src.llm import gemini_client, retry_gemini
 
-THEME_SIMILARITY_THRESHOLD = 0.70  # 응집도 높은 클러스터를 직접 테마로 사용
+THEME_SIMILARITY_THRESHOLD = 0.73  # 응집도 높은 클러스터를 직접 테마로 사용
 MIN_THEME_SIZE = 1
 
 # UI 위계: headline(히어로 1개) / major(주요 테마 그리드) / minor(기타 단신, 접힘)
