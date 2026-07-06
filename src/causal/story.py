@@ -59,6 +59,45 @@ Return ONLY JSON in this exact shape:
 """
 
 
+_TICKER_PATTERN = re.compile(r"\b([A-Z]{1,5})\b")
+_ETC_SUFFIX = re.compile(r"\s*등\s*")  # Korean "etc."
+
+MULTI_TICKER_THRESHOLD = 3  # 직접 티커 >= 이 값이면 매크로 스토리로 판단
+
+
+def _scrub_title_tickers(
+    title: str,
+    direct: list[str],
+    indirect: list[str],
+) -> str:
+    """제목에서 불필요한 티커 심볼을 제거한다.
+
+    - indirect 티커: 항상 제거 (AI 추론이므로 제목에 쓰면 안 됨)
+    - direct 티커: 3개 이상이면 제거 (매크로 스토리 — 특정 종목이 주인공이 아님)
+    """
+    to_strip: set[str] = set(indirect)
+    if len(direct) >= MULTI_TICKER_THRESHOLD:
+        to_strip.update(direct)
+
+    if not to_strip:
+        return title
+
+    # 긴 심볼부터 제거해 부분치환 방지
+    for ticker in sorted(to_strip, key=len, reverse=True):
+        # "GOOGL 등" / "GOOGL" 패턴 모두 처리
+        title = re.sub(
+            rf"\b{re.escape(ticker)}\b\s*(?:등\s*)?",
+            "",
+            title,
+        )
+
+    # 후처리: 이중 공백, 콜론/구분자 단독 잔류, 앞뒤 공백
+    title = re.sub(r"[ \t]{2,}", " ", title)
+    title = re.sub(r"[:·—\-]\s*$", "", title).strip()
+    title = re.sub(r"^[:·—\-]\s*", "", title).strip()
+    return title or (direct[0] if direct else "(제목 없음)")
+
+
 def _strip_json(text: str) -> str:
     m = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
     if m:
@@ -178,9 +217,11 @@ def generate_narrative(
                 "narrative_long": "",
             }
         )
+    raw_title = str(result.get("title", ""))[:120]
+    clean_title = _scrub_title_tickers(raw_title, story.affected_tickers, indirect_all)
     return story.model_copy(
         update={
-            "title": str(result.get("title", ""))[:120],
+            "title": clean_title,
             "narrative_short": str(result.get("narrative_short", ""))[:600],
             "narrative_long": str(result.get("narrative_long", ""))[:3000],
         }
