@@ -29,6 +29,27 @@ SPAM_KEYWORDS = (
     "free trial", "get rich", "강력 추천", "무조건 상승", "리딩방",
 )
 
+# 증권 집단소송 로펌 보도자료 필터
+# "securities class action" 계열 키워드 + 투자자 모집 문구가 동시에 있으면 탈락.
+# 실질 소송(DOJ 반독점, 특허분쟁 등)은 이 두 조건이 함께 나타나지 않음.
+_CLASS_ACTION_TRIGGERS = (
+    "securities class action",
+    "증권 집단소송",
+    "class action lawsuit",
+    "securities fraud",
+)
+_INVESTOR_SOLICITATION = (
+    "lead plaintiff",
+    "리드 원고",
+    "투자자 주의보",
+    "encourages investors to contact",
+    "reminds investors",
+    "no obligation",
+    "free consultation",
+    "투자자들에게 연락",
+    "손실을 입은 투자자",
+)
+
 
 @dataclass
 class FilterResult:
@@ -67,6 +88,11 @@ def classify(
         text = f"{item.title} {item.summary}".lower()
         if any(kw in text for kw in SPAM_KEYWORDS):
             reasons.append("spam_like")
+
+        if any(t in text for t in _CLASS_ACTION_TRIGGERS) and any(
+            s in text for s in _INVESTOR_SOLICITATION
+        ):
+            reasons.append("law_firm_pr")
 
     status: FilterStatus = "rejected" if reasons else "passed"
     return FilterResult(status, reasons, flags)

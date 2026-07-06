@@ -69,6 +69,61 @@ def test_spam_like_rejected():
     assert "spam_like" in classify(spam, now=NOW).reasons
 
 
+def test_law_firm_pr_rejected():
+    # 두 조건 동시 충족 → 탈락
+    item = _item(
+        title="ADMA Biologics, 증권 집단소송 직면",
+        summary="손실을 입은 투자자 여러분의 연락을 기다립니다. 리드 원고 모집 중.",
+    )
+    assert "law_firm_pr" in classify(item, now=NOW).reasons
+
+
+def test_law_firm_pr_english_rejected():
+    item = _item(
+        title="Rosen Law Firm Files Securities Class Action Against XYZ Corp",
+        summary="Encourages investors to contact the firm. No obligation to join.",
+    )
+    assert "law_firm_pr" in classify(item, now=NOW).reasons
+
+
+def test_real_litigation_not_rejected():
+    # 실질 소송 — 투자자 모집 문구 없음
+    item = _item(
+        title="DOJ Files Antitrust Lawsuit Against Google Over Search Monopoly",
+        summary="The Department of Justice alleges Google illegally maintained its search dominance.",
+    )
+    assert "law_firm_pr" not in classify(item, now=NOW).reasons
+
+
+def test_reddit_vs_anthropic_not_rejected():
+    # 대형 기업 간 소송 — securities class action 아님
+    item = _item(
+        title="Reddit, AI 학습 데이터 무단 사용으로 Anthropic 상대 소송 제기",
+        summary="Reddit이 데이터 라이선스 계약 위반을 이유로 소송을 제기했다.",
+    )
+    assert "law_firm_pr" not in classify(item, now=NOW).reasons
+
+
+def test_class_action_trigger_alone_not_rejected():
+    # 트리거 키워드만 있고 투자자 모집 문구 없으면 통과
+    item = _item(
+        title="XYZ Corp Faces Securities Class Action Over Accounting Fraud",
+        summary="Shareholders allege the company misrepresented financial results.",
+    )
+    assert "law_firm_pr" not in classify(item, now=NOW).reasons
+
+
+def test_law_firm_pr_tier1_exempt():
+    # tier-1(SEC)은 카테고리/광고 필터 면제 → law_firm_pr도 적용 안 됨
+    item = _item(
+        tier=1,
+        title="증권 집단소송 공시",
+        summary="리드 원고 모집 중.",
+        source="sec_edgar",
+    )
+    assert "law_firm_pr" not in classify(item, now=NOW).reasons
+
+
 def test_run_filter_updates_store(tmp_path):
     store = NewsStore(tmp_path / "news.db")
     store.save(_item(native="fresh", published=NOW - timedelta(hours=1)))
