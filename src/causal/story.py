@@ -90,21 +90,24 @@ def _scrub_title_tickers(
     # 긴 심볼부터 제거해 부분치환 방지
     for ticker in sorted(to_strip, key=len, reverse=True):
         # \b 대신 ASCII 전용 비인접 조건 사용:
-        # Python 유니코드 모드에서 한국어 조사(와·과·등)가 \w로 처리되어
+        # Python 유니코드 모드에서 한국어 조사(와·과·등·의)가 \w로 처리되어
         # \b가 한국어 조사 앞에서 경계를 인식하지 못하는 문제를 회피.
+        # 뒤따르는 콤마(,)도 같이 제거 — 쉼표로 나열된 티커 목록에서 잔류 방지.
         title = re.sub(
-            rf"(?<![A-Za-z]){re.escape(ticker)}(?![A-Za-z])\s*(?:등|와|과|및)?\s*",
+            rf"(?<![A-Za-z]){re.escape(ticker)}(?![A-Za-z])[,]?\s*(?:등|와|과|및|의)?\s*",
             " ",
             title,
         )
 
     # 후처리
-    title = re.sub(r"\(\s*\)", "", title)        # 빈 괄호 ()
-    title = re.sub(r"\s+·\s+", " ", title)       # 단독 중점 " · " → 공백
-    title = re.sub(r"·\s*·", "·", title)         # 이중 중점
-    title = re.sub(r"[,·]\s*$", "", title)        # 끝 구분자
-    title = re.sub(r"^[,·]\s*", "", title)        # 시작 구분자
-    title = re.sub(r"[ \t]{2,}", " ", title)      # 이중 공백
+    title = re.sub(r"\(\s*\)", "", title)         # 빈 괄호 ()
+    title = re.sub(r"\s+·\s+", " ", title)        # 단독 중점 " · " → 공백
+    title = re.sub(r"·\s*·", "·", title)          # 이중 중점
+    title = re.sub(r",\s*,", ",", title)           # 이중 콤마
+    title = re.sub(r"[,·]\s*$", "", title)         # 끝 구분자
+    title = re.sub(r"^[,·]\s*", "", title)         # 시작 구분자
+    title = re.sub(r"[: ]+,", " ", title)          # 콜론/공백 뒤 콤마 ( ": ," 패턴)
+    title = re.sub(r"[ \t]{2,}", " ", title)       # 이중 공백
     title = re.sub(r"[:—\-]\s*$", "", title).strip()
     title = re.sub(r"^[:—\-]\s*", "", title).strip()
     return title or (direct[0] if direct else "(제목 없음)")
