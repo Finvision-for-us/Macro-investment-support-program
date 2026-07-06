@@ -29,7 +29,8 @@ class Event(BaseModel):
     occurred_at: datetime
     source_urls: list[str]
     publishers: list[str]
-    tickers_mentioned: list[str]
+    tickers_mentioned: list[str]   # 원문에 직접 언급된 티커
+    tickers_indirect: list[str] = Field(default_factory=list)  # AI 추론 파급 티커
     spread: int
 
     @classmethod

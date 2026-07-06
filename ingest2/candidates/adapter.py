@@ -34,9 +34,10 @@ def cluster_to_event(cluster: EventCluster, *, include_indirect: bool = True) ->
         or datetime.now(UTC)
     )
 
-    tickers = list(cluster.tickers_direct)
-    if include_indirect:
-        tickers = _uniq_keep([*tickers, *cluster.tickers_indirect])
+    direct = _uniq_keep(cluster.tickers_direct)
+    indirect = _uniq_keep(
+        [t for t in cluster.tickers_indirect if t not in direct]
+    ) if include_indirect else []
 
     return Event(
         id=cluster.cluster_id,
@@ -45,7 +46,8 @@ def cluster_to_event(cluster: EventCluster, *, include_indirect: bool = True) ->
         occurred_at=occurred,
         source_urls=list(cluster.urls),
         publishers=list(cluster.source_ids),
-        tickers_mentioned=tickers,
+        tickers_mentioned=direct,
+        tickers_indirect=indirect,
         spread=cluster.spread,
     )
 

@@ -15,7 +15,8 @@ from src.prompting import clip_for_prompt
 _NARRATIVE_PROMPT = """You are a financial analyst writing a Story narrative.
 
 STORY CONTEXT
-Affected tickers: {tickers}
+Direct tickers (explicitly named in source articles): {tickers_direct}
+Indirect tickers (AI-inferred as potentially affected, not named in articles): {tickers_indirect}
 Overall direction: {direction}
 Total events: {n_events}, causal links: {n_edges}
 
@@ -43,6 +44,9 @@ LANGUAGE RULES
 - Keep tickers (NVDA, AMD), company names (Cerebras, OpenAI), products (Blackwell, B300),
   and numeric values with units ($56.4B, 110x, 86%) in original form.
 - Do NOT invent facts. Use only information from EVENTS / CAUSAL LINKS / CLAIMS above.
+- In title and narrative, only reference DIRECT tickers (those explicitly named in articles).
+  INDIRECT tickers are secondary speculation — mention them only in narrative_long as
+  "파급 가능성" with appropriate hedging, never in the title.
 - Do NOT confuse IPO quiet period / analyst coverage restrictions with lock-up,
   insider share lockups, 보호예수, or 의무보유확약. Translate them distinctly.
 
@@ -69,10 +73,15 @@ def _format_events_block(story: Story, events_by_id: dict[str, Event]) -> str:
         ev = events_by_id.get(eid)
         if not ev:
             continue
+        direct_str = ", ".join(ev.tickers_mentioned[:6]) or "(none)"
+        indirect_str = ", ".join(ev.tickers_indirect[:4]) if ev.tickers_indirect else ""
+        ticker_line = f"  Direct tickers: {direct_str}"
+        if indirect_str:
+            ticker_line += f"\n  Indirect (AI-inferred): {indirect_str}"
         parts.append(
             f"[E{i}] {ev.title}\n"
             f"  Date: {ev.occurred_at.isoformat()}\n"
-            f"  Tickers: {', '.join(ev.tickers_mentioned[:6]) or '(none)'}\n"
+            f"{ticker_line}\n"
             f"  Summary: {clip_for_prompt(ev.summary)}"
         )
     return "\n\n".join(parts) or "(no events)"
@@ -137,8 +146,21 @@ def generate_narrative(
     deep_reports: dict[str, dict],
 ) -> Story:
     """Story에 title/narrative_short/narrative_long 채워서 새 Story 반환."""
+    # story.affected_tickers = direct-only (adapter fix 이후)
+    # indirect: 각 이벤트의 tickers_indirect 합집합 (중복 제거, 순서 유지)
+    seen: set[str] = set()
+    indirect_all: list[str] = []
+    for eid in story.event_ids:
+        ev = events_by_id.get(eid)
+        if ev:
+            for t in ev.tickers_indirect:
+                if t not in seen and t not in set(story.affected_tickers):
+                    seen.add(t)
+                    indirect_all.append(t)
+
     prompt = _NARRATIVE_PROMPT.format(
-        tickers=", ".join(story.affected_tickers[:10]) or "(none)",
+        tickers_direct=", ".join(story.affected_tickers[:10]) or "(none)",
+        tickers_indirect=", ".join(indirect_all[:6]) or "(none)",
         direction=story.direction,
         n_events=len(story.event_ids),
         n_edges=len(story.edges),
