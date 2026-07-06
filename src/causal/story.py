@@ -59,23 +59,17 @@ Return ONLY JSON in this exact shape:
 """
 
 
-MULTI_TICKER_THRESHOLD = 3  # 직접 티커 >= 이 값이면 매크로 스토리로 판단
-
-
 def _scrub_title_tickers(
     title: str,
     direct: list[str],
     indirect: list[str],
 ) -> str:
-    """제목에서 불필요한 티커 심볼을 제거한다.
+    """제목에서 간접 티커(AI 추론)만 제거한다.
 
-    - indirect 티커: 항상 제거
-    - direct 티커: 3개 이상이면 제거 (매크로 스토리)
-    - 예외: (TICKER) 괄호 표기법은 보존 (회사명(MU) 패턴 — 이미 한국어 회사명이 앞에 있음)
+    직접 티커(원문에 실제 언급된)는 건드리지 않는다 — 개수와 무관하게 보존.
+    간접 티커가 제목에 나타나면 AI 추론이 제목 생성에 영향을 준 것이므로 제거.
     """
     to_strip: set[str] = set(indirect)
-    if len(direct) >= MULTI_TICKER_THRESHOLD:
-        to_strip.update(direct)
 
     if not to_strip:
         return title
