@@ -17,6 +17,8 @@ from app.services.gemini_guidance import (
     _qkey,
     _classify_vs_range,
     _is_single_quarter_target,
+    _normalize_units,
+    _is_real_earnings_row,
     evaluate_guidance_accuracy,
 )
 
@@ -49,6 +51,36 @@ class TestHelpers(unittest.TestCase):
         self.assertFalse(_is_single_quarter_target("FY2025"))
         self.assertFalse(_is_single_quarter_target("2025 연간"))
         self.assertFalse(_is_single_quarter_target("2025 하반기"))
+
+    def test_normalize_units(self):
+        # 소수(0.744~0.754) 마진 → 실제값(74.93 %) 기준 ~100배 작음 → ×100
+        self.assertEqual(_normalize_units("gross_margin", 0.744, 0.754, 74.93), (74.4, 75.4))
+        # 이미 퍼센트면 그대로(ratio≈1)
+        self.assertEqual(_normalize_units("gross_margin", 74.4, 75.4, 74.93), (74.4, 75.4))
+        # 진짜 miss(1~3배 차이)는 건드리지 않음
+        self.assertEqual(_normalize_units("gross_margin", 40.0, 42.0, 74.93), (40.0, 42.0))
+        # 퍼센트 지표가 아니면 그대로 (매출)
+        self.assertEqual(_normalize_units("revenue", 63.7e9, 66.3e9, 68e9), (63.7e9, 66.3e9))
+        # 편면 소수 → ×100
+        self.assertEqual(_normalize_units("operating_margin", None, 0.30, 33.0), (None, 30.0))
+        # 실제값 없으면 그대로
+        self.assertEqual(_normalize_units("gross_margin", 0.744, 0.754, None), (0.744, 0.754))
+        # 매출 십억 단위(76.44) vs 실제 raw USD → ×1e9
+        low, high = _normalize_units("revenue", 76.44, 79.56, 68.127e9)
+        self.assertAlmostEqual(low, 76.44e9, places=2)
+        self.assertAlmostEqual(high, 79.56e9, places=2)
+        # 매출이 이미 raw면 그대로 (배율 1)
+        self.assertEqual(_normalize_units("revenue", 63.7e9, 66.3e9, 68e9), (63.7e9, 66.3e9))
+
+    def test_is_real_earnings_row(self):
+        # 실제 발표: report_date != period_end
+        self.assertTrue(_is_real_earnings_row({"period_end": "2026-01-25", "report_date": "2026-02-25"}))
+        # 유령 추정행: report_date == period_end
+        self.assertFalse(_is_real_earnings_row({"period_end": "2026-06-30", "report_date": "2026-06-30"}))
+        # report 없음 → 판정 불가 → 제외
+        self.assertFalse(_is_real_earnings_row({"period_end": "2026-06-30"}))
+        # date 폴백 사용
+        self.assertTrue(_is_real_earnings_row({"period_end": "2026-06-30", "date": "2026-08-01"}))
 
 
 class TestEvaluate(unittest.TestCase):
@@ -99,6 +131,14 @@ class TestEvaluate(unittest.TestCase):
         r = evaluate_guidance_accuracy(g, {("gross_margin", (2024, 4)): 46.5})
         self.assertEqual(r["items"][0]["target_quarter"], "2024Q4")
         self.assertEqual(r["items"][0]["verdict"], "within")
+
+    def test_fraction_margin_normalized_to_within(self):
+        # LLM이 마진을 소수(0.744~0.754)로 뽑아도 실제값(47.05→여기선 74.93 %) 대조 시 within
+        g = self._g([{"metric": "gross_margin", "low": 0.744, "high": 0.754,
+                      "unit": "%", "target_period": "Q"}])
+        r = evaluate_guidance_accuracy(g, {("gross_margin", (2025, 1)): 74.93})
+        self.assertEqual(r["items"][0]["verdict"], "within")
+        self.assertEqual(r["within"], 1)
 
     def test_missing_actual_skipped(self):
         g = self._g([{"metric": "gross_margin", "low": 46.5, "high": 47.5,
