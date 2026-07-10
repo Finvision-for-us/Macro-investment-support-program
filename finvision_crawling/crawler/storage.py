@@ -9,6 +9,8 @@ SQLite 저장소.
 뷰:
   posts            -- 포스트 단위 통합 조회 (텍스트 + 미디어 목록)
 """
+import os
+
 import aiosqlite
 import config
 
@@ -168,6 +170,7 @@ CREATE INDEX IF NOT EXISTS idx_entities_message   ON entities(message_id, channe
 
 
 async def init_db():
+    os.makedirs(os.path.dirname(config.DB_PATH), exist_ok=True)
     async with aiosqlite.connect(config.DB_PATH) as db:
         await db.executescript(CREATE_SQL)
         await db.commit()

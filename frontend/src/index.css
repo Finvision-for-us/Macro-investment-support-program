@@ -26,3 +26,14 @@ body {
 * {
   scroll-behavior: smooth;
 }
+
+/* pipeline 컴포넌트 공유 클래스 */
+.glass-panel {
+  @apply bg-white/70 border border-zinc-200/80 backdrop-blur-md;
+}
+.glass-card-hover {
+  @apply hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-0.5 transition-all duration-300;
+}
+.glow-accent {
+  box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.15);
+}

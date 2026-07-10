@@ -192,7 +192,8 @@ def parse_media_meta(msg: Message, channel_id: int) -> dict | None:
             base["description"] = wp.description
             if wp.photo:
                 base["remote_file_id"] = str(wp.photo.id)
-        return base
+            return base
+        return None  # WebPageEmpty / WebPageNotModified — 저장할 정보 없음
 
     if isinstance(media, MessageMediaGeo):
         geo: GeoPoint = media.geo
