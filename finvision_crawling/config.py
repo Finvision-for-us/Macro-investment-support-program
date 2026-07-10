@@ -16,16 +16,14 @@ SESSION_NAME = os.getenv("SESSION_NAME", "tg_session")
 # ── 수집 대상 채널/그룹 ─────────────────────────────────────────────────────────
 # username (@xxx), t.me/xxx, 또는 초대링크 모두 가능
 CHANNELS: list[str] = [
-    # 수집할 채널 추가 (username, t.me/xxx, 초대링크 모두 가능)
-    # "@example_channel",
-    # "https://t.me/example_group",
+    "@insidertracking",  # 미국 주식 인사이더 — 글로벌 시장 속보
 ]
 
 
 # ── 수집 설정 ──────────────────────────────────────────────────────────────────
-COLLECT_MEDIA      = True   # 사진/영상/파일/스티커 다운로드
+COLLECT_MEDIA      = False  # 텍스트 우선 수집 (미디어는 추후 활성화)
 COLLECT_HISTORY    = True   # 최초 실행 시 과거 메시지 전체 수집
-HISTORY_LIMIT      = 10     # 테스트: 최근 10개만
+HISTORY_LIMIT      = 50     # 초기 확인용 (0=무제한)
 MEDIA_MAX_SIZE_MB  = 100    # 이 크기 초과 파일은 메타만 저장 (바이너리 스킵)
 
 # ── 스케줄 (실시간 수집은 listener가 담당, 폴링 보조용) ──────────────────────────

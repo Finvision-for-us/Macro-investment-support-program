@@ -34,6 +34,18 @@ export const stockAPI = {
   translateText: (text) => api.post('/stock/translate', { text }),
 }
 
+// 텔레그램
+export const telegramAPI = {
+  getFeed: (hours = 24, limit = 60) => api.get('/telegram/feed', { params: { hours, limit } }),
+}
+
+// 수집 파이프라인 스토리
+export const storiesAPI = {
+  getLatest: () => api.get('/stories/latest'),
+  refresh: () => api.post('/stories/refresh'),
+  refreshStatus: () => api.get('/stories/refresh/status'),
+}
+
 // 포트폴리오
 export const portfolioAPI = {
   getAll: () => api.get('/portfolio'),

@@ -158,9 +158,10 @@ async def collect_history(client: TelegramClient, channel: dict):
             if msg.id > max_id_seen:
                 max_id_seen = msg.id
 
+            if count % 10 == 0:
+                await storage.update_collection_state(channel_id, max_id_seen, 0)
             if count % 200 == 0:
                 log.info(f"  [{channel['title']}] {count}개 수집 중...")
-                await storage.update_collection_state(channel_id, max_id_seen, 0)
                 await asyncio.sleep(0.5)   # rate limit 배려
 
     except FloodWaitError as e:

@@ -6,7 +6,8 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite", "--port", "5173"],
       "cwd": "frontend",
-      "port": 5173
+      "port": 5173,
+      "autoPort": false
     },
     {
       "name": "FinVision Backend",
