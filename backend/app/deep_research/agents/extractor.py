@@ -17,20 +17,15 @@ BLOCKED_DOMAINS = {
     "wsj.com", "ft.com", "bloomberg.com",  # 페이월
 }
 
-# 신뢰도 높은 도메인
-HIGH_CREDIBILITY_DOMAINS = {
-    "sec.gov", "dart.fss.or.kr", "fred.stlouisfed.org", "arxiv.org",
-    "reuters.com", "apnews.com", "wsj.com", "ft.com", "bloomberg.com",
-    "techcrunch.com", "cnbc.com", "marketwatch.com",
-    "szse.cn", "szse.com.cn", "sse.com.cn", "csrc.gov.cn",
-    "fsc.go.kr", "ec.europa.eu", "nikkei.com",
-}
+# 신뢰도는 source_registry가 단일 진실 소스 — 여기서는 파생만 한다.
+# (이전엔 로컬 하드코딩이 다른 4곳과 어긋나 있었다: wsj=high vs 7 vs medium.)
+from app.deep_research.sources.source_registry import (
+    get_domain_tier, LOW_TRUST_DOMAINS as LOW_QUALITY_DOMAINS,
+)
 
-# 자동생성/저품질 도메인 (점수 패널티 적용, 추출 제한)
-LOW_QUALITY_DOMAINS = {
-    "stockinsights.ai", "pitchgrade.com", "simplywall.st",
-    "wisesheets.io", "stockstory.org",
-}
+
+def _is_high_credibility(domain: str) -> bool:
+    return get_domain_tier(domain) in (1, 2)
 
 
 class Extractor:
@@ -39,6 +34,15 @@ class Extractor:
     def __init__(self):
         self._jina = JinaReaderSource()
         self._extracted_urls: set[str] = set()
+
+    def reset(self) -> None:
+        """잡(run) 시작 시 호출 — 잡 간 추출 URL 누수 방지.
+
+        리셋이 없으면 싱글턴 파이프라인에서 이전 잡이 추출한 URL이
+        다음 잡에서 영구 스킵되어 같은 종목 재리서치가 빈손이 된다.
+        (잡 내 중복 방지는 유지 — run 시작 시에만 비운다.)
+        """
+        self._extracted_urls.clear()
 
     async def extract_from_results(
         self,
@@ -71,7 +75,7 @@ class Extractor:
         for r in results:
             if not r.url or not r.url.startswith("http"):
                 continue
-            domain = urlparse(r.url).netloc.lstrip("www.")
+            domain = urlparse(r.url).netloc.removeprefix("www.")
             if domain in BLOCKED_DOMAINS:
                 continue
             if r.url in self._extracted_urls:
@@ -79,12 +83,13 @@ class Extractor:
             filtered.append(r)
             self._extracted_urls.add(r.url)
 
-        # 신뢰도 높은 도메인 우선 정렬 (저품질 도메인 패널티)
+        # 신뢰도 높은 도메인 우선 정렬 (저품질 도메인 패널티) — source_registry 파생
         def _score(r: SearchResult) -> float:
-            domain = urlparse(r.url).netloc.lstrip("www.")
-            if domain in HIGH_CREDIBILITY_DOMAINS or any(d in domain for d in HIGH_CREDIBILITY_DOMAINS):
+            domain = urlparse(r.url).netloc.removeprefix("www.")
+            tier = get_domain_tier(domain)
+            if tier in (1, 2):
                 domain_bonus = 0.3
-            elif any(d in domain for d in LOW_QUALITY_DOMAINS):
+            elif tier == 4:
                 domain_bonus = -0.5  # 저품질 패널티
             else:
                 domain_bonus = 0.0
@@ -94,12 +99,9 @@ class Extractor:
         return filtered[:max_extract]
 
     def get_credibility(self, url: str) -> str:
-        domain = urlparse(url).netloc.lstrip("www.")
-        if domain in HIGH_CREDIBILITY_DOMAINS or any(d in domain for d in ["gov", "edu", "ac."]):
-            return "high"
-        if any(d in domain for d in LOW_QUALITY_DOMAINS):
-            return "low"
-        return "medium"
+        from app.deep_research.sources.source_registry import get_domain_credibility
+        domain = urlparse(url).netloc.removeprefix("www.")
+        return get_domain_credibility(domain)
 
 
 # Optional import fix

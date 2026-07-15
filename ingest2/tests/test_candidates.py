@@ -107,8 +107,11 @@ def test_adapter_maps_core_fields():
     assert ev.title == "c1 headline"
     assert ev.spread == 3
     assert ev.source_urls == ["http://x/c1"]
-    # 간접 티커 포함 (기본)
-    assert ev.tickers_mentioned == ["AAA", "BBB", "CCC"]
+    # tickers_mentioned=직접 언급 티커, tickers_indirect=파급 티커로 분리.
+    # (Event 스키마 계약: price_reaction/causal.edges가 직접 티커에만 의존 —
+    #  간접 티커를 mentioned에 섞으면 뉴스에 없던 종목의 주가반응·허위 인과엣지 발생.)
+    assert ev.tickers_mentioned == ["AAA", "BBB"]
+    assert ev.tickers_indirect == ["CCC"]
 
 
 def test_adapter_can_exclude_indirect():

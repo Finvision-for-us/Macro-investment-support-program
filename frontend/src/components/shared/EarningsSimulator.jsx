@@ -1104,7 +1104,10 @@ export default function EarningsSimulator({ ticker }) {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {Object.entries(guidanceData.theme_patterns.themes).slice(0, 12).map(([theme, data]) => {
-                          const isPositive = data.avg_reaction > 0
+                          // avg_reaction=실측 주가 반응(비캐시), 없으면 avg_sentiment=감성점수(캐시).
+                          // 감성을 %반응처럼 보여주지 않는다(무할루시네이션).
+                          const hasReaction = data.avg_reaction != null
+                          const isPositive = hasReaction ? data.avg_reaction > 0 : (data.avg_sentiment ?? 50) > 50
                           return (
                             <div key={theme}
                               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] transition-all hover:shadow-sm"
@@ -1114,9 +1117,16 @@ export default function EarningsSimulator({ ticker }) {
                               }}
                             >
                               <span className="font-medium text-slate-700">{theme}</span>
-                              <span className="font-mono font-bold" style={{ color: isPositive ? '#059669' : '#dc2626' }}>
-                                {data.avg_reaction > 0 ? '+' : ''}{data.avg_reaction}%
-                              </span>
+                              {hasReaction ? (
+                                <span className="font-mono font-bold" style={{ color: isPositive ? '#059669' : '#dc2626' }}>
+                                  {data.avg_reaction > 0 ? '+' : ''}{data.avg_reaction}%
+                                </span>
+                              ) : (
+                                <span className="font-mono font-bold" style={{ color: isPositive ? '#059669' : '#dc2626' }}
+                                  title="주가 데이터 미확보 — 가이던스 감성점수 평균(0~100)">
+                                  감성 {data.avg_sentiment ?? '—'}
+                                </span>
+                              )}
                               <span className="text-slate-400">({data.count}건)</span>
                             </div>
                           )

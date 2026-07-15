@@ -34,8 +34,25 @@ ALIASES: dict[str, str] = {
 }
 _SYMBOL_RE = re.compile(r"(?:\$([A-Z]{1,5})\b|\(([A-Z]{1,5})\))")
 _ALIAS_RE = re.compile(
-    r"\b(" + "|".join(re.escape(a) for a in sorted(ALIASES, key=len, reverse=True)) + r")\b"
+    r"\b("
+    + "|".join(re.escape(a) for a in sorted(ALIASES, key=len, reverse=True))
+    + r")\b(?!-)"  # 'meta-analysis' 같은 하이픈 합성어의 부분 매치 방지
 )
+
+# 영어 상용어/약어와 철자가 겹치는 실존 티커.
+# 뉴스 본문의 "(AI)", "(IT)" 같은 괄호 약어가 C3.ai(AI)·Gartner(IT) 직접티커로
+# 오탐되는 것을 막는다. 이 티커들은 `$AI`처럼 달러 프리픽스일 때만 인정.
+_COMMON_WORD_TICKERS = frozenset({
+    "AI", "IT", "ALL", "ON", "NOW", "KEY", "SO", "GO", "BIG", "COST",
+    "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "O",
+    "R", "S", "T", "U", "V", "W", "X", "Y", "Z",   # 1글자 티커 전부
+    "AN", "AT", "BE", "BY", "DO", "EV", "HE", "IP", "MA", "ME", "MY",
+    "OR", "PC", "SEE", "TWO", "WELL", "GOOD", "REAL", "PLAY", "OPEN",
+    "LOVE", "FAST", "CASH", "NICE", "SAFE", "PLUS", "MAIN", "FUND",
+    "CAR", "CARS", "FUN", "LOW", "PAY", "RUN", "EAT", "NEW", "OLD",
+    "OUT", "TOP", "UP", "VS", "WIN", "YOU", "ANY", "ARE", "CAN",
+    "HAS", "ONE", "PRO", "SUB", "TV",
+})
 
 
 class TickerMap:
@@ -81,6 +98,10 @@ class TickerMap:
         found: list[str] = []
         for m in _SYMBOL_RE.finditer(text):           # $NVDA / (NVDA)
             sym = m.group(1) or m.group(2)
+            # 괄호형 "(AI)"/"(IT)"는 상용어 약어일 확률이 높아 상용어 충돌 티커는
+            # $ 프리픽스(m.group(1))일 때만 인정한다.
+            if m.group(2) and sym in _COMMON_WORD_TICKERS:
+                continue
             if sym in self.tickers_set and sym not in found:
                 found.append(sym)
         for m in _ALIAS_RE.finditer(text.lower()):     # 핵심 대형주 별칭

@@ -7,7 +7,6 @@ import numpy as np
 
 from src.causal.edges import (
     EMBEDDING_SIM_THRESHOLD,
-    TIME_WINDOW_DAYS,
     candidate_pairs,
     merge_edges,
 )
@@ -38,13 +37,15 @@ def test_candidate_pairs_passes_on_ticker_overlap():
     assert pairs[0]["shared_tickers"] == ["NVDA"]
 
 
-def test_candidate_pairs_passes_on_time_proximity():
+def test_candidate_pairs_rejects_time_proximity_alone():
+    # 설계 결정(edges.py docstring): 시간 근접성 단독은 후보가 아니다.
+    # 수집 창(12~48h)에서 모든 쌍이 통과해 LLM 호출이 폭발하므로,
+    # 인과 후보는 티커 공유 또는 의미 유사도를 요구한다.
     a = _ev(0, ["NVDA"], days_offset=0)
-    b = _ev(1, ["AAPL"], days_offset=3)  # 티커 다르지만 가까움
+    b = _ev(1, ["AAPL"], days_offset=3)  # 티커 다름, 시간만 가까움, 유사도 0
     embs = np.eye(2, dtype=np.float32)
     pairs = candidate_pairs([a, b], embs)
-    assert len(pairs) == 1
-    assert pairs[0]["time_close"] is True
+    assert pairs == []
 
 
 def test_candidate_pairs_skip_when_all_filters_fail():

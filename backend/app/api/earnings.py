@@ -147,7 +147,11 @@ async def get_guidance_accuracy(ticker: str):
             continue
 
         actual = actual_map[pe]
-        sentiment = g.get("sentiment_score", 50)
+        # 키가 존재하되 값이 None(예: parse_error 행)이면 .get 기본값이 안 먹는다
+        # → 아래 sentiment > 50 비교에서 TypeError로 티커 전체 500.
+        sentiment = g.get("sentiment_score")
+        if sentiment is None:
+            sentiment = 50
 
         # 가이던스 긍정(>50)이고 실제 beat이면 정확, 부정(<50)이고 miss이면 정확
         guidance_positive = sentiment > 50
@@ -194,22 +198,27 @@ def _compute_theme_patterns_from_cache(cached_guidance: list) -> dict:
             except Exception:
                 key_themes = []
 
-        sentiment = g.get("sentiment_score", 50)
-        # 감성 점수 기반으로 반응 추정 (실제 주가 데이터 없이)
-        estimated_reaction = (sentiment - 50) * 0.1  # 50=중립, 90=+4%, 10=-4%
+        sentiment = g.get("sentiment_score")
+        if sentiment is None:  # parse_error 행 방어 (.get 기본값은 None 값에 안 먹음)
+            sentiment = 50
 
         for theme in key_themes:
             if theme not in themes:
-                themes[theme] = {"count": 0, "total_reaction": 0}
+                themes[theme] = {"count": 0, "total_sentiment": 0}
             themes[theme]["count"] += 1
-            themes[theme]["total_reaction"] += estimated_reaction
+            themes[theme]["total_sentiment"] += sentiment
 
+    # 무할루시네이션: 캐시 경로에는 주가 데이터가 없다. 감성점수를 %반응으로
+    # 환산해 실측처럼 내보내지 않는다(이전: (sentiment-50)*0.1 합성값).
+    # avg_reaction은 None으로 명시하고, 실데이터인 평균 감성만 제공한다.
     result_themes = {}
     for theme, data in themes.items():
         if data["count"] >= 1:
             result_themes[theme] = {
                 "count": data["count"],
-                "avg_reaction": round(data["total_reaction"] / data["count"], 2),
+                "avg_reaction": None,           # 실측 주가 반응 아님 — 비캐시 경로에서만 제공
+                "avg_sentiment": round(data["total_sentiment"] / data["count"], 1),
+                "estimated": True,
             }
 
     return {"themes": result_themes}

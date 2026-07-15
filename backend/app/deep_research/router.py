@@ -2,7 +2,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -217,7 +217,7 @@ async def create_session(request: SessionCreateRequest):
     from app.database import DB_PATH
     import aiosqlite
     session_id = str(uuid.uuid4())
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             "INSERT INTO research_sessions (id, ticker, title, mode, created_at, updated_at) VALUES (?,?,?,?,?,?)",
@@ -256,7 +256,7 @@ async def save_message(session_id: str, request: MessageSaveRequest):
     """메시지 저장."""
     from app.database import DB_PATH
     import aiosqlite, json as _json
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             "INSERT INTO research_messages (session_id, role, content, metadata, created_at) VALUES (?,?,?,?,?)",

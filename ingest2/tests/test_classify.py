@@ -40,6 +40,24 @@ def test_sec_cik_to_ticker():
     assert res.tickers_direct == ["NVDA"]
 
 
+def test_common_word_ticker_paren_rejected_dollar_accepted():
+    """(AI)/(IT) 같은 상용어 약어 괄호는 티커로 안 잡고, $AI는 잡는다."""
+    tm = TickerMap.from_rows(ROWS + [
+        {"cik_str": 9001, "ticker": "AI", "title": "C3.ai"},
+        {"cik_str": 9002, "ticker": "IT", "title": "Gartner"},
+    ])
+    assert tm.find_in_text("Artificial intelligence (AI) is transforming") == []
+    assert tm.find_in_text("Information technology (IT) spending rose") == []
+    assert tm.find_in_text("$AI surged after earnings") == ["AI"]
+    assert tm.find_in_text("NVIDIA (NVDA) beat estimates") == ["NVDA"]
+
+
+def test_alias_hyphen_compound_not_matched():
+    """'Meta-analysis' 같은 하이픈 합성어는 META 별칭으로 안 잡힌다."""
+    assert "META" not in TM.find_in_text("Meta-analysis of chip demand shows growth")
+    assert TM.find_in_text("Meta Platforms reported results") == ["META"]
+
+
 def test_rss_alias_and_event():
     res = classify(_item(title="Micron earnings are a must-watch market event"), TM)
     assert res.tickers_direct == ["MU"]

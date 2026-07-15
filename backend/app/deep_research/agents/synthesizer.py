@@ -3,11 +3,14 @@ import asyncio
 import json
 import logging
 import re
-from typing import Optional
+from typing import Literal, Optional
 from urllib.parse import urlparse
 
+from pydantic import BaseModel
+
 from app.deep_research.config import (
-    GEMINI_API_KEY, GEMINI_PRO_MODEL, GEMINI_FLASH_MODEL,
+    GEMINI_API_KEY, DEEP_RESEARCH_SYNTH_MODEL, DEEP_RESEARCH_EXTRACT_MODEL,
+    DEEP_RESEARCH_VERIFY_MODEL,
     PRO_INPUT_COST, PRO_OUTPUT_COST,
 )
 from app.deep_research.models import (
@@ -20,12 +23,56 @@ from app.deep_research.storage.raw_sources import RawSourceStorage
 from app.deep_research.agents.source_matcher import source_matcher
 from app.deep_research.agents.cross_checker import cross_checker
 from app.deep_research.agents.evidence_ranker import score_url
+from app.deep_research.agents import numeric_consistency
+from app.deep_research import llm_client
 
 logger = logging.getLogger(__name__)
 
 
+# ── 구조화 출력 스키마 (EXTRACTION_PROMPT / VERIFY_PROMPT의 JSON 형식과 1:1) ──
+# 2단계 추출의 key_findings가 자유텍스트 파싱에서 0~4개로 변동하던 문제(라이브 실측)를
+# response_schema 강제로 제거한다. confidence는 Literal로 API 레벨에서 enum 강제 —
+# 'none' 같은 값이 리서치 전체를 폴백시키던 버그 계열의 원천 차단.
+class TimelineOut(BaseModel):
+    date: str = ""
+    event: str = ""
+    source: str = ""
+
+
+class FindingOut(BaseModel):
+    finding: str = ""
+    confidence: Literal["high", "medium", "low"] = "medium"
+    sources: list[str] = []
+
+
+class CoverageOut(BaseModel):
+    checked: list[str] = []
+    unchecked: list[str] = []
+    notes: str = ""
+
+
+class MetadataOut(BaseModel):
+    timeline: list[TimelineOut] = []
+    key_findings: list[FindingOut] = []
+    coverage: CoverageOut = CoverageOut()
+
+
+class SectionOut(BaseModel):
+    title: str = ""
+    content: str = ""
+    sources: list[str] = []
+
+
+class VerifiedReportOut(BaseModel):
+    summary: str = ""
+    sections: list[SectionOut] = []
+    timeline: list[TimelineOut] = []
+    key_findings: list[FindingOut] = []
+    coverage: CoverageOut = CoverageOut()
+
+
 # ─────────────────────────────────────────────────────────────
-# 1단계 프롬프트: Gemini Pro → 마크다운 서술 보고서
+# 1단계 프롬프트: 역할별 synth 모델 → 마크다운 서술 보고서
 # ─────────────────────────────────────────────────────────────
 NARRATIVE_PROMPT = """당신은 세계 최고 수준의 금융 리서치 애널리스트이자 팩트체커입니다.
 아래 수집된 자료를 바탕으로 사용자 질의에 대한 심층 분석 보고서를 마크다운으로 작성하세요.
@@ -82,11 +129,11 @@ NARRATIVE_PROMPT = """당신은 세계 최고 수준의 금융 리서치 애널�
 □ 추론이라면 [추론] 태그를 붙였는가?
 실패한 문장은 삭제하거나 [unverified] 태그를 붙여라.
 
-출처 품질 기준 (보고서 신뢰도 적용):
-- Tier 1 (규제 공시): sec.gov, dart.fss.or.kr, csrc.gov.cn, sse.com.cn, szse.cn, szse.com.cn, hkexnews.hk, fsc.go.kr, jpx.co.jp, edinet-fsa.go.jp, esma.europa.eu, ec.europa.eu, federalreserve.gov, pbc.gov.cn 등 — 사실 주장의 최고 근거
-- Tier 2 (Tier-1 미디어): reuters.com, apnews.com, ft.com, wsj.com, nikkei.com, bloomberg.com, caixin.com, scmp.com, yonhapnews.co.kr — 교차확인 가능
-- Tier 3 (전문 분석): cnbc.com, marketwatch.com, techcrunch.com — 참고용
-- Tier 4 (자동생성/블로그): stockinsights.ai, pitchgrade.com, stockanalysis.com, simplywall.st 등 — 이 출처만 있으면 "[추가 검증 필요]" 표시 필수
+출처 품질 기준 (보고서 신뢰도 적용 — sources/source_registry.py의 단일 레지스트리와 동기화됨):
+- Tier 1 (규제 공시): sec.gov, dart.fss.or.kr, csrc.gov.cn, sse.com.cn, szse.cn, hkexnews.hk, fsc.go.kr, jpx.co.jp, edinet-fsa.go.jp, esma.europa.eu, federalreserve.gov, pbc.gov.cn 등 — 사실 주장의 최고 근거
+- Tier 2 (Tier-1 미디어): reuters.com, apnews.com, bloomberg.com, ft.com, wsj.com, nikkei.com, nytimes.com, bbc.com, caixin.com, scmp.com, yonhapnews.co.kr — 교차확인 가능
+- Tier 3 (전문 분석): cnbc.com, marketwatch.com, techcrunch.com, barrons.com — 참고용
+- Tier 4 (자동생성/루머/소셜): stockinsights.ai, pitchgrade.com, stockanalysis.com, simplywall.st, seekingalpha.com, fool.com, benzinga.com, reddit.com 등 — 이 출처만 있으면 "[추가 검증 필요]" 표시 필수
 
 다국가·다관할 출처 처리 규칙:
 - 중국 공시(CSRC/SSE/SZSE/HKEx): 중국어 원본과 영문 번역이 모두 있으면 중국어 원본 수치를 우선하라
@@ -97,16 +144,20 @@ NARRATIVE_PROMPT = """당신은 세계 최고 수준의 금융 리서치 애널�
 
 보고서 형식 (마크다운):
 - 맨 앞 첫 번째 섹션은 반드시 ## 핵심 요약 으로 시작 (2~3문단)
-- 이후 각 섹션은 ## {섹션 제목} 형식의 헤더로 시작
+- 이후 각 섹션은 ## {{섹션 제목}} 형식의 헤더로 시작
 - 각 섹션 본문은 끊기지 않는 단락형 서술로 작성 — 인과관계(A→B→C)와 논리 흐름을 충분히 전개
 - 출처는 본문 inline에 [source: URL] 형식으로 삽입
 - 추론은 [추론] 태그로 명시
+- 맨 마지막 섹션은 반드시 ## 미검증·불확실 항목 으로 작성. 다음을 항목(-)으로 솔직히 나열:
+  · 수집 자료로 확인하지 못한 사실, 공식 출처로 교차검증되지 않은 주장
+  · 누락된 데이터, 접근하지 못한 관할/거래소 공시, 남은 의문점
+  확인 못 한 것을 숨기거나 얼버무리지 말 것. 정말 없으면 "- 특이 미검증 항목 없음"이라고 명시.
 
 마크다운만 출력. JSON 블록 없음."""
 
 
 # ─────────────────────────────────────────────────────────────
-# 2단계 프롬프트: Gemini Flash → 구조 메타데이터 추출
+# 2단계 프롬프트: 역할별 extract 모델 → 구조 메타데이터 추출
 # ─────────────────────────────────────────────────────────────
 EXTRACTION_PROMPT = """아래 마크다운 보고서에서 구조화된 메타데이터만 추출하세요.
 본문 재작성 금지. 마크다운에 이미 있는 내용만 구조화하세요.
@@ -173,37 +224,47 @@ class Synthesizer:
         self._model = None
         self._tokens_used: int = 0
 
+    def reset_usage(self) -> None:
+        """잡 시작 시 토큰 카운터 초기화 — 비용 집계가 잡 간 누적되지 않게."""
+        self._tokens_used = 0
+
     def _get_model(self):
         if self._model is None and GEMINI_API_KEY:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=GEMINI_API_KEY)
-                self._model = genai.GenerativeModel(GEMINI_PRO_MODEL)
-                logger.info(f"[synthesizer] Gemini Pro 초기화: {GEMINI_PRO_MODEL}")
+                self._model = genai.GenerativeModel(DEEP_RESEARCH_SYNTH_MODEL)
+                logger.info(f"[synthesizer] Gemini 모델 초기화: {DEEP_RESEARCH_SYNTH_MODEL}")
             except Exception as e:
                 logger.error(f"[synthesizer] Gemini 초기화 실패: {e}")
         return self._model
 
-    def _get_flash_model(self):
-        """2단계 추출 전용 Flash 인스턴스."""
+    def _get_extract_model(self):
+        """2단계 구조 추출 전용 모델."""
         try:
             import google.generativeai as genai
             genai.configure(api_key=GEMINI_API_KEY)
-            return genai.GenerativeModel(GEMINI_FLASH_MODEL)
+            return genai.GenerativeModel(DEEP_RESEARCH_EXTRACT_MODEL)
         except Exception as e:
-            logger.error(f"[synthesizer] Flash 초기화 실패: {e}")
+            logger.error(f"[synthesizer] 메타데이터 추출 모델 초기화 실패: {e}")
             return None
 
-    def _get_flash_fallback(self):
-        """Pro 불가 시 Flash 폴백 (1단계 재시도 / 자기 검증)."""
+    def _get_verify_model(self, fallback: bool = False):
+        """검증 모델 인스턴스. fallback=True이면 합성 재시도 로그를 남긴다."""
         try:
             import google.generativeai as genai
             genai.configure(api_key=GEMINI_API_KEY)
-            model = genai.GenerativeModel(GEMINI_FLASH_MODEL)
-            logger.warning(f"[synthesizer] Pro 불가 → Flash 폴백: {GEMINI_FLASH_MODEL}")
+            model = genai.GenerativeModel(DEEP_RESEARCH_VERIFY_MODEL)
+            if fallback:
+                logger.warning(
+                    f"[synthesizer] synth 모델 불가 → verify 모델 폴백: "
+                    f"{DEEP_RESEARCH_VERIFY_MODEL}"
+                )
+            else:
+                logger.info(f"[synthesizer] verify 모델 초기화: {DEEP_RESEARCH_VERIFY_MODEL}")
             return model
         except Exception as e:
-            logger.error(f"[synthesizer] Flash 폴백도 실패: {e}")
+            logger.error(f"[synthesizer] verify 모델 폴백도 실패: {e}")
             return None
 
     async def _generate_narrative(
@@ -213,7 +274,7 @@ class Synthesizer:
         sources_text: str,
         model,
     ) -> Optional[str]:
-        """1단계: Gemini Pro로 마크다운 서술 보고서 생성."""
+        """1단계: 역할별 synth 모델로 마크다운 서술 보고서 생성."""
         prompt = NARRATIVE_PROMPT.format(
             query=query,
             sections=sections_str,
@@ -231,13 +292,13 @@ class Synthesizer:
             return text
         except Exception as e:
             if "quota" in str(e).lower() or "429" in str(e):
-                logger.warning("[synthesizer] Pro 할당량 초과 → Flash로 1단계 재시도")
-                flash = self._get_flash_fallback()
-                if flash is None:
+                logger.warning("[synthesizer] synth 모델 할당량 초과 → verify 모델로 1단계 재시도")
+                verify_model = self._get_verify_model(fallback=True)
+                if verify_model is None:
                     return None
                 try:
                     response = await asyncio.to_thread(
-                        flash.generate_content,
+                        verify_model.generate_content,
                         prompt,
                         request_options={"timeout": 300},
                     )
@@ -245,23 +306,37 @@ class Synthesizer:
                     self._tokens_used += len(text) // 4
                     return text
                 except Exception as e2:
-                    logger.error(f"[synthesizer] Flash 1단계도 실패: {e2}")
+                    logger.error(f"[synthesizer] verify 모델 1단계도 실패: {e2}")
                     return None
             logger.error(f"[synthesizer] 1단계 생성 실패: {e}")
             return None
 
     async def _extract_metadata(self, markdown_report: str) -> dict:
-        """2단계: Gemini Flash로 timeline/key_findings/coverage JSON 추출."""
-        flash = self._get_flash_model()
-        if flash is None:
-            return {}
-
+        """2단계: 역할별 extract 모델로 timeline/key_findings/coverage JSON 추출."""
         prompt = EXTRACTION_PROMPT.format(
             markdown_report=markdown_report[:20_000],
         )
+
+        # ── 1차: 구조화 출력 — key_findings 추출 변동(0~4개)의 원인이던 파싱 제거 ──
+        sres = await llm_client.generate_structured(
+            prompt, MetadataOut, DEEP_RESEARCH_EXTRACT_MODEL,
+            timeout_s=120, fallback_model=DEEP_RESEARCH_VERIFY_MODEL, tag="synthesizer",
+        )
+        if sres is not None:
+            self._tokens_used += sres.output_tokens
+            logger.info(
+                f"[synthesizer] 2단계 메타데이터 추출(구조화): "
+                f"findings {len(sres.data.key_findings)}, timeline {len(sres.data.timeline)}"
+            )
+            return sres.data.model_dump()
+
+        # ── 2차(레거시): 자유텍스트 + 정규식 파싱 — 구조화 실패 시 동작 보존 ──
+        extract_model = self._get_extract_model()
+        if extract_model is None:
+            return {}
         try:
             response = await asyncio.to_thread(
-                flash.generate_content,
+                extract_model.generate_content,
                 prompt,
                 request_options={"timeout": 120},
             )
@@ -280,20 +355,35 @@ class Synthesizer:
         raw_storage: RawSourceStorage,
         model,
     ) -> dict:
-        """방어선 5: Gemini Flash로 보고서 자기 검증 패스."""
-        flash = self._get_flash_fallback()
-        if flash is None:
+        """방어선 5: 역할별 verify 모델로 보고서 자기 검증 패스."""
+        raw_texts = raw_storage.all_texts_combined(max_chars=60_000)
+        verify_prompt = VERIFY_PROMPT.format(
+            report_json=json.dumps(data, ensure_ascii=False)[:8000],
+            raw_sources=raw_texts[:10_000],
+        )
+
+        # ── 1차: 구조화 출력 — 검증 결과도 스키마 강제 (형식 이탈로 원본 폐기 방지) ──
+        sres = await llm_client.generate_structured(
+            verify_prompt, VerifiedReportOut, DEEP_RESEARCH_VERIFY_MODEL,
+            timeout_s=120, tag="synthesizer",
+        )
+        if sres is not None:
+            out = sres.data.model_dump()
+            # 빈 껍데기(전 필드 기본값) 방어 — 검증 패스가 보고서를 지우면 안 된다
+            if out.get("summary") or out.get("sections"):
+                self._tokens_used += sres.output_tokens
+                logger.info("[synthesizer] 자기 검증 패스 완료(구조화)")
+                return out
+            logger.warning("[synthesizer] 구조화 자기 검증이 빈 보고서 반환 — 원본 유지")
             return data
 
-        raw_texts = raw_storage.all_texts_combined(max_chars=60_000)
+        # ── 2차(레거시): 자유텍스트 + 정규식 파싱 — 구조화 실패 시 동작 보존 ──
+        verify_model = self._get_verify_model()
+        if verify_model is None:
+            return data
         try:
-            import json as _json
-            verify_prompt = VERIFY_PROMPT.format(
-                report_json=_json.dumps(data, ensure_ascii=False)[:8000],
-                raw_sources=raw_texts[:10_000],
-            )
             resp = await asyncio.to_thread(
-                flash.generate_content,
+                verify_model.generate_content,
                 verify_prompt,
                 request_options={"timeout": 120},
             )
@@ -323,6 +413,7 @@ class Synthesizer:
         job_id: str,
         raw_storage: Optional[RawSourceStorage] = None,
         coverage: Optional[CoverageInfo] = None,  # pipeline 전처리에서 주입
+        context: Optional[dict] = None,  # request.context — XBRL 원장 대조용 ticker
     ) -> DeepResearchResponse:
         """2단계 보고서 생성: 1단계(서술) → 2단계(구조 추출) + 검증."""
         model = self._get_model()
@@ -335,7 +426,7 @@ class Synthesizer:
             return self._fallback_response(query, all_sources, metadata, job_id)
 
         try:
-            # ── 1단계: Gemini Pro → 마크다운 서술 보고서 ──
+            # ── 1단계: synth 모델 → 마크다운 서술 보고서 ──
             markdown_report = await self._generate_narrative(
                 query, sections_str, sources_text, model
             )
@@ -354,7 +445,10 @@ class Synthesizer:
             # 마크다운 파싱 → summary + sections
             summary, sections_data = _parse_markdown_report(markdown_report)
 
-            # ── 2단계: Gemini Flash → timeline/key_findings/coverage 추출 ──
+            # '미검증·불확실 항목' 섹션 → 구조화된 gap 리스트 (관측/프론트 노출용)
+            unverified_gaps = _extract_gaps_from_sections(sections_data)
+
+            # ── 2단계: extract 모델 → timeline/key_findings/coverage 추출 ──
             metadata_json = await self._extract_metadata(markdown_report)
 
             # 전체 데이터 조립
@@ -383,7 +477,7 @@ class Synthesizer:
                         verified_findings.append(f)
                 data["key_findings"] = verified_findings
 
-            # ── 방어선 5: 자기 검증 패스 (Flash로 비용 절약) ──
+            # ── 방어선 5: 자기 검증 패스 ──
             if raw_storage and len(raw_storage) > 0:
                 data = await self._self_verify(data, raw_storage, model)
 
@@ -405,14 +499,43 @@ class Synthesizer:
                 for t in data.get("timeline", [])
             ]
 
-            key_findings = [
-                KeyFinding(
-                    finding=f.get("finding", ""),
-                    confidence=ConfidenceLevel(f.get("confidence", "medium")),
-                    sources=f.get("sources", []),
-                )
-                for f in data.get("key_findings", [])
-            ]
+            # finding별로 방어적 생성: 한 항목이 깨져도(예: confidence="none")
+            # 리서치 전체가 폴백(0결과)되지 않도록 그 항목만 스킵한다.
+            key_findings = []
+            for f in data.get("key_findings", []):
+                try:
+                    key_findings.append(KeyFinding(
+                        finding=f.get("finding", ""),
+                        confidence=_coerce_confidence(f.get("confidence")),
+                        sources=f.get("sources", []) or [],
+                    ))
+                except Exception as e:
+                    logger.warning(f"[synthesizer] key_finding 스킵(파싱 실패): {e}")
+
+            # ── 방어선 4: 다출처 교차검증 (cross_checker 실제 실행) → 응답 노출 ──
+            cross_validation = self._cross_validate(data.get("key_findings", []), raw_storage)
+            # ── 방어선 4b: 결정론적 수치 정합(pro-rata·세율·gross↔net)도 교차검증에 노출 ──
+            cross_validation = list(dict.fromkeys(
+                cross_validation + self._numeric_cross_validation(contents)
+            ))
+            # ── 방어선 4c: SEC XBRL 원장 대조 — 보고서 수치를 공시 원장 값과 대조 ──
+            # (source_matcher의 '수집 텍스트 축자 존재'보다 한 단계 강한 검증.
+            #  확인 전용 — 원장 미존재 수치는 침묵. LLM 무관여 순수 조회+비교.)
+            ticker = (context or {}).get("ticker", "")
+            if ticker:
+                try:
+                    from app.deep_research.agents.xbrl_ledger import verify_report_numbers
+                    report_text = " ".join(
+                        [data.get("summary", "")]
+                        + [f.get("finding", "") for f in data.get("key_findings", [])]
+                        + [s.get("content", "") for s in data.get("sections", [])]
+                    )
+                    ledger_lines = await verify_report_numbers(report_text, ticker)
+                    if ledger_lines:
+                        logger.info(f"[synthesizer] XBRL 원장 일치 {len(ledger_lines)}건 ({ticker})")
+                        cross_validation = list(dict.fromkeys(cross_validation + ledger_lines))
+                except Exception as e:
+                    logger.warning(f"[synthesizer] XBRL 원장 대조 실패(무시): {e}")
 
             # coverage: pipeline 전처리(관할 감지) 결과와 LLM 추출 결과 병합
             coverage_data = data.get("coverage", {})
@@ -447,6 +570,8 @@ class Synthesizer:
                 key_findings=key_findings,
                 sources=all_sources,
                 coverage=coverage,
+                unverified_gaps=unverified_gaps,
+                cross_validation=cross_validation,
                 metadata=metadata,
                 status=JobStatus.DONE,
             )
@@ -454,6 +579,68 @@ class Synthesizer:
         except Exception as e:
             logger.error(f"[synthesizer] 합성 실패: {e}")
             return self._fallback_response(query, all_sources, metadata, job_id)
+
+    def _cross_validate(self, key_findings: list[dict], raw_storage) -> list[str]:
+        """핵심 주장을 수집 원본과 다출처 교차검증해 사람이 읽을 문장 리스트로 반환.
+
+        cross_checker(방어선 4)를 실제 실행한다. 새 사실을 만들지 않고, 각 주장이
+        몇 개 출처에서 일치하는지 / 수치가 상충하는지만 기록한다(무할루시네이션).
+        """
+        if not raw_storage or len(raw_storage) == 0 or not key_findings:
+            return []
+        try:
+            sources = raw_storage.all_sources()
+        except Exception:
+            return []
+        if not sources:
+            return []
+
+        statements: list[str] = []
+        for f in key_findings[:8]:
+            claim = (f.get("finding") or "").strip()
+            if not claim:
+                continue
+            short = re.sub(r'\[source:[^\]]*\]|\[\d+\]', '', claim).strip()
+            short = short[:90] + ("…" if len(short) > 90 else "")
+            try:
+                result = cross_checker.cross_check(claim, sources)
+            except Exception as e:
+                logger.warning(f"[synthesizer] 교차검증 실패: {e}")
+                continue
+            agree_n = len(result.get("agreeing_sources") or [])
+            conflicts = result.get("conflicting_sources") or []
+            conf = result.get("confidence", "low")
+            if conflicts:
+                note = conflicts[0].get("note", "출처 간 수치 상충")
+                statements.append(f"[수치 상충] {short} — {note}")
+            elif agree_n >= 2:
+                statements.append(f"[{agree_n}개 출처 일치·{conf}] {short}")
+            elif agree_n == 1:
+                statements.append(f"[단일 출처·미교차] {short}")
+            else:
+                statements.append(f"[교차 근거 부족] {short}")
+        return statements
+
+    def _numeric_cross_validation(self, contents: list[ExtractedContent]) -> list[str]:
+        """결정론적 수치 정합 검사 결과를 교차검증 문장으로 변환.
+
+        LLM 산술을 쓰지 않는다(코드가 계산). 실제 추출된 contents만 대상 →
+        '열지 못한 값'은 상충 근거가 되지 않는다. 정합/상충 문장만 반환, 최대 8개.
+        """
+        if not contents:
+            return []
+        try:
+            nres = numeric_consistency.analyze(contents)
+        except Exception as e:
+            logger.warning(f"[synthesizer] 수치정합 검사 실패(무시): {e}")
+            return []
+        lines = list(nres.consistent) + list(nres.conflicts)
+        if lines:
+            logger.info(
+                f"[synthesizer] 수치정합 교차검증: 정합 {len(nres.consistent)}, "
+                f"상충 {len(nres.conflicts)}"
+            )
+        return lines[:8]
 
     def _fallback_response(
         self,
@@ -481,6 +668,37 @@ class Synthesizer:
 # ─────────────────────────────────────────────────────────────
 
 _SUMMARY_TITLES = frozenset(["핵심 요약", "요약", "Executive Summary", "종합 요약", "Summary"])
+_GAP_SECTION_HINTS = ("미검증", "불확실", "unverified", "uncertain", "limitation")
+_GAP_NONE_MARKERS = ("특이 미검증 항목 없음", "미검증 항목 없음", "해당 없음", "없음")
+
+
+def _extract_gaps_from_sections(sections_data: list[dict]) -> list[str]:
+    """'미검증·불확실 항목' 섹션 본문을 구조화된 gap 리스트로 추출.
+
+    시중 딥리서치 AI가 명시하는 '미검증 gap'을 FinVision 출력에도 반영하기 위함.
+    불릿(-, •, *) 또는 줄 단위로 분해하고, '없음' 표기는 제외한다.
+    """
+    gaps: list[str] = []
+    for s in sections_data:
+        title = (s.get("title") or "").lower()
+        if not any(h in title for h in _GAP_SECTION_HINTS):
+            continue
+        for line in (s.get("content") or "").splitlines():
+            item = line.strip(" -•*\t")
+            if not item:
+                continue
+            if any(m in item for m in _GAP_NONE_MARKERS):
+                continue
+            gaps.append(item)
+    # 중복 제거(순서 유지)
+    seen: set[str] = set()
+    out: list[str] = []
+    for g in gaps:
+        k = g.lower()
+        if k not in seen:
+            seen.add(k)
+            out.append(g)
+    return out
 
 
 def _build_footnote_map(markdown: str) -> dict[str, int]:
@@ -571,7 +789,7 @@ def _build_source_list(
     for c in contents:
         if c.url not in seen:
             seen.add(c.url)
-            domain = urlparse(c.url).netloc.lstrip("www.")
+            domain = urlparse(c.url).netloc.removeprefix("www.")
             _, credibility = score_url(c.url)
             sources.append(SourceInfo(
                 url=c.url, title=c.title, domain=domain, credibility=credibility
@@ -580,7 +798,7 @@ def _build_source_list(
     for r in search_results:
         if r.url and r.url not in seen:
             seen.add(r.url)
-            domain = urlparse(r.url).netloc.lstrip("www.")
+            domain = urlparse(r.url).netloc.removeprefix("www.")
             _, credibility = score_url(r.url)
             sources.append(SourceInfo(
                 url=r.url, title=r.title, domain=domain, credibility=credibility
@@ -600,6 +818,30 @@ def _format_sources_for_prompt(contents: list[ExtractedContent], max_chars: int 
         parts.append(part)
         remaining -= len(part)
     return "".join(parts)
+
+
+_CONFIDENCE_MAP = {
+    "high": ConfidenceLevel.HIGH, "h": ConfidenceLevel.HIGH,
+    "높음": ConfidenceLevel.HIGH, "상": ConfidenceLevel.HIGH,
+    "medium": ConfidenceLevel.MEDIUM, "med": ConfidenceLevel.MEDIUM,
+    "m": ConfidenceLevel.MEDIUM, "moderate": ConfidenceLevel.MEDIUM,
+    "보통": ConfidenceLevel.MEDIUM, "중간": ConfidenceLevel.MEDIUM, "중": ConfidenceLevel.MEDIUM,
+    "low": ConfidenceLevel.LOW, "l": ConfidenceLevel.LOW,
+    "낮음": ConfidenceLevel.LOW, "하": ConfidenceLevel.LOW,
+}
+
+
+def _coerce_confidence(value) -> ConfidenceLevel:
+    """LLM이 준 confidence 값을 안전하게 ConfidenceLevel로 변환.
+
+    'none'/null/오탈자 등 알 수 없는 값이 와도 예외를 던지지 않고 MEDIUM으로.
+    (enum 직접 생성이 ValueError를 내 리서치 전체가 폴백되던 버그 방지.)
+    """
+    try:
+        s = str(value or "").strip().lower()
+    except Exception:
+        return ConfidenceLevel.MEDIUM
+    return _CONFIDENCE_MAP.get(s, ConfidenceLevel.MEDIUM)
 
 
 def _parse_json(text: str) -> Optional[dict]:

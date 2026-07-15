@@ -426,13 +426,14 @@ def get_overview(ticker: str):
     if ts_revenue and avg_ar and avg_ar != 0:
         receivables_turnover = round(ts_revenue / avg_ar, 1)
 
-    # ROIC = NOPAT ÷ 투하자본(유이자부채 + 자기자본). NOPAT = 영업이익 × (1 - 유효세율).
+    # ROIC = NOPAT ÷ 투하자본(총자산 − 유동부채). NOPAT = 영업이익 × (1 - 유효세율).
+    # 투하자본 정의를 연간/분기 차트(roic_hist·roic_quarterly)와 동일하게 통일 —
+    # 이전엔 카드만 (유이자부채+자기자본)이라 같은 지표가 화면마다 다른 값이었다.
     # (영업손실이면 ROIC 음수가 정상이므로 영업이익 부호는 막지 않는다. 투하자본만 양수 요구.)
     roic = None
-    equity_ts = _ts_latest("annualStockholdersEquity")
-    total_debt_ts = _ts_latest("annualTotalDebt")
-    if operating_income_ts is not None and equity_ts is not None and total_debt_ts is not None:
-        invested_capital = total_debt_ts + equity_ts
+    if (operating_income_ts is not None and total_assets is not None
+            and current_liabilities is not None):
+        invested_capital = total_assets - current_liabilities
         if invested_capital > 0:
             # 유효세율은 0~100% 범위일 때만 사용, 아니면 미국 법인세 근사 21%
             effective_tax = tax_rate / 100 if (tax_rate is not None and 0 <= tax_rate <= 100) else 0.21
@@ -784,11 +785,21 @@ def _derive_sec_ratios(ticker, metrics, get_yahoo):
         series = sec_client.merge_annual_by_fy(blocks.get(blk) or [], get_yahoo(yfield))
         M[blk] = {int(p["date"][:4]): p for p in series if p.get("date")}
 
-    def _ratio(num_blk, den_blk, key, multiply=100, num_abs=False, den_positive=False):
+    def _ratio(num_blk, den_blk, key, multiply=100, num_abs=False, den_positive=False,
+               avg_den=False):
+        # avg_den=True: 분모를 (전기말+당기말)/2 평균 잔액으로 — 회전율 지표는
+        # 카드(overview)가 평균 잔액을 쓰므로 차트도 동일 공식으로 통일한다.
         num, den = M.get(num_blk, {}), M.get(den_blk, {})
         res = []
+        den_fys = sorted(den)
         for fy in sorted(set(num) & set(den)):
             n, d = num[fy]["value"], den[fy]["value"]
+            if avg_den and d is not None:
+                idx = den_fys.index(fy)
+                if idx > 0:
+                    prev = den[den_fys[idx - 1]]["value"]
+                    if prev is not None:
+                        d = (d + prev) / 2
             if n is None or d is None or d == 0:
                 continue
             if den_positive and d <= 0:
@@ -805,9 +816,11 @@ def _derive_sec_ratios(ticker, metrics, get_yahoo):
     _ratio("net_income", "stockholders_equity", "roe_hist")
     _ratio("net_income", "total_assets", "roa_hist")
     _ratio("total_liabilities", "stockholders_equity", "debt_to_equity_hist", multiply=1)
-    _ratio("revenue", "total_assets", "asset_turnover_hist", multiply=1)
-    _ratio("revenue", "inventory", "inventory_turnover_hist", multiply=1)
-    _ratio("revenue", "accounts_receivable", "receivables_turnover_hist", multiply=1)
+    # 회전율 3종: 카드(overview)와 동일 공식으로 통일 —
+    # 재고회전율 분자는 매출이 아니라 '매출원가'(회계 표준), 분모는 평균 잔액.
+    _ratio("revenue", "total_assets", "asset_turnover_hist", multiply=1, avg_den=True)
+    _ratio("cost_of_revenue", "inventory", "inventory_turnover_hist", multiply=1, avg_den=True)
+    _ratio("revenue", "accounts_receivable", "receivables_turnover_hist", multiply=1, avg_den=True)
     _ratio("operating_cash_flow", "revenue", "ocf_margin_hist")
     _ratio("capex", "revenue", "capex_to_revenue_hist", num_abs=True)
     _ratio("dividends_paid", "net_income", "payout_ratio_hist", num_abs=True, den_positive=True)
@@ -985,6 +998,8 @@ def get_metric_history(ticker: str):
         "annualPretaxIncome", "annualEBIT", "annualInterestExpense",
         "annualAccountsReceivable", "annualInventory", "annualAccountsPayable",
         "annualTangibleBookValue",
+        # 재고회전율 분자 (카드와 동일하게 매출원가 기준)
+        "annualCostOfRevenue",
     ]
     # 분기별 데이터 필드 (연간과 동일 항목)
     quarterly_fields = [
@@ -1002,6 +1017,8 @@ def get_metric_history(ticker: str):
         "quarterlyPretaxIncome", "quarterlyEBIT", "quarterlyInterestExpense",
         "quarterlyAccountsReceivable", "quarterlyInventory", "quarterlyAccountsPayable",
         "quarterlyTangibleBookValue",
+        # 재고회전율 분자 (카드와 동일하게 매출원가 기준)
+        "quarterlyCostOfRevenue",
     ]
 
     # 필드가 많으면 API가 잘라버리므로 배치로 나눠서 요청
@@ -1018,13 +1035,22 @@ def get_metric_history(ticker: str):
         return raw.get(key, [])
 
     # 헬퍼: 두 시리즈의 비율 계산 (날짜 기준 매칭)
-    def _ratio(numerator_key, denominator_key, multiply=100):
+    def _ratio(numerator_key, denominator_key, multiply=100, avg_den=False):
+        # avg_den=True: 분모를 (전기말+당기말)/2 평균 잔액으로 — 회전율 지표는
+        # 카드(overview)가 평균 잔액을 쓰므로 차트도 동일 공식으로 통일한다.
         nums = {p["date"]: p["value"] for p in _get(numerator_key)}
         dens = {p["date"]: p["value"] for p in _get(denominator_key)}
         result = []
+        den_dates = sorted(dens.keys())
         for date in sorted(nums.keys()):
             n = nums.get(date)
             d = dens.get(date)
+            if avg_den and d is not None:
+                idx = den_dates.index(date) if date in den_dates else -1
+                if idx > 0:
+                    prev = dens.get(den_dates[idx - 1])
+                    if prev is not None:
+                        d = (d + prev) / 2
             if n is not None and d is not None and d != 0:
                 result.append({"date": date, "value": round(n / d * multiply, 2)})
         return result
@@ -1159,9 +1185,11 @@ def get_metric_history(ticker: str):
             tax_hist.append({"date": date, "value": round((1 - ni / pti) * 100, 2)})
     metrics["tax_rate_hist"] = tax_hist
 
-    metrics["asset_turnover_hist"] = _ratio("annualTotalRevenue", "annualTotalAssets", multiply=1)
-    metrics["inventory_turnover_hist"] = _ratio("annualTotalRevenue", "annualInventory", multiply=1)
-    metrics["receivables_turnover_hist"] = _ratio("annualTotalRevenue", "annualAccountsReceivable", multiply=1)
+    # 회전율 3종: 카드(overview)와 동일 공식으로 통일 —
+    # 재고회전율 분자는 매출이 아니라 '매출원가'(회계 표준), 분모는 평균 잔액.
+    metrics["asset_turnover_hist"] = _ratio("annualTotalRevenue", "annualTotalAssets", multiply=1, avg_den=True)
+    metrics["inventory_turnover_hist"] = _ratio("annualCostOfRevenue", "annualInventory", multiply=1, avg_den=True)
+    metrics["receivables_turnover_hist"] = _ratio("annualTotalRevenue", "annualAccountsReceivable", multiply=1, avg_den=True)
     metrics["ocf_margin_hist"] = _ratio("annualOperatingCashFlow", "annualTotalRevenue")
 
     # 설비투자비율 (|CapEx| / Revenue * 100)
@@ -1306,8 +1334,10 @@ def get_metric_history(ticker: str):
             tax_q.append({"date": date, "value": round((1 - ni / pti) * 100, 2)})
     metrics["tax_rate_quarterly"] = tax_q
 
+    # 분기 회전율: 분자는 연간과 동일 정의(재고=매출원가). 분모는 분기말 스냅샷
+    # (분기 연속 잔액이라 평균의 의미가 약함 — 연간 차트·카드만 평균 사용).
     metrics["asset_turnover_quarterly"] = _ratio("quarterlyTotalRevenue", "quarterlyTotalAssets", multiply=1)
-    metrics["inventory_turnover_quarterly"] = _ratio("quarterlyTotalRevenue", "quarterlyInventory", multiply=1)
+    metrics["inventory_turnover_quarterly"] = _ratio("quarterlyCostOfRevenue", "quarterlyInventory", multiply=1)
     metrics["receivables_turnover_quarterly"] = _ratio("quarterlyTotalRevenue", "quarterlyAccountsReceivable", multiply=1)
     metrics["ocf_margin_quarterly"] = _ratio("quarterlyOperatingCashFlow", "quarterlyTotalRevenue")
 

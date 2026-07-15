@@ -1,0 +1,73 @@
+name: tests
+
+# 회귀 방지 CI. 세 서브시스템(backend / src·ingest2 / research_lab)을 독립 잡으로
+# 병렬 실행한다. 전 스위트는 네트워크·API 키 없이 결정론적으로 통과하도록 작성돼
+# 있어(모의·픽스처 주입) secrets 없이 green이다.
+#
+# 검증 근거(2026-07-15 로컬, .env 제거·키 unset 조건):
+#   backend 170 · src(tests/) 161 · ingest2 93 · research_lab 17 = 441 passed, 0 fail.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - name: Install backend deps (runtime + pytest)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-dev.txt
+      - name: Run backend tests
+        working-directory: backend
+        run: python -m pytest tests app/deep_research/tests -q
+
+  core:
+    # 루트 src/ (인과 엔진) + ingest2 파이프라인 — 둘 다 저장소 루트를 sys.path로
+    # 요구하므로 루트에서 python -m pytest로 실행한다.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install core deps (pyproject) + pytest
+        run: |
+          python -m pip install --upgrade pip
+          python -c "import tomllib,pathlib; d=tomllib.loads(pathlib.Path('pyproject.toml').read_text()); print(chr(10).join(d['project']['dependencies']))" > /tmp/core-reqs.txt
+          pip install -r /tmp/core-reqs.txt pytest
+      - name: Run src + ingest2 tests
+        run: python -m pytest tests ingest2/tests -q
+
+  research_lab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pydantic
+      - name: Run comparator tests
+        working-directory: research_lab/langfuse_deep_research_observer
+        run: python -m pytest test_comparator.py -q

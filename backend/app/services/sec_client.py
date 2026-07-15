@@ -285,6 +285,9 @@ SEC_CONCEPT_MAP = {
     "net_income": {"concepts": ["NetIncomeLoss"], "instant": False, "unit": "USD"},
     "operating_income": {"concepts": ["OperatingIncomeLoss"], "instant": False, "unit": "USD"},
     "gross_profit": {"concepts": ["GrossProfit"], "instant": False, "unit": "USD"},
+    # 재고회전율 분자 (카드·yfinance 차트와 동일하게 매출원가 기준)
+    "cost_of_revenue": {"concepts": ["CostOfRevenue", "CostOfGoodsAndServicesSold",
+                                     "CostOfGoodsSold"], "instant": False, "unit": "USD"},
     "pretax_income": {"concepts": [
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import logging
+import re
 import time
 import uuid
 from typing import AsyncGenerator, Optional
@@ -14,11 +15,17 @@ from app.deep_research.agents.jurisdiction_detector import jurisdiction_detector
 from app.deep_research.agents.evidence_ranker import evidence_ranker
 from app.deep_research.sources.official_source_searcher import official_source_searcher
 from app.deep_research.storage.raw_sources import RawSourceStorage
-from app.deep_research.config import MAX_ITERATIONS, MAX_RUN_SECONDS, MAX_COST_USD_PER_RUN
+from app.deep_research.discovery.lead_follower import lead_follower
+from app.deep_research.discovery.alternate_finder import alternate_instance_finder
+from app.deep_research.discovery.accessible_resolver import accessible_resolver, is_gated
+from app.deep_research.config import (
+    MAX_ITERATIONS, MAX_RUN_SECONDS, MAX_COST_USD_PER_RUN,
+    DISCOVERY_ENABLED, DISCOVERY_MAX_DEPTH, DISCOVERY_BREADTH, DISCOVERY_MAX_SEARCHES,
+)
 from app.deep_research.models import (
     DeepResearchRequest, DeepResearchResponse,
     JobStatus, JobStatusResponse, ProgressEvent, ResearchMetadata,
-    CoverageInfo,
+    CoverageInfo, SubQuery, SearchResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,13 +48,36 @@ _DIVESTITURE_KW = frozenset([
     "disposition", "sells stake", "sold stake",
 ])
 
-def _is_insider_query(query: str) -> bool:
+def _kw_match(query: str, keywords: frozenset) -> bool:
+    """단어경계 키워드 매칭. 부분문자열 매칭은 'rsu' in 'pursue' 같은 오탐으로
+    무관한 질의를 Form 4/8-K 경로에 태운다. ASCII 키워드는 \\b 경계,
+    CJK 키워드(경계 개념 없음)는 기존처럼 부분 매치."""
     q = query.lower()
-    return any(kw in q for kw in _INSIDER_KW)
+    for kw in keywords:
+        if kw.isascii():
+            if re.search(rf"\b{re.escape(kw)}\b", q):
+                return True
+        elif kw in q:
+            return True
+    return False
+
+
+def _is_insider_query(query: str) -> bool:
+    return _kw_match(query, _INSIDER_KW)
 
 def _is_divestiture_query(query: str) -> bool:
-    q = query.lower()
-    return any(kw in q for kw in _DIVESTITURE_KW)
+    return _kw_match(query, _DIVESTITURE_KW)
+
+
+def _dedupe_strings(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        key = (item or "").strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            out.append(item.strip())
+    return out
 
 
 class DeepResearchPipeline:
@@ -60,6 +90,7 @@ class DeepResearchPipeline:
         self.critic = Critic()
         self.synthesizer = Synthesizer()
         self._official_searcher_initialized = False
+        self._discovery_wired = False
 
     async def run(
         self,
@@ -70,7 +101,14 @@ class DeepResearchPipeline:
         start_time = time.time()
         metadata = ResearchMetadata()
 
+        _last_pct = 0
+
         async def emit(stage: str, message: str, pct: int, data: Optional[dict] = None):
+            # 진행률 단조 증가 보장 — 단계별 하드코딩 pct가 실행 순서와 어긋나면
+            # (예: 추출완료 50 → 공식소스 32) 프론트 진행바가 역행한다.
+            nonlocal _last_pct
+            pct = max(pct, _last_pct)
+            _last_pct = pct
             logger.info(f"[pipeline][{stage}] {message} ({pct}%)")
             if event_queue:
                 event = ProgressEvent(
@@ -96,9 +134,34 @@ class DeepResearchPipeline:
                 official_source_searcher.set_sources(tavily_src, parallel_src)
                 self._official_searcher_initialized = True
 
+            official_source_searcher.reset_tracking()
+
+            # ── 잡 간 상태 누수 방지 (싱글턴 파이프라인) ──
+            # searcher._url_seen/_total_queries·extractor._extracted_urls가 리셋되지
+            # 않으면 두 번째 리서치부터 이전 잡의 URL이 영구 스킵되고, 쿼리 상한이
+            # 프로세스 수명 총량이 되어 검색이 조용히 빈 결과를 반환한다.
+            self.searcher.reset()
+            self.extractor.reset()
+            self.planner.reset_usage()
+            self.critic.reset_usage()
+            self.synthesizer.reset_usage()
+
+            # Discovery 엔진 배선 (대체 인스턴스 검색 + n차 단서추적)
+            if not self._discovery_wired:
+                alternate_instance_finder.set_sources(
+                    self.searcher._sources.get("tavily"),
+                    self.searcher._sources.get("parallel"),
+                )
+                lead_follower.set_search(self._discovery_search)
+                self._discovery_wired = True
+
             # ── 1. 계획 수립 ──
             await emit("planning", "질의 분석 및 리서치 계획 수립 중...", 5)
             plan = await self.planner.plan(request.query, request.context)
+            metadata.generated_queries = _dedupe_strings([q.query for q in plan.sub_queries])
+            metadata.official_source_queries = _dedupe_strings([
+                q for q in metadata.generated_queries if "site:" in q.lower()
+            ])
             await emit("planning", f"{len(plan.sub_queries)}개 검색 쿼리 생성 완료", 10,
                       {"sub_queries": len(plan.sub_queries)})
 
@@ -112,15 +175,20 @@ class DeepResearchPipeline:
             await emit("searching", f"{len(results)}개 결과 수집", 30,
                       {"results_count": len(results)})
 
-            # ── 3. 초기 전문 추출 ──
+            # ── 3. 초기 전문 추출 (+페이월 복구) ──
+            # 메인 검색의 WSJ/FT/Bloomberg 결과도 아카이브/대체 인스턴스로 복구를
+            # 시도한다 (이전: Discovery 경로에서만 복구 → 메인 결과는 그냥 소멸).
             await emit("extracting", "웹 페이지 전문 추출 중...", 35)
             max_extract = request.max_sources or 30
-            contents = await self.extractor.extract_from_results(results, max_extract=max_extract)
+            contents, recovered_main = await self._extract_with_recovery(
+                results, max_extract=max_extract,
+            )
+            metadata.recovered_sources += recovered_main
             all_contents.extend(contents)
             for c in contents:
                 from urllib.parse import urlparse
                 raw_storage.store(c.url, c.title, c.content,
-                                  urlparse(c.url).netloc.lstrip("www."))
+                                  urlparse(c.url).netloc.removeprefix("www."))
             await emit("extracting", f"{len(contents)}개 페이지 추출 완료", 50,
                       {"extracted_count": len(contents)})
 
@@ -131,7 +199,7 @@ class DeepResearchPipeline:
                 sec_label = jurisdiction.primary + (
                     f"+{jurisdiction.secondary[0]}" if jurisdiction.secondary else ""
                 )
-                await emit("searching", f"공식 소스 집중 검색 ({sec_label})...", 32)
+                await emit("searching", f"공식 소스 집중 검색 ({sec_label})...", 51)
                 try:
                     official_results = await official_source_searcher.search(
                         request.query, jurisdiction,
@@ -151,17 +219,25 @@ class DeepResearchPipeline:
                             from urllib.parse import urlparse as _up
                             raw_storage.store(
                                 c.url, c.title, c.content,
-                                _up(c.url).netloc.lstrip("www."),
+                                _up(c.url).netloc.removeprefix("www."),
                             )
                         official_extracted_count = len(official_contents)
                         await emit(
                             "searching",
                             f"공식 소스 {official_results_count}건 수집 / "
                             f"{official_extracted_count}건 본문 추출",
-                            36,
+                            53,
                         )
                 except Exception as e:
                     logger.warning(f"[pipeline] 공식 소스 검색 실패 (계속): {e}")
+
+            metadata.generated_queries = _dedupe_strings(
+                metadata.generated_queries + official_source_searcher.last_query_strings
+            )
+            metadata.official_source_queries = _dedupe_strings(
+                metadata.official_source_queries + official_source_searcher.last_query_strings
+            )
+            metadata.searched_official_domains = official_source_searcher.last_searched_domains
 
             # ── 3b. SEC Form 4 직접 파싱 (임원 거래 관련 쿼리) ──
             if _is_insider_query(request.query):
@@ -209,6 +285,34 @@ class DeepResearchPipeline:
                     except Exception as e:
                         logger.warning(f"[pipeline] SEC 8-K 조회 실패 (계속 진행): {e}")
 
+            # ── 3d. Discovery 심층 확장 (n차 단서추적 + 접근가능본 복구) ──
+            if DISCOVERY_ENABLED:
+                await emit("searching", "심층 단서추적 (n차 확장)...", 58)
+                try:
+                    lead_result = await lead_follower.deepen(
+                        request.query,
+                        max_depth=DISCOVERY_MAX_DEPTH,
+                        breadth=DISCOVERY_BREADTH,
+                        max_searches=DISCOVERY_MAX_SEARCHES,
+                    )
+                    metadata.discovery_leads = len(lead_result.explored)
+                    if lead_result.sources:
+                        all_results.extend(lead_result.sources)
+                        disc_contents, recovered = await self._extract_with_recovery(
+                            lead_result.sources, max_extract=15,
+                        )
+                        metadata.recovered_sources += recovered  # 메인 경로 복구분에 누적
+                        all_contents.extend(disc_contents)
+                        for c in disc_contents:
+                            from urllib.parse import urlparse as _up
+                            raw_storage.store(c.url, c.title, c.content,
+                                              _up(c.url).netloc.removeprefix("www."))
+                        await emit("searching",
+                                   f"심층 확장: 단서 {metadata.discovery_leads}개 추적, "
+                                   f"본문 {len(disc_contents)}건(+복구 {recovered}) 추가", 59)
+                except Exception as e:
+                    logger.warning(f"[pipeline] Discovery 심층 확장 실패 (계속): {e}")
+
             # ── 4. 반사 루프 ──
             max_iter = request.max_iterations or MAX_ITERATIONS
             # 초기 검색에서 사용된 쿼리 추적 (priority ≤ 2)
@@ -221,9 +325,14 @@ class DeepResearchPipeline:
                 if elapsed > MAX_RUN_SECONDS:
                     logger.warning(f"[pipeline] 시간 초과: {elapsed:.0f}s")
                     break
+                # 비용 가드 — config에 정의만 되고 검사 안 되던 것(장식) 실동작화
+                run_cost = self.planner.estimated_cost + self.synthesizer.estimated_cost
+                if run_cost > MAX_COST_USD_PER_RUN:
+                    logger.warning(f"[pipeline] 비용 초과: ${run_cost:.3f} > ${MAX_COST_USD_PER_RUN}")
+                    break
 
                 await emit("reflecting", f"정보 충분성 평가 (라운드 {iteration})...",
-                          50 + iteration * 5)
+                          60 + iteration * 4)
                 gap = await self.critic.evaluate(plan, all_contents, iteration)
                 metadata.iterations = iteration
 
@@ -253,23 +362,37 @@ class DeepResearchPipeline:
                 searched_queries.update(q.query for q in queries_to_run)
                 all_results.extend(extra_results)
 
-                extra_contents = await self.extractor.extract_from_results(
-                    extra_results, max_extract=10
+                extra_contents, recovered_extra = await self._extract_with_recovery(
+                    extra_results, max_extract=10, max_recovery=3,
                 )
+                metadata.recovered_sources += recovered_extra
                 all_contents.extend(extra_contents)
                 for c in extra_contents:
                     from urllib.parse import urlparse
                     raw_storage.store(c.url, c.title, c.content,
-                                      urlparse(c.url).netloc.lstrip("www."))
+                                      urlparse(c.url).netloc.removeprefix("www."))
                 await emit("extracting",
                           f"추가 {len(extra_contents)}개 페이지 추출", 75)
 
             # ── 5. 최종 보고서 생성 ──
-            await emit("synthesizing", "최종 보고서 작성 중 (Gemini Pro)...", 80)
+            await emit("synthesizing", "최종 보고서 작성 중 (Gemini)...", 80)
 
             elapsed = time.time() - start_time
-            metadata.total_queries = self.searcher.total_queries
+            metadata.total_queries = self.searcher.total_queries + official_source_searcher.last_query_count
             metadata.elapsed_seconds = elapsed
+
+            # URL 기준 명시적 dedup — 단계별(초기+공식+8-K+discovery+반사루프) extend로
+            # 같은 URL이 두 번 들어오면 synthesizer/numeric_consistency의
+            # '출처 N곳' 카운트가 부풀어 프레이밍 상충 오탐의 원인이 된다.
+            _seen_urls: set[str] = set()
+            _deduped = []
+            for c in all_contents:
+                if c.url and c.url in _seen_urls:
+                    continue
+                if c.url:
+                    _seen_urls.add(c.url)
+                _deduped.append(c)
+            all_contents = _deduped
 
             # 신뢰도 기준 콘텐츠 정렬 (상위 출처 우선 노출)
             all_contents = evidence_ranker.rank_contents(all_contents)
@@ -296,12 +419,19 @@ class DeepResearchPipeline:
                 job_id=job_id,
                 raw_storage=raw_storage,
                 coverage=coverage,
+                context=request.context,  # XBRL 원장 대조용 ticker 전달
             )
 
             report.metadata.elapsed_seconds = time.time() - start_time
             report.metadata.estimated_cost_usd = (
                 self.planner.estimated_cost + self.synthesizer.estimated_cost
             )
+            report.metadata.generated_queries = metadata.generated_queries
+            report.metadata.official_source_queries = metadata.official_source_queries
+            report.metadata.searched_official_domains = metadata.searched_official_domains
+            report.generated_queries = report.metadata.generated_queries
+            report.official_source_queries = report.metadata.official_source_queries
+
 
             await emit("done", "리서치 완료!", 100, {"job_id": job_id})
             _update_job_status(job_id, JobStatus.DONE, 100, "done", "완료",
@@ -325,11 +455,67 @@ class DeepResearchPipeline:
                 ))
             raise
 
+    async def _discovery_search(self, query: str) -> list[SearchResult]:
+        """lead_follower용 검색 어댑터 — 기존 searcher(다중소스·URL 중복제거)를 재사용."""
+        return await self.searcher.search_queries(
+            [SubQuery(query=query, priority=1, sources=["tavily", "parallel"])]
+        )
+
+    async def _extract_with_recovery(
+        self, results: list[SearchResult], max_extract: int = 15,
+        max_recovery: int = 5,
+    ) -> tuple[list, int]:
+        """본문 추출 + 게이트/실패 출처를 접근가능본으로 복구.
+
+        1) 정상 추출 (extractor가 페이월 도메인은 시도조차 안 하고 거른다)
+        2) 걸러졌거나 실패한 게이트 URL → accessible_resolver(아카이브 스냅샷) 우선,
+           없으면 alternate_finder(타 호스트 인스턴스)로 접근가능본을 찾아 재추출
+        반환: (추출 콘텐츠, 복구로 확보한 출처 수)
+
+        메인 검색 경로에서도 호출된다 — WSJ/FT/Bloomberg 결과가 복구 기회 없이
+        소멸하던 문제의 배선 수정. max_recovery로 Wayback 순차조회 지연을 제한.
+        """
+        contents = await self.extractor.extract_from_results(results, max_extract=max_extract)
+        got = {c.url for c in contents}
+
+        recovery_targets: list[SearchResult] = []
+        seen_gated: set[str] = set()
+        attempts = 0
+        for r in results:
+            if attempts >= max_recovery:
+                break
+            if not r.url or r.url in got or r.url in seen_gated or not is_gated(r.url):
+                continue
+            seen_gated.add(r.url)
+            attempts += 1
+            alt = await accessible_resolver.find_accessible_url(r.url)
+            if alt:
+                recovery_targets.append(SearchResult(
+                    url=alt.accessible_url, title=r.title, content=r.content,
+                    source_type="wayback", relevance_score=r.relevance_score,
+                ))
+            elif r.title:
+                recovery_targets.extend(
+                    await alternate_instance_finder.find_alternates(
+                        r.title, exclude_url=r.url, limit=1,
+                    )
+                )
+
+        recovered = 0
+        if recovery_targets:
+            rec = await self.extractor.extract_from_results(
+                recovery_targets, max_extract=len(recovery_targets),
+            )
+            contents.extend(rec)
+            recovered = len(rec)
+        return contents, recovered
+
 
 # ── 작업 관리 ──
 
 def create_job(job_id: str) -> asyncio.Queue:
     queue: asyncio.Queue = asyncio.Queue()
+    _cleanup_finished_jobs()  # 새 잡 생성 시 오래된 완료 잡 lazy 정리
     _jobs[job_id] = JobStatusResponse(
         job_id=job_id,
         status=JobStatus.PENDING,
@@ -339,6 +525,24 @@ def create_job(job_id: str) -> asyncio.Queue:
     )
     _job_queues[job_id] = queue
     return queue
+
+
+# 완료/실패 잡 보존 시간 — 삭제 코드가 없으면 리포트 전문이 프로세스 메모리에
+# 무한 축적된다. 완료 후 TTL 동안은 status 조회 가능, 이후 lazy 정리.
+_JOB_TTL_SECONDS = 3600
+_job_finished_at: dict[str, float] = {}
+
+
+def _cleanup_finished_jobs() -> None:
+    now = time.time()
+    expired = [jid for jid, ts in _job_finished_at.items()
+               if now - ts > _JOB_TTL_SECONDS]
+    for jid in expired:
+        _jobs.pop(jid, None)
+        _job_queues.pop(jid, None)
+        _job_finished_at.pop(jid, None)
+    if expired:
+        logger.info(f"[pipeline] 완료 잡 {len(expired)}건 정리 (TTL {_JOB_TTL_SECONDS}s)")
 
 
 def get_job_status(job_id: str) -> Optional[JobStatusResponse]:
@@ -360,6 +564,8 @@ def _update_job_status(
         _jobs[job_id].message = message
         if result:
             _jobs[job_id].result = result
+        if status in (JobStatus.DONE, JobStatus.FAILED):
+            _job_finished_at[job_id] = time.time()
 
 
 async def stream_events(job_id: str) -> AsyncGenerator[str, None]:

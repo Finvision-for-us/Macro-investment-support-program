@@ -27,6 +27,24 @@ class OfficialSourceSearcher:
         # 마지막 search() 호출 통계 (build_coverage_info에서 참조)
         self._last_searched_domains: set[str] = set()
         self._last_query_count: int = 0
+        self._last_query_strings: list[str] = []
+
+    def reset_tracking(self):
+        self._last_searched_domains = set()
+        self._last_query_count = 0
+        self._last_query_strings = []
+
+    @property
+    def last_query_strings(self) -> list[str]:
+        return list(self._last_query_strings)
+
+    @property
+    def last_query_count(self) -> int:
+        return self._last_query_count
+
+    @property
+    def last_searched_domains(self) -> list[str]:
+        return sorted(self._last_searched_domains)
 
     def set_sources(self, tavily_source=None, parallel_source=None):
         self._tavily = tavily_source
@@ -43,11 +61,12 @@ class OfficialSourceSearcher:
 
         site_queries = [q for q in ml_queries.queries if q.query_type == "official_site"]
         local_queries = [q for q in ml_queries.queries if q.query_type == "local_language"]
-        selected = site_queries[:6] + local_queries[:2]
+        selected = site_queries[:8] + local_queries[:2]
 
         # 어떤 도메인을 검색했는지 기록
         self._last_searched_domains = {q.site_domain for q in selected if q.site_domain}
         self._last_query_count = len(selected)
+        self._last_query_strings = [q.query for q in selected]
 
         if not selected:
             return []
@@ -82,7 +101,7 @@ class OfficialSourceSearcher:
         results: list[SearchResult] = []
         if self._tavily:
             try:
-                raw = await self._tavily.search(lq.query, num_results=max_results)
+                raw = await self._tavily.search(lq.query, max_results=max_results)
                 for r in raw:
                     r.source_type = "official"
                 results.extend(raw)
@@ -91,7 +110,7 @@ class OfficialSourceSearcher:
 
         if not results and self._parallel:
             try:
-                raw = await self._parallel.search(lq.query, num_results=max_results)
+                raw = await self._parallel.search(lq.query, max_results=max_results)
                 for r in raw:
                     r.source_type = "official"
                 results.extend(raw)
@@ -118,7 +137,7 @@ class OfficialSourceSearcher:
         collected_domains: set[str] = set()
         for url in collected_urls:
             try:
-                d = urlparse(url).netloc.lstrip("www.").lower()
+                d = urlparse(url).netloc.removeprefix("www.").lower()
                 collected_domains.add(d)
             except Exception:
                 pass
