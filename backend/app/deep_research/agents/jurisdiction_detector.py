@@ -20,10 +20,82 @@ _EXCHANGE_ABBREVIATIONS: frozenset[str] = frozenset([
     "DE", "FR", "IT", "BR", "AU", "CA", "RU", "SA", "UAE", "SG", "TW",
 ])
 
+# 스톱리스트에 없는 흔한 비티커 대문자 약어 (SEC 티커셋 미로드 시 폴백 방어)
+_NON_TICKER_ACRONYMS: frozenset[str] = frozenset([
+    "OPEC", "NATO", "COVID", "WHO", "UN", "NASA", "FBI", "CIA", "DOJ", "FTC",
+    "USA", "PRC", "ROK", "API", "URL", "PDF", "HTML", "JSON", "FAQ", "USD",
+    "RMB", "CNY", "KRW", "JPY", "EUR", "GBP", "HKD", "YOY", "QOQ", "TTM",
+    "EBIT", "CAGR", "ROE", "ROA", "ROIC", "DCF", "PER", "PBR", "EV",
+])
+
+# 영어 상용어/약어와 겹치는 '실존' 티커 — 관할 신호로는 노이즈라 제외
+# (예: "IT spending"의 IT는 Gartner 티커지만 미국 관할 근거가 아니다)
+_AMBIGUOUS_TICKERS: frozenset[str] = frozenset([
+    "AI", "IT", "ALL", "ON", "NOW", "KEY", "SO", "GO", "BIG", "COST",
+    "AN", "AT", "BE", "BY", "DO", "HE", "MY", "OR", "PC", "TV", "UP",
+    "NEW", "OLD", "OUT", "TOP", "ONE", "TWO", "ANY", "ARE", "CAN", "HAS",
+])
+
 # 한국어 조사가 붙은 ALL-CAPS 티커 (INDI의, NVDA가, AAPL은 ...)
 _TICKER_KO_RE = re.compile(r'\b([A-Z]{2,5})[의가는은을를이와과도만]\b')
 # 독립 ALL-CAPS 티커
 _TICKER_RE = re.compile(r'\b([A-Z]{2,5})\b')
+
+# ── SEC 실존 티커셋 (lazy, 프로세스당 1회 로드) ──
+# 대문자 약어를 전부 US 티커로 보는 휴리스틱은 OPEC/NATO/COVID 같은 비티커가
+# US +2로 잡혀 관할 판단에 미국 편향을 만든다 → 실존 티커만 인정(positive 검증).
+_SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
+_sec_tickers: frozenset[str] | None = None
+_sec_tickers_loaded = False
+
+
+def _load_sec_tickers() -> frozenset[str] | None:
+    """SEC company_tickers.json 기반 실존 티커셋.
+
+    ingest2가 받아둔 파일 캐시를 우선 재사용(네트워크 0), 없으면 1회 다운로드.
+    실패 시 None → 확장 스톱리스트 폴백(이전 동작 + _NON_TICKER_ACRONYMS).
+    """
+    global _sec_tickers, _sec_tickers_loaded
+    if _sec_tickers_loaded:
+        return _sec_tickers
+    _sec_tickers_loaded = True  # 프로세스당 1회만 시도 (실패해도 재시도로 매 호출 블로킹 금지)
+
+    import json as _json
+    from pathlib import Path
+    raw = None
+    # ingest2 캐시 재사용 (backend cwd / finvision 루트 양쪽 지원)
+    candidates = [
+        Path("data/ingest2/company_tickers.json"),
+        Path("../data/ingest2/company_tickers.json"),
+        Path(__file__).resolve().parents[4] / "data" / "ingest2" / "company_tickers.json",
+    ]
+    for p in candidates:
+        try:
+            if p.exists():
+                raw = _json.loads(p.read_text(encoding="utf-8"))
+                break
+        except Exception:
+            continue
+    if raw is None:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                _SEC_TICKERS_URL,
+                headers={"User-Agent": "FinVision research admin@finvision.app"})
+            data = urllib.request.urlopen(req, timeout=6).read()
+            raw = _json.loads(data)
+        except Exception as e:
+            logger.warning(f"[jurisdiction] SEC 티커셋 로드 실패 → 스톱리스트 폴백: {e}")
+            return None
+    try:
+        _sec_tickers = frozenset(
+            (r.get("ticker") or "").upper() for r in raw.values() if r.get("ticker")
+        )
+        logger.info(f"[jurisdiction] SEC 티커셋 로드: {len(_sec_tickers)}개")
+    except Exception as e:
+        logger.warning(f"[jurisdiction] SEC 티커셋 파싱 실패 → 스톱리스트 폴백: {e}")
+        _sec_tickers = None
+    return _sec_tickers
 
 # 이벤트 타입 패턴
 # ASCII는 \b 경계, 한국어/한자는 경계 없이 포함 (Korean \b가 \w로 처리되어 경계 불일치 방지)
@@ -141,17 +213,32 @@ def _detect_event_type(query: str) -> str:
 
 
 def _detect_tickers(query: str) -> list[str]:
-    """쿼리에서 ALL-CAPS 티커 감지. 거래소/기관 약어 제외."""
+    """쿼리에서 ALL-CAPS 티커 감지.
+
+    거래소/기관 약어·비티커 약어·상용어 충돌 티커 제외 + SEC 실존 티커셋으로
+    positive 검증(로드 성공 시). OPEC/NATO/COVID가 US 신호로 잡히는 편향 방지.
+    """
+    sec_tickers = _load_sec_tickers()
+
+    def _ok(t: str) -> bool:
+        if t in _EXCHANGE_ABBREVIATIONS or t in _NON_TICKER_ACRONYMS:
+            return False
+        if t in _AMBIGUOUS_TICKERS:
+            return False
+        if sec_tickers is not None and t not in sec_tickers:
+            return False  # 실존 티커만 인정
+        return True
+
     found: list[str] = []
     # 한국어 조사 붙은 티커 우선
     for m in _TICKER_KO_RE.finditer(query):
         t = m.group(1)
-        if t not in _EXCHANGE_ABBREVIATIONS:
+        if _ok(t):
             found.append(t)
     # 독립 ALL-CAPS
     for m in _TICKER_RE.finditer(query):
         t = m.group(1)
-        if t not in _EXCHANGE_ABBREVIATIONS and t not in found:
+        if _ok(t) and t not in found:
             found.append(t)
     return found
 

@@ -3,7 +3,7 @@ import asyncio
 import logging
 import re
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from app.deep_research.config import SEC_USER_AGENT
@@ -56,8 +56,13 @@ class SecEdgarSource(BaseSource):
         **kwargs,
     ) -> list[SearchResult]:
         # 임원 거래 관련 쿼리이면 Form 4 포함
+        # 부분문자열 매칭은 "rsu" in "pursue" 같은 오탐 → ASCII는 단어경계,
+        # CJK 키워드(경계 개념 없음)는 부분 매치 유지.
         q_lower = query.lower()
-        if any(kw in q_lower for kw in _INSIDER_KEYWORDS):
+        if any(
+            (re.search(rf"\b{re.escape(kw)}\b", q_lower) if kw.isascii() else kw in q_lower)
+            for kw in _INSIDER_KEYWORDS
+        ):
             forms = "4,4/A," + forms
 
         try:
@@ -195,13 +200,16 @@ class SecEdgarSource(BaseSource):
                                                    headers=headers, params=params)
                 if resp and resp.status_code == 200:
                     hits = resp.json().get("hits", {}).get("hits", [])
+                    tk = ticker.upper()
                     for hit in hits[:5]:
                         src = hit.get("_source", {})
                         entity = src.get("display_names", [{}])
                         ent_name = entity[0].get("name", "").upper() if entity else ""
-                        # 회사명 또는 티커가 일치하면 CIK 반환
-                        if (ticker.upper() in ent_name
-                                or src.get("ticker_symbol", "").upper() == ticker.upper()):
+                        # EDGAR display_names는 "FORD MOTOR CO (F)" 형식 — 괄호 티커
+                        # 정확 매칭. 부분문자열(`"F" in ent_name`)은 F/GM 같은 짧은
+                        # 티커가 거의 모든 회사명에 매치돼 엉뚱한 CIK를 잡는다.
+                        if (f"({tk})" in ent_name
+                                or src.get("ticker_symbol", "").upper() == tk):
                             cik = src.get("entity_id", "")
                             if cik:
                                 logger.info(f"[sec] {ticker} CIK 조회: {cik}")
@@ -215,8 +223,8 @@ class SecEdgarSource(BaseSource):
 
         Form 4 XML에 <issuerTradingSymbol>INDI</issuerTradingSymbol> 포함 → 티커로 검색 가능.
         """
-        today = datetime.utcnow().strftime("%Y-%m-%d")
-        six_months_ago = (datetime.utcnow() - timedelta(days=180)).strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        six_months_ago = (datetime.now(timezone.utc) - timedelta(days=180)).strftime("%Y-%m-%d")
         try:
             async with self._make_client() as client:
                 headers = {"User-Agent": SEC_USER_AGENT}
@@ -408,7 +416,11 @@ class SecEdgarSource(BaseSource):
                                 pass
                         return None
 
-                    shares = _dfval(".//transactionShares/value") or 0
+                    # grants(A) 등 일부 파생거래는 수량이 transactionShares가 아니라
+                    # underlyingSecurityShares에만 있다 — 폴백으로 커버.
+                    shares = (_dfval(".//transactionShares/value")
+                              or _dfval(".//underlyingSecurityShares/value")
+                              or 0)
                     conv_price = _dfval(".//conversionOrExercisePrice/value")
                     exp_date = dtxn.findtext(".//expirationDate/value", "")
 

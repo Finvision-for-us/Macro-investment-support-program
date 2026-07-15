@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ class RawSource:
     title: str
     text: str
     domain: str = ""
-    extracted_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    extracted_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class RawSourceStorage:
@@ -45,12 +45,16 @@ class RawSourceStorage:
         return "\n".join(parts)
 
     def get_by_domain_priority(self) -> list[RawSource]:
-        """신뢰도 높은 도메인 우선 정렬."""
-        HIGH = {"sec.gov", "dart.fss.or.kr", "fred.stlouisfed.org",
-                "arxiv.org", "reuters.com", "apnews.com"}
+        """신뢰도 높은 도메인 우선 정렬 — source_registry 단일 기준 파생.
+
+        (이전의 로컬 HIGH 집합은 다른 신뢰도 목록 4곳과 어긋나 있었다.)
+        """
+        from app.deep_research.sources.source_registry import get_domain_tier
         def _score(s: RawSource) -> int:
-            if any(h in s.domain for h in HIGH): return 0
+            tier = get_domain_tier(s.domain)
+            if tier in (1, 2): return 0
             if "gov" in s.domain or "edu" in s.domain: return 1
+            if tier == 4: return 3
             return 2
         return sorted(self._store.values(), key=_score)
 

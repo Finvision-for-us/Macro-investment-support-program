@@ -5,44 +5,27 @@ import re
 from urllib.parse import urlparse
 
 from app.deep_research.models import SearchResult, ExtractedContent, SourceInfo, CredibilityLevel
-from app.deep_research.sources.source_registry import get_source_by_domain, ALL_SOURCES
+from app.deep_research.sources.source_registry import (
+    get_source_by_domain, get_domain_tier,
+)
 
 logger = logging.getLogger(__name__)
 
-# tier → credibility 매핑
-_TIER_TO_CRED: dict[int, CredibilityLevel] = {
-    1: CredibilityLevel.HIGH,
-    2: CredibilityLevel.HIGH,
-    3: CredibilityLevel.MEDIUM,
+# 도메인이 아닌 URL 패턴만 로컬 유지 (레지스트리는 도메인 단위)
+_LOW_CRED_URL_RE = re.compile(r"yahoo\.com/finance|rumor|gossip|leaked", re.IGNORECASE)
+
+# tier → (점수, CredibilityLevel) — 신뢰도 자체는 source_registry가 단일 진실 소스
+_TIER_SCORE: dict[int, tuple[float, CredibilityLevel]] = {
+    1: (1.0, CredibilityLevel.HIGH),
+    2: (0.85, CredibilityLevel.HIGH),
+    3: (0.65, CredibilityLevel.MEDIUM),
+    4: (0.25, CredibilityLevel.LOW),
 }
-
-# 공식 소스 도메인 → tier 캐시
-_OFFICIAL_DOMAIN_TIERS: dict[str, int] = {s.domain: s.tier for s in ALL_SOURCES}
-
-# 항상 낮은 신뢰도 도메인 (소셜미디어, 루머 사이트 등)
-_LOW_CRED_PATTERNS: list[str] = [
-    r"reddit\.com", r"twitter\.com", r"x\.com", r"facebook\.com",
-    r"stocktwits", r"seekingalpha", r"motleyfool", r"investopedia",
-    r"thestreet", r"benzinga", r"yahoo\.com/finance",
-    r"rumor|gossip|leaked",
-]
-_LOW_CRED_RE = re.compile("|".join(_LOW_CRED_PATTERNS), re.IGNORECASE)
-
-# 중간 신뢰도: 주요 언론사
-_MED_CRED_PATTERNS: list[str] = [
-    r"reuters\.com", r"bloomberg\.com", r"ft\.com", r"wsj\.com",
-    r"nytimes\.com", r"apnews\.com", r"afp\.com",
-    r"bbc\.com", r"cnbc\.com", r"marketwatch\.com",
-    r"caixin\.com", r"scmp\.com",
-    r"yonhapnews\.co\.kr", r"yna\.co\.kr",
-    r"nikkei\.com",
-]
-_MED_CRED_RE = re.compile("|".join(_MED_CRED_PATTERNS), re.IGNORECASE)
 
 
 def _extract_domain(url: str) -> str:
     try:
-        return urlparse(url).netloc.lstrip("www.").lower()
+        return urlparse(url).netloc.removeprefix("www.").lower()
     except Exception:
         return ""
 
@@ -50,31 +33,26 @@ def _extract_domain(url: str) -> str:
 def score_url(url: str) -> tuple[float, CredibilityLevel]:
     """
     URL → (점수 0~1, CredibilityLevel)
-    공식 tier-1 = 1.0, tier-2 = 0.85, 주요 언론 = 0.65, 일반 = 0.5, 저신뢰 = 0.25
+    tier1(규제 공시)=1.0 / tier2(공식 거래소·Tier-1 미디어)=0.85 /
+    tier3(전문 분석)=0.65 / tier4(자동생성·루머·소셜)=0.25 / 미등록=0.5
     """
     domain = _extract_domain(url)
     if not domain:
         return 0.5, CredibilityLevel.MEDIUM
 
-    # 공식 소스 체크
     official = get_source_by_domain(domain)
-    if official:
-        score = 1.0 if official.tier == 1 else 0.85
-        return score, _TIER_TO_CRED.get(official.tier, CredibilityLevel.MEDIUM)
+    tier = get_domain_tier(domain)
+    if tier is not None:
+        score, cred = _TIER_SCORE.get(tier, (0.5, CredibilityLevel.MEDIUM))
+        if tier == 2 and official is None:
+            # Tier-1 '미디어': credibility는 레지스트리와 동일하게 HIGH 유지,
+            # 랭킹 점수만 공식 거래소(0.85)보다 한 단계 아래(공식 소스 우선 원칙)
+            return 0.75, CredibilityLevel.HIGH
+        return score, cred
 
-    # 서브도메인 포함 체크 (예: edgar.sec.gov)
-    for od, tier in _OFFICIAL_DOMAIN_TIERS.items():
-        if domain.endswith("." + od) or domain == od:
-            score = 1.0 if tier == 1 else 0.85
-            return score, _TIER_TO_CRED.get(tier, CredibilityLevel.MEDIUM)
-
-    # 저신뢰 패턴
-    if _LOW_CRED_RE.search(url):
+    # 도메인 레지스트리에 없는 URL 패턴 (rumor/gossip 등)
+    if _LOW_CRED_URL_RE.search(url):
         return 0.25, CredibilityLevel.LOW
-
-    # 주요 언론
-    if _MED_CRED_RE.search(url):
-        return 0.65, CredibilityLevel.MEDIUM
 
     return 0.5, CredibilityLevel.MEDIUM
 

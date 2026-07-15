@@ -13,37 +13,127 @@
     "gemini": {
       "jurisdiction_detection": 15.0,
       "query_generation": 15.0,
-      "official_source_coverage": 18.0,
-      "evidence_quality": 12.5,
-      "search_behavior": 7.83,
+      "official_source_coverage": 13.33,
+      "evidence_quality": 12.0,
+      "search_behavior": 6.25,
       "cross_validation": 6.67,
       "gap_handling": 10.0,
-      "final_answer_structure": 4.48,
-      "total": 89.48
+      "final_answer_structure": 1.5,
+      "total": 79.75,
+      "total_normalized": 79.75,
+      "unavailable": []
     },
     "openai": {
       "jurisdiction_detection": 15.0,
-      "query_generation": 15.0,
-      "official_source_coverage": 16.0,
-      "evidence_quality": 13.5,
-      "search_behavior": 7.67,
+      "query_generation": 10.0,
+      "official_source_coverage": 15.0,
+      "evidence_quality": 10.5,
+      "search_behavior": 3.89,
       "cross_validation": 3.33,
       "gap_handling": 10.0,
-      "final_answer_structure": 3.57,
-      "total": 84.07
+      "final_answer_structure": 0.0,
+      "total": 67.72,
+      "total_normalized": 67.72,
+      "unavailable": []
     },
     "finvision": {
-      "jurisdiction_detection": 10.0,
-      "query_generation": 15.0,
-      "official_source_coverage": 16.0,
-      "evidence_quality": 13.75,
-      "search_behavior": 5.5,
-      "cross_validation": 3.33,
+      "jurisdiction_detection": 7.5,
+      "query_generation": 10.0,
+      "official_source_coverage": 15.0,
+      "evidence_quality": 15.0,
+      "search_behavior": 4.17,
+      "cross_validation": 1.67,
       "gap_handling": 0.0,
-      "final_answer_structure": 2.3,
-      "total": 65.88
+      "final_answer_structure": 0.0,
+      "total": 53.33,
+      "total_normalized": 53.33,
+      "unavailable": []
     }
   },
+  "pairwise": [
+    {
+      "engines": [
+        "gemini",
+        "openai"
+      ],
+      "citation_domain_jaccard": 0.667,
+      "unique_official_domains": {
+        "gemini": [],
+        "openai": [
+          "csrc.gov.cn"
+        ]
+      },
+      "category_verdicts": {
+        "jurisdiction_detection": "tie",
+        "query_generation": "gemini",
+        "official_source_coverage": "tie",
+        "evidence_quality": "tie",
+        "search_behavior": "gemini",
+        "cross_validation": "gemini",
+        "gap_handling": "tie",
+        "final_answer_structure": "gemini"
+      },
+      "overall": {
+        "winner": "gemini",
+        "normalized_delta": 12.03
+      }
+    },
+    {
+      "engines": [
+        "gemini",
+        "finvision"
+      ],
+      "citation_domain_jaccard": 0.333,
+      "unique_official_domains": {
+        "gemini": [
+          "hkexnews.hk"
+        ],
+        "finvision": []
+      },
+      "category_verdicts": {
+        "jurisdiction_detection": "gemini",
+        "query_generation": "gemini",
+        "official_source_coverage": "tie",
+        "evidence_quality": "finvision",
+        "search_behavior": "gemini",
+        "cross_validation": "gemini",
+        "gap_handling": "gemini",
+        "final_answer_structure": "gemini"
+      },
+      "overall": {
+        "winner": "gemini",
+        "normalized_delta": 26.42
+      }
+    },
+    {
+      "engines": [
+        "openai",
+        "finvision"
+      ],
+      "citation_domain_jaccard": 0.5,
+      "unique_official_domains": {
+        "openai": [
+          "csrc.gov.cn",
+          "hkexnews.hk"
+        ],
+        "finvision": []
+      },
+      "category_verdicts": {
+        "jurisdiction_detection": "openai",
+        "query_generation": "tie",
+        "official_source_coverage": "tie",
+        "evidence_quality": "finvision",
+        "search_behavior": "tie",
+        "cross_validation": "openai",
+        "gap_handling": "openai",
+        "final_answer_structure": "tie"
+      },
+      "overall": {
+        "winner": "openai",
+        "normalized_delta": 14.39
+      }
+    }
+  ],
   "traces": [
     {
       "engine_name": "gemini",
@@ -347,13 +437,19 @@
   "finvision_improvement_raw_material": [
     {
       "type": "missing_official_source",
-      "description": "External research checked www.hkexnews.hk but FinVision did not.",
-      "suggested_fix": "Add www.hkexnews.hk to official source discovery when the query context matches.",
+      "description": "External research checked csrc.gov.cn but FinVision did not.",
+      "suggested_fix": "Add csrc.gov.cn to official source discovery when the query context matches.",
+      "priority": "high"
+    },
+    {
+      "type": "missing_official_source",
+      "description": "External research checked hkexnews.hk but FinVision did not.",
+      "suggested_fix": "Add hkexnews.hk to official source discovery when the query context matches.",
       "priority": "high"
     },
     {
       "type": "missing_jurisdiction",
-      "description": "External research detected HK but FinVision did not.",
+      "description": "External research evidenced HK sources but FinVision did not.",
       "suggested_fix": "Expand jurisdiction detector keywords and source registry coverage for HK.",
       "priority": "medium"
     },
@@ -365,7 +461,7 @@
     },
     {
       "type": "official_query_generation",
-      "description": "FinVision generated fewer official-source queries than the external research logs.",
+      "description": "FinVision official-source query ratio 60% vs best external 89%.",
       "suggested_fix": "Generate more site-specific queries for regulators, exchanges, and issuer IR pages.",
       "priority": "medium"
     }

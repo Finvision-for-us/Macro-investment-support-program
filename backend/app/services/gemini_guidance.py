@@ -409,15 +409,21 @@ def _search_sitemap_transcript(ticker: str, report_date: str,
     return None
 
 
+# 호출 1회당 fool.com 본문 fetch 시도 상한.
+# 3단계 폴백이 무제한이면 slugs(~4)×quarters(2~4)×날짜(±3,7일)×patterns(2)로
+# 분기당 수백 회 HTTP 요청이 나가 IP 차단 위험이 실재한다.
+_MAX_FOOL_FETCH_ATTEMPTS = 12
+
+
 def _fetch_earnings_transcript(ticker: str, report_date: str,
                                 fiscal_quarter: int = 0, fiscal_year: int = 0,
                                 company_name: str = "") -> tuple[str | None, str | None]:
     """Motley Fool에서 어닝콜 트랜스크립트 텍스트를 가져온다.
 
-    3단계 전략:
+    3단계 전략 (호출당 fool.com fetch ≤ _MAX_FOOL_FETCH_ATTEMPTS):
     1단계: 캐시된 성공 슬러그 + URL 추측 (빠름)
-    2단계: 다양한 슬러그 변형으로 URL 추측 (중간)
-    3단계: DuckDuckGo 검색으로 정확한 URL 발견 (느리지만 정확)
+    2단계: 사이트맵 검색으로 정확한 URL 발견 (월별 캐시, 요청 적음)
+    3단계: 슬러그 변형 × 날짜 오프셋 URL 추측 (최후 폴백, 캡으로 제한)
 
     Returns: (transcript_text, source_url) 또는 (None, None)
     """
@@ -448,6 +454,8 @@ def _fetch_earnings_transcript(ticker: str, report_date: str,
     if not quarter_candidates:
         return None, None
 
+    attempts = 0  # fool.com 본문 fetch 시도 수 (전 단계 합산)
+
     # ── 1단계: 가장 유력한 슬러그 + 정확한 날짜 (최소 시도) ──
     primary_slug = slug_variations[0]
     seen = set()
@@ -456,26 +464,28 @@ def _fetch_earnings_transcript(ticker: str, report_date: str,
         url = (f"https://www.fool.com/earnings/call-transcripts/{date_part}/"
                f"{primary_slug}-{ticker_lower}-q{fq}-{fy}-earnings-call-transcript/")
         seen.add(url)
+        attempts += 1
         text, found_url = _try_fetch_url(url)
         if text:
             _cache_successful_slug(ticker, url)
             logger.info(f"{ticker}: Transcript fetched (quick) ({len(text)} chars)")
             return text, found_url
 
-    # ── 2단계: 사이트맵 검색 (1 HTTP 요청으로 정확한 URL 발견) ──
+    # ── 2단계: 사이트맵 검색 (월별 캐시 — 요청 수 제한적) ──
     for fq, fy in quarter_candidates[:2]:
         sitemap_url = _search_sitemap_transcript(ticker, report_date, fq, fy, company_name)
         if sitemap_url:
+            attempts += 1
             text, found_url = _try_fetch_url(sitemap_url)
             if text:
                 _cache_successful_slug(ticker, sitemap_url)
                 logger.info(f"{ticker}: Transcript found via sitemap ({len(text)} chars)")
                 return text, found_url
 
-    # ── 3단계: 다양한 슬러그 변형 + 넓은 날짜 범위 (최후 폴백) ──
+    # ── 3단계: 슬러그 변형 + 날짜 오프셋 (최후 폴백, 캡으로 제한) ──
     for slug in slug_variations[1:]:  # 이미 시도한 primary_slug 제외
-        for fq, fy in quarter_candidates:
-            for day_offset in range(0, 4):  # 0 ~ ±3
+        for fq, fy in quarter_candidates[:2]:  # 1·2단계와 동일하게 2개로 캡
+            for day_offset in range(0, 4):  # 0 ~ ±3 (가까운 날짜부터)
                 for sign in [0, 1, -1]:
                     if day_offset == 0 and sign != 0:
                         continue
@@ -488,14 +498,21 @@ def _fetch_earnings_transcript(ticker: str, report_date: str,
                         url = f"https://www.fool.com/earnings/call-transcripts/{date_part}/{pattern}"
                         if url in seen:
                             continue
+                        if attempts >= _MAX_FOOL_FETCH_ATTEMPTS:
+                            logger.warning(
+                                f"{ticker}: fool.com fetch 캡({_MAX_FOOL_FETCH_ATTEMPTS}회) 도달 — "
+                                f"폴백 중단 (IP 차단 방지)")
+                            return None, None
                         seen.add(url)
+                        attempts += 1
                         text, found_url = _try_fetch_url(url)
                         if text:
                             _cache_successful_slug(ticker, url)
                             logger.info(f"{ticker}: Transcript fetched (fallback) ({len(text)} chars)")
                             return text, found_url
 
-    logger.debug(f"{ticker}: No transcript found for report_date={report_date}")
+    logger.debug(f"{ticker}: No transcript found for report_date={report_date} "
+                 f"(시도 {attempts}회)")
     return None, None
 
 

@@ -59,3 +59,4 @@ backend/tmpclaude-*
 start.ps1
 stop.ps1
 start-frontend.cmd
+*.err

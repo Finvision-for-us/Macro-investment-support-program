@@ -6,14 +6,34 @@ import re
 from typing import Optional
 
 from app.deep_research.config import (
-    GEMINI_API_KEY, GEMINI_FLASH_MODEL, GEMINI_LITE_MODEL,
+    GEMINI_API_KEY, DEEP_RESEARCH_CRITIC_MODEL, DEEP_RESEARCH_VERIFY_MODEL,
     ENABLE_CRITIC_GROUNDING,
 )
+from pydantic import BaseModel
+
 from app.deep_research.models import (
     ExtractedContent, GapAnalysis, ResearchPlan, SubQuery
 )
+from app.deep_research.agents import numeric_consistency
+from app.deep_research import llm_client
 
 logger = logging.getLogger(__name__)
+
+
+# ── 구조화 출력 스키마 (CRITIC_PROMPT의 JSON 형식과 1:1) ──
+class AdditionalQueryOut(BaseModel):
+    query: str = ""
+    priority: int = 2
+    sources: list[str] = ["parallel", "tavily"]
+    rationale: str = ""
+
+
+class GapOut(BaseModel):
+    is_sufficient: bool = False
+    confidence: float = 0.5
+    gaps: list[str] = []
+    additional_queries: list[AdditionalQueryOut] = []
+    reasoning: str = ""
 
 # ── 신형 SDK (google-genai) — critic.py 내부에서만 사용, 레거시와 격리 ──
 try:
@@ -107,23 +127,27 @@ class Critic:
         self._model = None
         self._tokens_used: int = 0
 
+    def reset_usage(self) -> None:
+        """잡 시작 시 토큰 카운터 초기화 — 비용 집계가 잡 간 누적되지 않게."""
+        self._tokens_used = 0
+
     def _get_model(self):
         if self._model is None and GEMINI_API_KEY:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=GEMINI_API_KEY)
-                self._model = genai.GenerativeModel(GEMINI_FLASH_MODEL)
-                logger.info(f"[critic] Gemini Flash 초기화: {GEMINI_FLASH_MODEL}")
+                self._model = genai.GenerativeModel(DEEP_RESEARCH_CRITIC_MODEL)
+                logger.info(f"[critic] Gemini 모델 초기화: {DEEP_RESEARCH_CRITIC_MODEL}")
             except Exception as e:
                 logger.error(f"[critic] Gemini 초기화 실패: {e}")
         return self._model
 
-    def _get_flash_fallback(self):
+    def _get_verify_fallback(self):
         try:
             import google.generativeai as genai
             genai.configure(api_key=GEMINI_API_KEY)
-            model = genai.GenerativeModel(GEMINI_LITE_MODEL)
-            logger.warning(f"[critic] Flash 불가 → Lite 폴백: {GEMINI_LITE_MODEL}")
+            model = genai.GenerativeModel(DEEP_RESEARCH_VERIFY_MODEL)
+            logger.warning(f"[critic] critic 모델 불가 → verify 모델 폴백: {DEEP_RESEARCH_VERIFY_MODEL}")
             return model
         except Exception as e:
             logger.error(f"[critic] Lite 폴백도 실패: {e}")
@@ -154,7 +178,7 @@ class Critic:
             client = _genai_new.Client(api_key=GEMINI_API_KEY)
             response = await asyncio.to_thread(
                 client.models.generate_content,
-                model=GEMINI_FLASH_MODEL,
+                model=DEEP_RESEARCH_CRITIC_MODEL,
                 contents=prompt,
                 config=_genai_types.GenerateContentConfig(
                     tools=[_genai_types.Tool(
@@ -183,6 +207,59 @@ class Critic:
             logger.warning(f"[critic] grounding 호출 실패 (무시): {e}")
             return []
 
+    def _augment_with_numeric(
+        self,
+        result: GapAnalysis,
+        contents: list[ExtractedContent],
+        iteration: int,
+    ) -> GapAnalysis:
+        """결정론적 수치 정합성 검사 결과를 GapAnalysis에 병합.
+
+        - 산술(pro-rata/세율)·프레이밍(gross↔net) 상충은 gaps + 후속 쿼리로.
+        - 오직 실제 추출된 contents만 대상 → '열지 못한 값'은 상충 근거가 되지 않는다.
+        - 실패해도 원래 result를 그대로 반환(평가 전체에 영향 없음).
+        """
+        try:
+            nres = numeric_consistency.analyze(contents)
+        except Exception as e:
+            logger.warning(f"[critic] 수치정합 검사 실패(무시): {e}")
+            return result
+        if not (nres.conflicts or nres.followup_queries):
+            if nres.consistent:
+                logger.info(f"[critic] 수치정합: 정합 {len(nres.consistent)}건 (상충 없음)")
+            return result
+
+        existing_q = {q.query for q in result.additional_queries}
+        new_qs = [
+            SubQuery(
+                query=q, priority=1, sources=["parallel", "tavily"],
+                rationale="수치 정합성 검사(결정론적)로 탐지된 재확인 필요 항목",
+            )
+            for q in nres.followup_queries if q not in existing_q
+        ]
+        is_sufficient = result.is_sufficient
+        # 미해결 수치 상충이 있으면 초기 이터레이션에서 한 번 더 파고든다(무한루프 방지).
+        if nres.conflicts and is_sufficient and iteration <= 2:
+            is_sufficient = False
+            logger.info("[critic] 수치 상충 탐지 → is_sufficient=false (재검색)")
+
+        merged = GapAnalysis(
+            is_sufficient=is_sufficient,
+            confidence=result.confidence,
+            gaps=list(result.gaps) + list(nres.conflicts),
+            additional_queries=list(result.additional_queries) + new_qs,
+            reasoning=(
+                result.reasoning
+                + f" [수치정합: 정합 {len(nres.consistent)} / "
+                + f"상충·재확인 {len(nres.conflicts)}]"
+            ),
+        )
+        logger.info(
+            f"[critic] 수치정합 병합: 정합 {len(nres.consistent)}, "
+            f"상충 {len(nres.conflicts)}, 추가쿼리 {len(new_qs)}"
+        )
+        return merged
+
     @property
     def tokens_used(self) -> int:
         return self._tokens_used
@@ -194,9 +271,7 @@ class Critic:
         iteration: int = 1,
     ) -> GapAnalysis:
         """수집된 콘텐츠의 충분성 평가."""
-        model = self._get_model()
-
-        if model is None or not contents:
+        if not contents:
             return self._fallback_analysis(plan, contents)
 
         content_summary = _summarize_contents(contents, max_chars=16000)
@@ -209,36 +284,52 @@ class Critic:
             iteration=iteration,
         )
 
+        # ── 1차: 구조화 출력 (quota 시 verify 모델 재시도는 llm_client 내장) ──
+        data: Optional[dict] = None
+        sres = await llm_client.generate_structured(
+            prompt, GapOut, DEEP_RESEARCH_CRITIC_MODEL,
+            timeout_s=120, fallback_model=DEEP_RESEARCH_VERIFY_MODEL, tag="critic",
+        )
+        if sres is not None:
+            data = sres.data.model_dump()
+            self._tokens_used += sres.output_tokens
+            logger.info("[critic] 구조화 출력 사용")
+
         try:
-            try:
-                response = await asyncio.to_thread(
-                    model.generate_content,
-                    prompt,
-                    request_options={"timeout": 120},
-                )
-            except Exception as pro_err:
-                if "quota" in str(pro_err).lower() or "429" in str(pro_err):
-                    logger.warning(f"[critic] Pro 할당량 초과 → Flash 재시도")
-                    flash = self._get_flash_fallback()
-                    if flash is None:
-                        return GapAnalysis(is_sufficient=True, confidence=0.5, gaps=[], additional_queries=[], reasoning="Pro/Flash 모두 불가")
+            if data is None:
+                # ── 2차(레거시): 자유텍스트 + 정규식 파싱 — 구조화 실패 시 동작 보존 ──
+                model = self._get_model()
+                if model is None:
+                    return self._fallback_analysis(plan, contents)
+                try:
                     response = await asyncio.to_thread(
-                        flash.generate_content,
+                        model.generate_content,
                         prompt,
                         request_options={"timeout": 120},
                     )
-                else:
-                    raise
-            raw = response.text.strip()
-            self._tokens_used += len(raw) // 4
+                except Exception as pro_err:
+                    if "quota" in str(pro_err).lower() or "429" in str(pro_err):
+                        logger.warning("[critic] 모델 할당량 초과 → verify 모델 재시도")
+                        verify_model = self._get_verify_fallback()
+                        if verify_model is None:
+                            return GapAnalysis(is_sufficient=True, confidence=0.5, gaps=[], additional_queries=[], reasoning="critic/verify 모델 모두 불가")
+                        response = await asyncio.to_thread(
+                            verify_model.generate_content,
+                            prompt,
+                            request_options={"timeout": 120},
+                        )
+                    else:
+                        raise
+                raw = response.text.strip()
+                self._tokens_used += len(raw) // 4
 
-            data = _parse_json(raw)
-            if not data:
-                logger.warning("[critic] JSON 파싱 실패 — 충분하다고 가정")
-                return GapAnalysis(
-                    is_sufficient=True, confidence=0.6,
-                    gaps=[], additional_queries=[], reasoning="평가 실패"
-                )
+                data = _parse_json(raw)
+                if not data:
+                    logger.warning("[critic] JSON 파싱 실패 — 충분하다고 가정")
+                    return GapAnalysis(
+                        is_sufficient=True, confidence=0.6,
+                        gaps=[], additional_queries=[], reasoning="평가 실패"
+                    )
 
             additional = [
                 SubQuery(
@@ -252,7 +343,9 @@ class Critic:
             ]
 
             is_sufficient = data.get("is_sufficient", False)
-            confidence = data.get("confidence", 0.5)
+            # LLM이 confidence를 문자열('high' 등)/비정상값으로 줘도 크래시하지 않게 float로 강제.
+            # (float가 아니면 아래 비교·GapAnalysis 검증에서 예외 → critic 평가 전체가 폴백되던 문제)
+            confidence = _coerce_float_confidence(data.get("confidence", 0.5))
 
             # 1회차는 추가 검색 최소 1회 강제
             if iteration == 1 and is_sufficient and confidence < 0.85:
@@ -290,6 +383,9 @@ class Critic:
                             ),
                         )
 
+            # ── 결정론적 수치 정합성 검사 병합 (LLM 산술 오류와 무관) ──
+            result = self._augment_with_numeric(result, contents, iteration)
+
             logger.info(
                 f"[critic] 이터레이션 {iteration}: "
                 f"충분={result.is_sufficient}, 신뢰도={result.confidence:.2f}, "
@@ -304,13 +400,37 @@ class Critic:
 
     def _fallback_analysis(self, plan: ResearchPlan, contents: list[ExtractedContent]) -> GapAnalysis:
         is_sufficient = len(contents) >= 5
-        return GapAnalysis(
+        base = GapAnalysis(
             is_sufficient=is_sufficient,
             confidence=0.5 if is_sufficient else 0.3,
             gaps=[] if is_sufficient else ["더 많은 출처 필요"],
             additional_queries=[],
             reasoning="자동 평가 (Gemini 미사용)",
         )
+        # LLM 없이도 결정론적 수치검사는 유효 (iteration=99 → is_sufficient 강제전환 안 함)
+        return self._augment_with_numeric(base, contents, iteration=99)
+
+
+_CONF_WORD = {"high": 0.9, "높음": 0.9, "medium": 0.6, "med": 0.6, "보통": 0.6,
+              "중간": 0.6, "low": 0.3, "낮음": 0.3, "none": 0.5, "": 0.5}
+
+
+def _coerce_float_confidence(value, default: float = 0.5) -> float:
+    """LLM confidence를 [0,1] float로 안전 변환. 'high'류 문자열/비정상값도 처리."""
+    if isinstance(value, (int, float)):
+        try:
+            return max(0.0, min(1.0, float(value)))
+        except (ValueError, TypeError):
+            return default
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if s in _CONF_WORD:
+            return _CONF_WORD[s]
+        try:
+            return max(0.0, min(1.0, float(s)))
+        except ValueError:
+            return default
+    return default
 
 
 def _summarize_contents(contents: list[ExtractedContent], max_chars: int = 16000) -> str:

@@ -116,6 +116,20 @@ class MultilingualQueries:
         return [q.query for q in self.queries]
 
 
+def _company_name_from_context_text(context: Optional[dict]) -> str:
+    """context 문자열에 들어온 회사명을 그대로 추출한다."""
+    if not context:
+        return ""
+    for key in ("finvision_data", "internal_context", "overview"):
+        value = context.get(key)
+        if not isinstance(value, str):
+            continue
+        match = re.search(r"(?:회사명|회사)\s*[:：]\s*([^\r\n]+)", value)
+        if match:
+            return match.group(1).strip()
+    return ""
+
+
 def _get_entity(query: str, context: Optional[dict]) -> tuple[str, str]:
     """
     (ticker, company_name) 반환.
@@ -124,7 +138,15 @@ def _get_entity(query: str, context: Optional[dict]) -> tuple[str, str]:
     """
     ctx = context or {}
     ticker = ctx.get("ticker", "")
-    company_name = ctx.get("company_name", "") or ticker
+    company_name = (
+        ctx.get("company_name")
+        or ctx.get("company")
+        or ctx.get("name")
+        or ctx.get("longName")
+        or ctx.get("shortName")
+        or _company_name_from_context_text(ctx)
+        or ticker
+    )
     if ticker:
         return ticker, company_name
 
@@ -256,8 +278,11 @@ class MultilingualQueryBuilder:
             s.domain for s in get_sources_for_country("CN")
             if s.tier == 1 and s.category in ("exchange", "regulator")
         ]
+        official_entity = entity_zh or entity_en
         for domain in cn_domains[:5]:
             parts = []
+            if official_entity:
+                parts.append(official_entity)
             if locs_zh:
                 parts.extend(locs_zh[:1])
             if zh_kws:

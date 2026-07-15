@@ -5,12 +5,35 @@ import logging
 import re
 from typing import Optional
 
+from pydantic import BaseModel
+
 from app.deep_research.config import (
-    GEMINI_API_KEY, GEMINI_LITE_MODEL, LITE_INPUT_COST, LITE_OUTPUT_COST
+    GEMINI_API_KEY, DEEP_RESEARCH_PLANNER_MODEL, LITE_INPUT_COST, LITE_OUTPUT_COST
 )
 from app.deep_research.models import ResearchPlan, SubQuery, CoverageInfo
+from app.deep_research import llm_client
 
 logger = logging.getLogger(__name__)
+
+
+# ── 구조화 출력 스키마 (PLAN_PROMPT의 JSON 형식과 1:1) ──
+# response_schema로 API 레벨에서 형식이 강제된다 — 코드펜스/필드 누락 파싱 실패 제거.
+class SubQueryOut(BaseModel):
+    query: str = ""
+    priority: int = 2
+    sources: list[str] = ["parallel", "tavily"]
+    rationale: str = ""
+    jurisdiction: str = ""
+    primary_sources_needed: list[str] = []
+    coverage_note: str = ""
+
+
+class PlanOut(BaseModel):
+    language: str = "ko"
+    sub_queries: list[SubQueryOut] = []
+    required_sections: list[str] = []
+    search_strategy: str = ""
+    coverage_gaps: list[str] = []
 
 
 PLAN_PROMPT = """당신은 금융 리서치 전문가입니다. 사용자의 질의를 분석하여 심층 리서치 계획을 세우세요.
@@ -56,26 +79,30 @@ PLAN_PROMPT = """당신은 금융 리서치 전문가입니다. 사용자의 질
 9. [티커 앵커링 — 필수] context에 ticker 또는 회사명이 있으면 모든 sub_query에 해당 식별자를 반드시 포함할 것.
    - context가 {{"ticker": "INDI"}} 이면 → 각 쿼리에 "indie Semiconductor" 또는 "INDI" 포함
    - "semiconductor market" 같은 종목 식별자 없는 제네릭 쿼리는 전혀 무관한 결과(인사관리, SEO 사이트 등)를 유발하므로 절대 금지
-   - 올바른 예: "indie Semiconductor INDI Wuxi stake sale 2023" (X)
+   - 올바른 예: "indie Semiconductor INDI Wuxi stake sale 2023" (O)
    - 잘못된 예: "semiconductor market outlook 2025" (X — INDI 식별자 없음)
 
 JSON만 출력, 다른 텍스트 없음."""
 
 
 class Planner:
-    """Gemini Flash로 질의를 분해하고 검색 전략을 수립."""
+    """역할별 Gemini 모델로 질의를 분해하고 검색 전략을 수립."""
 
     def __init__(self):
         self._model = None
         self._tokens_used: int = 0
+
+    def reset_usage(self) -> None:
+        """잡 시작 시 토큰 카운터 초기화 — estimated_cost가 잡 간 누적되지 않게."""
+        self._tokens_used = 0
 
     def _get_model(self):
         if self._model is None and GEMINI_API_KEY:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=GEMINI_API_KEY)
-                self._model = genai.GenerativeModel(GEMINI_LITE_MODEL)
-                logger.info(f"[planner] Gemini Lite 초기화: {GEMINI_LITE_MODEL}")
+                self._model = genai.GenerativeModel(DEEP_RESEARCH_PLANNER_MODEL)
+                logger.info(f"[planner] Gemini 모델 초기화: {DEEP_RESEARCH_PLANNER_MODEL}")
             except Exception as e:
                 logger.error(f"[planner] Gemini 초기화 실패: {e}")
         return self._model
@@ -90,28 +117,39 @@ class Planner:
 
     async def plan(self, query: str, context: Optional[dict] = None) -> ResearchPlan:
         """질의를 분석하여 리서치 계획 생성."""
-        model = self._get_model()
-        if model is None:
-            logger.warning("[planner] Gemini 사용 불가 — 기본 계획 사용")
-            return self._fallback_plan(query)
-
         context_str = json.dumps(context, ensure_ascii=False) if context else "없음"
         prompt = PLAN_PROMPT.format(query=query, context=context_str)
 
-        try:
-            response = await asyncio.to_thread(
-                model.generate_content,
-                prompt,
-                request_options={"timeout": 60},
-            )
-            raw = response.text.strip()
-            self._tokens_used += _count_tokens(raw)
+        # ── 1차: 구조화 출력 (response_schema — 파싱 변동 제거) ──
+        data: Optional[dict] = None
+        sres = await llm_client.generate_structured(
+            prompt, PlanOut, DEEP_RESEARCH_PLANNER_MODEL, timeout_s=60, tag="planner",
+        )
+        if sres is not None:
+            data = sres.data.model_dump()
+            self._tokens_used += sres.output_tokens
+            logger.info(f"[planner] 구조화 출력 사용 ({len(data.get('sub_queries', []))}개 쿼리)")
 
-            # JSON 추출
-            data = _parse_json(raw)
-            if not data:
-                logger.warning("[planner] JSON 파싱 실패 — 기본 계획 사용")
-                return self._fallback_plan(query)
+        try:
+            if data is None:
+                # ── 2차(레거시): 자유텍스트 + 정규식 파싱 — 구조화 실패 시 동작 보존 ──
+                model = self._get_model()
+                if model is None:
+                    logger.warning("[planner] Gemini 사용 불가 — 기본 계획 사용")
+                    return self._fallback_plan(query)
+                response = await asyncio.to_thread(
+                    model.generate_content,
+                    prompt,
+                    request_options={"timeout": 60},
+                )
+                raw = response.text.strip()
+                self._tokens_used += _count_tokens(raw)
+
+                # JSON 추출
+                data = _parse_json(raw)
+                if not data:
+                    logger.warning("[planner] JSON 파싱 실패 — 기본 계획 사용")
+                    return self._fallback_plan(query)
 
             sub_queries = [
                 SubQuery(

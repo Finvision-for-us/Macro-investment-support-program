@@ -1,8 +1,10 @@
 """EventCluster → src.ingest.schema.Event 어댑터.
 
 §6 산출물(EventCluster)을 §7이 재사용하는 src/causal·src/research의 입력 단위
-(Event)로 변환한다. 결정 사항(D): 인과 후보 비교 시 간접 티커도 포함한다
-(include_indirect=True) — 1·2차 파급 연결을 놓치지 않기 위해.
+(Event)로 변환한다. 결정 사항(D): 간접(파급) 티커를 보존하되 직접 티커와
+분리해 담는다 — Event.tickers_mentioned(직접)와 Event.tickers_indirect(파급)는
+하류에서 용도가 다르다(price_reaction·causal.edges는 직접 티커만 사용). include_indirect
+=True면 파급 티커를 tickers_indirect에 채우고, False면 비운다.
 """
 from __future__ import annotations
 
@@ -26,7 +28,7 @@ def cluster_to_event(cluster: EventCluster, *, include_indirect: bool = True) ->
 
     - occurred_at: published_start(최조기) → published_end → now 순으로 폴백.
       (Event.occurred_at은 None 불가)
-    - tickers_mentioned: 직접 티커 + (옵션) 간접 티커.
+    - tickers_mentioned: 직접 언급 티커만. tickers_indirect: 파급 티커(옵션).
     """
     occurred = (
         cluster.published_start

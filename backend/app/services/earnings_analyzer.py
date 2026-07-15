@@ -673,6 +673,20 @@ def _merge_earnings_sources(yf_data: list, fh_data: list, sec_data: list = None,
                 )
 
     # ── 신뢰도 검증 ──
+    def _estimates_agree(vals: list, tol: float = 0.02) -> bool:
+        """소스 간 estimate 값이 실제로 일치하는가 (상대오차 ≤ tol).
+
+        '2개 이상 소스가 제공'만으로는 교차검증이 아니다 — Finnhub $1.20 vs
+        AV $0.85처럼 크게 다른 값도 '검증됨'이 되어 그 위의 서프라이즈%·
+        Beat/Miss 분류가 오염된다. 값 비교가 있어야 검증이다.
+        """
+        nums = [v for v in vals if isinstance(v, (int, float))]
+        if len(nums) < 2:
+            return len(nums) == 1  # 비교 불가면 단일값 취급
+        span = max(nums) - min(nums)
+        scale = max(abs(max(nums)), abs(min(nums)), 1e-9)
+        return span / scale <= tol
+
     verified_count = 0
     unverified_count = 0
     for key, item in merged.items():
@@ -680,6 +694,7 @@ def _merge_earnings_sources(yf_data: list, fh_data: list, sec_data: list = None,
         act = item.get("actual")
         sources = estimate_by_source.get(key, {})
         num_est_sources = len(sources)  # estimate를 제공한 소스 수
+        values_agree = _estimates_agree(list(sources.values()))
 
         # 신뢰도 판단 로직
         if est is None:
@@ -688,18 +703,22 @@ def _merge_earnings_sources(yf_data: list, fh_data: list, sec_data: list = None,
             item["estimate_source_count"] = 0
         elif est == act and item.get("surprise_pct") == 0:
             # estimate == actual (서프라이즈 0%) — 의심스러운 데이터
-            # 단, 2개 이상 소스에서 동일한 estimate면 실제로 정확히 맞았을 가능성
-            if num_est_sources >= 2:
+            # 단, 2개 이상 소스에서 '같은 값'의 estimate면 실제로 정확히 맞았을 가능성
+            if num_est_sources >= 2 and values_agree:
                 item["estimate_verified"] = True
                 verified_count += 1
             else:
                 # 1개 소스만 + est==act → 미검증 (Alpha Vantage가 actual을 복사했을 가능성)
                 item["estimate_verified"] = False
                 unverified_count += 1
-        elif num_est_sources >= 2:
-            # 2개 이상 소스에서 estimate 제공 → 교차검증 완료
+        elif num_est_sources >= 2 and values_agree:
+            # 2개 이상 소스가 '일치하는 값'을 제공 → 교차검증 완료
             item["estimate_verified"] = True
             verified_count += 1
+        elif num_est_sources >= 2:
+            # 소스는 여럿인데 값이 서로 다름 → 검증 실패 (어느 쪽이 맞는지 모름)
+            item["estimate_verified"] = False
+            unverified_count += 1
         elif num_est_sources == 1 and est != act:
             # 1개 소스이지만 est ≠ act → 합리적으로 신뢰 가능
             item["estimate_verified"] = True

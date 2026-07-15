@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import {
   Send, X, ChevronDown, ChevronUp, ExternalLink,
   Loader2, BookOpen, Zap, ZapOff, Plus, Trash2,
-  CheckCircle, Edit3, History
+  CheckCircle, Edit3, History, AlertTriangle
 } from 'lucide-react'
 
 const API = '/api/deep-research'
@@ -161,6 +161,115 @@ function CoverageSection({ coverage }) {
           {coverage.notes && (
             <p className="text-[11px] text-slate-400 italic border-t border-slate-50 pt-2">{coverage.notes}</p>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── 미검증·불확실 항목 섹션 ──
+function UnverifiedGapsSection({ gaps }) {
+  const [open, setOpen] = useState(false)
+  const items = (gaps || []).filter(Boolean)
+  if (items.length === 0) return null
+
+  return (
+    <div className="border border-amber-100 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(p => !p)}
+        className="w-full flex items-center justify-between px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-left transition-colors"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <AlertTriangle size={13} className="text-amber-600 flex-shrink-0" />
+          <span className="text-[11px] font-semibold text-amber-800">미검증·불확실 항목</span>
+          <span className="text-[10px] px-1.5 py-0.5 bg-white/70 text-amber-700 rounded-full font-medium">
+            {items.length}
+          </span>
+        </div>
+        {open ? <ChevronUp size={12} className="text-amber-600" /> : <ChevronDown size={12} className="text-amber-600" />}
+      </button>
+
+      {open && (
+        <div className="px-4 py-3 border-t border-amber-100 bg-white">
+          <ul className="space-y-1.5">
+            {items.map((item, i) => (
+              <li key={i} className="flex items-start gap-2 text-[12px] text-slate-600 leading-snug">
+                <span className="text-amber-500 flex-shrink-0 mt-0.5">!</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── 수치 교차검증 섹션 (pro-rata·환율·gross↔net·세율, 결정론적) ──
+function CrossValidationSection({ items }) {
+  const [open, setOpen] = useState(false)
+  const list = (items || []).filter(Boolean)
+  if (list.length === 0) return null
+
+  const parse = (s) => {
+    const m = s.match(/^\s*\[([^\]]+)\]\s*(.*)$/)
+    return m ? { tag: m[1], body: m[2] } : { tag: '', body: s }
+  }
+  // 분류는 '태그'만 보고 판단한다(본문의 "35% 이상" 같은 표현 오분류 방지).
+  // warn을 먼저 평가한다: 태그에 '정합'과 '상충'이 공존하면 주의(warn)가 이기도록.
+  const classify = (s) => {
+    const tag = parse(s).tag || s
+    if (/상충|재확인|이상/.test(tag)) return 'warn'
+    if (/정합|일치/.test(tag)) return 'ok'   // 'N개 출처 일치'·'원장 일치'(SEC XBRL) 포함
+    return 'weak'
+  }
+  const tone = {
+    ok:   { pill: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'text-emerald-500', mark: '✓' },
+    warn: { pill: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'text-amber-500', mark: '!' },
+    weak: { pill: 'bg-slate-100 text-slate-500 border-slate-200', dot: 'text-slate-400', mark: '·' },
+  }
+  const okN = list.filter(s => classify(s) === 'ok').length
+  const warnN = list.filter(s => classify(s) === 'warn').length
+
+  return (
+    <div className="border border-indigo-100 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(p => !p)}
+        className="w-full flex items-center justify-between px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-left transition-colors"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <CheckCircle size={13} className="text-indigo-600 flex-shrink-0" />
+          <span className="text-[11px] font-semibold text-indigo-800">수치 교차검증</span>
+          {okN > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-medium">정합 {okN}</span>
+          )}
+          {warnN > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">주의 {warnN}</span>
+          )}
+        </div>
+        {open ? <ChevronUp size={12} className="text-indigo-600" /> : <ChevronDown size={12} className="text-indigo-600" />}
+      </button>
+
+      {open && (
+        <div className="px-4 py-3 border-t border-indigo-100 bg-white">
+          <ul className="space-y-2">
+            {list.map((item, i) => {
+              const kind = classify(item)
+              const { tag, body } = parse(item)
+              const t = tone[kind]
+              return (
+                <li key={i} className="flex items-start gap-2 text-[12px] text-slate-600 leading-snug">
+                  <span className={`flex-shrink-0 mt-0.5 ${t.dot}`}>{t.mark}</span>
+                  <span className="min-w-0">
+                    {tag && (
+                      <span className={`inline-block text-[10px] px-1.5 py-0.5 mr-1.5 rounded border font-medium align-middle ${t.pill}`}>{tag}</span>
+                    )}
+                    <span className="align-middle">{body}</span>
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
         </div>
       )}
     </div>
@@ -508,6 +617,12 @@ function ResearchReport({ result }) {
       {result.coverage && (result.coverage.checked?.length > 0 || result.coverage.unchecked?.length > 0) && (
         <CoverageSection coverage={result.coverage} />
       )}
+
+      {/* 수치 교차검증 (pro-rata·환율·gross↔net·세율) */}
+      <CrossValidationSection items={result.cross_validation} />
+
+      {/* 미검증·불확실 항목 */}
+      <UnverifiedGapsSection gaps={result.unverified_gaps} />
 
       {/* 번호 각주 목록 */}
       {numberedSources.length > 0 && (

@@ -100,10 +100,96 @@ def get_sources_for_country(country_code: str) -> list[OfficialSource]:
 
 def get_source_by_domain(domain: str) -> OfficialSource | None:
     """도메인으로 OfficialSource 조회."""
-    domain = domain.lstrip("www.")
+    domain = domain.removeprefix("www.")
     return _DOMAIN_MAP.get(domain)
 
 
 def get_tier1_domains(country_code: str) -> list[str]:
     """해당 국가의 tier-1 도메인 목록."""
     return [s.domain for s in get_sources_for_country(country_code) if s.tier == 1]
+
+
+# ═════════════════════════════════════════════════════════════════
+# 도메인 신뢰도 단일 레지스트리 (single source of truth)
+#
+# 이전에는 같은 도메인의 신뢰도가 5곳(extractor·cross_checker·evidence_ranker·
+# raw_sources·synthesizer 프롬프트)에 하드코딩돼 서로 어긋났다(예: wsj가
+# high/7/medium/누락/Tier2). 여기서 tier를 한 번 정의하고 나머지는 파생한다.
+#
+# tier 의미: 1=규제 공시(최고), 2=Tier-1 미디어(교차확인 가능),
+#            3=전문 분석(참고), 4=자동생성/루머/소셜(저신뢰)
+# ═════════════════════════════════════════════════════════════════
+
+# Tier-1 미디어 (신뢰 언론 — 사실 교차확인 근거로 사용 가능)
+MEDIA_TIER2_DOMAINS: frozenset[str] = frozenset({
+    "reuters.com", "apnews.com", "bloomberg.com", "ft.com", "wsj.com",
+    "nikkei.com", "nytimes.com", "bbc.com", "afp.com",
+    "caixin.com", "scmp.com", "yonhapnews.co.kr", "yna.co.kr",
+})
+
+# 전문 분석 미디어 (참고용)
+MEDIA_TIER3_DOMAINS: frozenset[str] = frozenset({
+    "cnbc.com", "marketwatch.com", "techcrunch.com", "barrons.com",
+    "arxiv.org",
+})
+
+# 자동생성/루머/소셜 (저신뢰 — 핵심 주장 근거 불가)
+LOW_TRUST_DOMAINS: frozenset[str] = frozenset({
+    "stockinsights.ai", "pitchgrade.com", "stockanalysis.com",
+    "simplywall.st", "wisesheets.io", "stockstory.org",
+    "finviz.com", "macrotrends.net",
+    "seekingalpha.com", "fool.com", "benzinga.com", "thestreet.com",
+    "stocktwits.com", "investopedia.com",
+    "reddit.com", "twitter.com", "x.com", "facebook.com",
+})
+
+# tier → cross_checker 가중치 / credibility 문자열
+_TIER_WEIGHT: dict[int, int] = {1: 10, 2: 7, 3: 5, 4: 1}
+_TIER_CRED: dict[int, str] = {1: "high", 2: "high", 3: "medium", 4: "low"}
+
+
+def get_domain_tier(domain: str) -> int | None:
+    """도메인 → 신뢰도 tier. 등록되지 않은 도메인은 None."""
+    domain = (domain or "").removeprefix("www.").lower()
+    if not domain:
+        return None
+
+    def _match(target: str) -> bool:
+        return domain == target or domain.endswith("." + target)
+
+    # 공식 소스(레지스트리 상단)가 최우선 — tier 1/2 그대로
+    for od, src in _DOMAIN_MAP.items():
+        if _match(od):
+            return src.tier
+    for d in MEDIA_TIER2_DOMAINS:
+        if _match(d):
+            return 2
+    for d in MEDIA_TIER3_DOMAINS:
+        if _match(d):
+            return 3
+    for d in LOW_TRUST_DOMAINS:
+        if _match(d):
+            return 4
+    return None
+
+
+def get_domain_weight(domain: str) -> int:
+    """cross_checker용 가중치. 미등록: gov/edu=7, 그 외 2(미검증 기본 하향)."""
+    tier = get_domain_tier(domain)
+    if tier is not None:
+        return _TIER_WEIGHT.get(tier, 2)
+    d = (domain or "").lower()
+    if "gov" in d or "edu" in d:
+        return 7
+    return 2
+
+
+def get_domain_credibility(domain: str) -> str:
+    """'high'/'medium'/'low'. 미등록: gov/edu=high, 그 외 medium."""
+    tier = get_domain_tier(domain)
+    if tier is not None:
+        return _TIER_CRED.get(tier, "medium")
+    d = (domain or "").lower()
+    if "gov" in d or "edu" in d or ".ac." in d:
+        return "high"
+    return "medium"

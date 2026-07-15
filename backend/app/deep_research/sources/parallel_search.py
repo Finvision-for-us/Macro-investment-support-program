@@ -19,7 +19,12 @@ class ParallelSearchSource(BaseSource):
     def is_available(self) -> bool:
         return bool(PARALLEL_API_KEY)
 
-    async def search(self, query: str, num_results: int = 10, **kwargs) -> list[SearchResult]:
+    async def search(self, query: str, max_results: int = 10, num_results: int | None = None, **kwargs) -> list[SearchResult]:
+        # 파라미터명 표준은 max_results (tavily와 통일).
+        # num_results는 하위호환 alias — 이름 불일치로 **kwargs에 빨려 들어가
+        # 결과 수 제한이 조용히 무시되던 버그 방지.
+        if num_results is not None:
+            max_results = num_results
         if not self.is_available():
             logger.warning("[parallel] API 키 없음 — 건너뜀")
             return []
@@ -31,7 +36,7 @@ class ParallelSearchSource(BaseSource):
                     json={
                         "search_queries": [query],
                         "mode": "advanced",
-                        "advanced_settings": {"max_results": num_results},
+                        "advanced_settings": {"max_results": max_results},
                     },
                     headers={
                         "x-api-key": PARALLEL_API_KEY,

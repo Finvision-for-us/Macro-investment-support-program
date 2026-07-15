@@ -31,6 +31,17 @@ class Searcher:
         self._total_queries: int = 0
         self._url_seen: set[str] = set()
 
+    def reset(self) -> None:
+        """잡(run) 시작 시 호출 — 잡 간 상태 누수 방지.
+
+        싱글턴 파이프라인에서 리셋이 없으면: _url_seen에 걸려 두 번째 리서치가
+        같은 종목의 핵심 출처를 전부 건너뛰고, _total_queries 누적으로
+        MAX_SEARCH_QUERIES_PER_RUN이 '프로세스 수명 총량'이 되어
+        이후 모든 검색이 조용히 빈 리스트를 반환한다.
+        """
+        self._total_queries = 0
+        self._url_seen.clear()
+
     @property
     def total_queries(self) -> int:
         return self._total_queries

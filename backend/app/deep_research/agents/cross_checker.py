@@ -5,46 +5,23 @@ import logging
 from urllib.parse import urlparse
 
 from app.deep_research.agents.source_matcher import _extract_key_facts, _fuzzy_match
+from app.deep_research.sources.source_registry import (
+    get_domain_weight, LOW_TRUST_DOMAINS,
+)
 from app.deep_research.storage.raw_sources import RawSource
 
 logger = logging.getLogger(__name__)
 
-# 출처 신뢰도 가중치 (높을수록 신뢰)
-_DOMAIN_WEIGHT: dict[str, int] = {
-    # Tier 1 — 규제 공시
-    "sec.gov": 10, "dart.fss.or.kr": 10, "fred.stlouisfed.org": 9,
-    "szse.cn": 10, "szse.com.cn": 10, "sse.com.cn": 10,
-    "csrc.gov.cn": 10, "fsc.go.kr": 10, "ec.europa.eu": 9,
-    # Tier 2 — Tier-1 미디어
-    "reuters.com": 8, "apnews.com": 8, "bloomberg.com": 7,
-    "ft.com": 7, "wsj.com": 7, "nikkei.com": 7,
-    # Tier 3 — 전문 분석
-    "arxiv.org": 8, "cnbc.com": 6, "marketwatch.com": 6,
-    "techcrunch.com": 5,
-    # Tier 4 — 자동생성/블로그 (가중치 1)
-    "stockinsights.ai": 1, "pitchgrade.com": 1,
-    "stockanalysis.com": 2, "simplywall.st": 1,
-    "wisesheets.io": 1, "stockstory.org": 1,
-    "finviz.com": 2, "macrotrends.net": 2,
-}
-
-# Tier 4 저품질 도메인 집합 (빠른 조회용)
-_LOW_QUALITY_DOMAINS = frozenset([
-    "stockinsights.ai", "pitchgrade.com", "simplywall.st",
-    "wisesheets.io", "stockstory.org",
-])
+# 신뢰도 가중치는 source_registry가 단일 진실 소스 —
+# 이전의 로컬 _DOMAIN_WEIGHT 하드코딩은 다른 4곳과 어긋나 있었다(wsj=7 vs high vs medium).
+_LOW_QUALITY_DOMAINS = LOW_TRUST_DOMAINS  # 하위호환 alias
 
 def _domain_weight(url: str) -> int:
     try:
-        domain = urlparse(url).netloc.lstrip("www.")
+        domain = urlparse(url).netloc.removeprefix("www.")
     except Exception:
         domain = url
-    for key, w in _DOMAIN_WEIGHT.items():
-        if key in domain:
-            return w
-    if "gov" in domain or "edu" in domain:
-        return 7
-    return 2  # default 3 → 2 (미검증 출처 기본값 하향)
+    return get_domain_weight(domain)
 
 
 class MultiSourceCrossChecker:
@@ -125,28 +102,47 @@ def _is_numeric_fact(fact: str) -> bool:
     return bool(re.search(r'\d', fact))
 
 
+def _numeric_values(text: str) -> list[float]:
+    """콤마 포함 숫자를 파편화하지 않고 값(float) 리스트로. '960,834,355' → 960834355.0"""
+    out: list[float] = []
+    for tok in re.findall(r'[\d,]+(?:\.\d+)?', text):
+        s = tok.replace(",", "")
+        if s and s != ".":
+            try:
+                out.append(float(s))
+            except ValueError:
+                pass
+    return out
+
+
 def _find_contradicting_numbers(fact: str, source_text: str) -> list[str]:
-    """fact에 있는 숫자와 비슷한 문맥의 다른 숫자가 출처에 있는지 탐지."""
-    fact_nums = re.findall(r'\d+\.?\d*', fact)
-    if not fact_nums:
+    """fact의 수치와 같은 문맥에서 '다른 값'을 가진 숫자가 출처에 있는지 탐지.
+
+    콤마 숫자를 파편화하지 않고(버그: '960,834,355'→['960','834','355']),
+    부분문자열이 아니라 값으로 비교한다.
+    """
+    fact_vals = _numeric_values(fact)
+    if not fact_vals:
         return []
 
     # 숫자 앞 문맥어 추출 (예: "revenue", "price" 등)
-    context_words = re.findall(r'[a-zA-Z가-힣]+', fact)[:3]
-    contradictions = []
+    context_words = [w for w in re.findall(r'[a-zA-Z가-힣]+', fact) if len(w) >= 2][:3]
+    contradictions: list[str] = []
+    seen: set[str] = set()
 
     for word in context_words:
         pattern = re.compile(
-            rf'{re.escape(word)}\s*[:\s]\s*([\$\d,\.]+\s*[BMKbmk%억조만]*)',
+            rf'{re.escape(word)}\s*[:\s]\s*(\$?\s?[\d,]+(?:\.\d+)?\s*[BMKbmk%억兆조万萬]*)',
             re.IGNORECASE
         )
         for m in pattern.finditer(source_text):
             found = m.group(1).strip()
-            # 동일한 숫자 아니면 모순 후보
-            found_clean = re.sub(r'[,\s]', '', found)
-            for fn in fact_nums:
-                if found_clean and found_clean != fn and found_clean not in fact:
-                    contradictions.append(found)
+            for v in _numeric_values(found):
+                # fact의 어떤 값과도 '같지 않은'(허용오차 밖) 값이면 모순 후보
+                if all(abs(v - fv) > max(1.0, abs(fv) * 0.005) for fv in fact_vals):
+                    if found not in seen:
+                        seen.add(found)
+                        contradictions.append(found)
     return contradictions[:2]
 
 
