@@ -2,7 +2,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 from typing import Optional
 
 from pydantic import BaseModel
@@ -12,6 +11,7 @@ from app.deep_research.config import (
 )
 from app.deep_research.models import ResearchPlan, SubQuery, CoverageInfo
 from app.deep_research import llm_client
+from app.deep_research.common import parse_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ class Planner:
                 self._tokens_used += _count_tokens(raw)
 
                 # JSON 추출
-                data = _parse_json(raw)
+                data = parse_json_object(raw)
                 if not data:
                     logger.warning("[planner] JSON 파싱 실패 — 기본 계획 사용")
                     return self._fallback_plan(query)
@@ -201,24 +201,6 @@ class Planner:
 
 def _default_sections() -> list[str]:
     return ["개요", "현황 및 진행상황", "재무적 영향", "시장 반응", "리스크 요인", "전망"]
-
-
-def _parse_json(text: str) -> Optional[dict]:
-    text = text.strip()
-    # 마크다운 코드블록 제거
-    text = re.sub(r'^```(?:json)?\n?', '', text)
-    text = re.sub(r'\n?```$', '', text)
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        # JSON 블록 추출 시도
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group())
-            except json.JSONDecodeError:
-                pass
-    return None
 
 
 def _count_tokens(text: str) -> int:

@@ -1154,3 +1154,83 @@ Fable 리뷰의 유일한 '재설계'급 항목. research_lab/langfuse_deep_rese
   - core: pyproject [project].dependencies를 tomllib로 추출→requirements 파일 경유 설치(pip install $(...)는 >=가 셸 리다이렉트로 오인되므로 파일 경유)+pytest, 루트에서 pytest tests ingest2/tests(둘 다 루트 sys.path 요구).
   - research_lab: pip install pytest pydantic, 해당 디렉토리에서 pytest test_comparator.py.
 - 검증: YAML 파싱 OK(3잡·트리거 정상), 각 잡의 정확한 pytest 명령을 지정 작업디렉토리에서 재현 전부 green. .github 추적 가능(gitignore 배제 아님). 아직 커밋/푸시 안 함(사용자 승인 대기 — 워크플로는 푸시돼야 실제 실행됨).
+
+### 추가(2026-07-15) - [로드맵→구현] 8워커 → 배치 구조화 (score.py + causal/edges.py)
+목적: 무료티어 Gemini RPD 한도가 병목 → 8워커 단건 병렬 호출을 배치 1회 호출로 묶어 호출 수를 배치크기배 절감. 방금 만든 구조화 출력 인프라(response_schema) 연장선.
+- 공통 설계(두 사이트 동일 패턴): 배치는 **opt-in**(기존 단건 경로·테스트 보존), 배치 실패·개수 불일치 시 **단건 폴백**(정확성 보존), 배치 간 소폭 병렬(호출이 크므로 워커 축소), 결과 순서 pool.map으로 보존. 전부 주입 가능(오프라인 테스트).
+- ingest2/analyze/score.py:
+  - `ImpactAnalysisBatch(analyses: list[ImpactAnalysis])` 스키마 + `_build_batch_prompt`(ITEM k 번호매김, EXACTLY n 강제) + `make_gemini_batch_llm`(list[str]→list[ImpactAnalysis], response_schema 강제).
+  - `analyze_story` 갱신 로직을 `_apply_analysis` 공용 헬퍼로 추출. `_score_chunk`가 배치 1회 + 개수검증 + 단건 폴백(폴백도 실패 시 원본 유지) 담당.
+  - `score_candidates(..., batch_llm_fn=None, batch_size=5)`: batch_llm_fn 주면 batch_size 청크로 스코어, 없으면 기존 8워커 경로. batch_size 5(스토리 프롬프트가 커서 과대배치 시 품질저하 방지).
+  - 배선: pipeline_core.py가 make_impact_batch_llm() 주입 → 프로덕션 배치 활성.
+- src/causal/edges.py:
+  - `_PairVerdict`/`_PairVerdictBatch` 스키마 + `_build_pair_batch_prompt`(PAIR k 번호, EXACTLY n) + `_check_pairs_batch`([(a,b)]→[dict], response_schema 강제).
+  - `_process`의 판정→엣지 로직을 `_verdict_to_edge` 순수함수로 추출(단건·배치 공용).
+  - `infer_pairwise(..., pair_fn=None, batch_pair_fn=None, batch_size=6)`: batch_pair_fn 기본값=실 Gemini 배치라 **모든 호출부(cli.py·candidates/pipeline.py)에서 자동 배치 활성**(시그니처 하위호환). 배치 실패/개수불일치→pair_fn 단건 폴백, 단건 중 개별 실패는 그 쌍만 스킵.
+  - 부수 개선: 기존엔 no-op였던 on_progress를 청크당 콜백으로 실제 호출.
+- 검증: 신규 테스트 15개(analyze 8: 배치 호출수 감소·스토리별 매핑·배치실패 폴백·개수불일치 폴백·부분폴백 원본유지·정렬·프롬프트·스키마 / causal 7: 배치 엣지생성·비인과 필터·배치실패 폴백·개수불일치 폴백·단건 개별실패 스킵·후보없음 무호출·프롬프트). 동시 append 순서 비결정성은 순서무관 단정으로 처리(3회 반복 무flaky). ROOT 168·INGEST2 101 전량 green. 프로덕션 배선 임포트 스모크 OK.
+
+### 추가(2026-07-15) - [로드맵→구현] rank/final.py "deadline 토큰" 오탐 수정
+문제: `_LEGAL_SOLICITATION_RE`(증권 집단소송 로펌 광고 탐지)의 맨 단어 `deadline`이 정당한 금융 뉴스를 오탐 → -0.25 legal 페널티 + max_legal_solicitations cap을 잘못 적용해 정상 스토리를 Top-N에서 강등/배제. 규제 마감·공개매수 마감·채무 만기·정부 셧다운 deadline 등이 전부 걸림. 동일 버그 클래스인 `losses of`("reported losses of $2B" 실적 뉴스)도 함께 수정.
+- 원인: 강한 신호(로펌명·class action·lead plaintiff·shareholder alert 등)는 그 자체로 로펌광고를 특정하지만, `deadline`·`losses of`는 정당 뉴스에도 흔한 약한 토큰인데 맨 단어로 alternation에 들어가 있었음.
+- 수정: 약한 토큰을 로펌광고 문맥 구절로 축소 — `deadline` → `deadline reminder`, `losses of` → `losses of (?:more than|over|exceeding|in excess of)`. 기존 테스트의 legal 항목들은 rosen law·class action·lead plaintiff 등 강한 토큰으로 이미 잡혀 재현율 손실 없음(로펌 스팸은 거의 항상 강한 신호 동반). 상수 위에 재추가 방지 주석.
+- 검증: 신규 테스트 4개 — ①정당 deadline 4종(SEC filing/tender offer/debt maturity/shutdown) 미탐 ②실적 losses of 2종 미탐 ③로펌광고 deadline reminder·losses of more than 계속 탐지 ④bare deadline 뉴스가 legal 페널티 없이 정상 랭크(엔드투엔드). 기존 legal cap 테스트 유지. ingest2 105 전량 green.
+
+### 추가(2026-07-15) - [로드맵→구현] common.py 공유 유틸 — deep_research 내부 중복 단일화
+로드맵 "common/ 공유 패키지"를 실측 기반으로 현실 범위 확정. 크로스패키지(backend↔ingest2↔src)는 sys.path 경계가 달라(빌드시스템 없음, 플랫 레이아웃) 공유 불가·고위험 → **backend/app/deep_research 내부 중복만** 통합. 신뢰도/tier는 이미 source_registry로 단일화됨, 한국어 금액 파서도 numeric_consistency에 중앙화됨(중복 아님) → 제외.
+- 신규 backend/app/deep_research/common.py:
+  - `domain_of(url)`: urlparse(url).netloc.removeprefix("www.")가 ~13곳에 흩어져 있었고 일부만 .lower()를 붙여 대소문자 불일치 위험. 단일 함수로 통일. **소문자화를 removeprefix보다 먼저** — 'WWW.'(대문자)가 안 벗겨지던 잠재 버그를 신규 테스트가 잡아 수정(기존 흩어진 코드에도 있던 결함).
+  - `parse_json_object(text)`: planner/critic/synthesizer에 문자 그대로 복제돼 있던 _parse_json의 단일 소스(코드펜스 제거 → 통짜 파싱 → 첫 {…} 블록 폴백).
+- 배선(전부 교체·검증):
+  - domain_of ← cross_checker(_domain_weight), evidence_ranker(_extract_domain 래퍼 제거), extractor(3곳: BLOCKED 매칭·정렬·credibility), synthesizer(_build_source_list 2곳), official_source_searcher, pipeline(4곳: 지역 import urlparse 제거). host-only 3곳(accessible_resolver·alternate_finder·jina_reader, www 미제거 의도)은 유지.
+  - parse_json_object ← planner·critic·synthesizer의 _parse_json 3벌 제거. 딸려서 미사용된 import re(planner·critic)·import json(critic)도 정리.
+- 부수효과: extractor의 BLOCKED_DOMAINS 매칭이 이제 대소문자 무시(이전엔 'WSJ.com' 미매칭 버그).
+- 검증: 신규 test_common.py 11개(domain_of 소문자/None/서브도메인/포트, parse_json_object 코드펜스/임베디드/무효). backend 181 전량 green. 임포트 체인·FastAPI 부팅(43 routes) OK. common은 stdlib만 의존 → 순환 임포트 없음.
+
+### 추가(2026-07-15) - [검증] 통합 라이브 E2E — 이번 세션 변경 회귀 확인
+목적: 구조화 출력 이식·common 리팩터(domain_of/parse_json_object)·XBRL가 실제 파이프라인에서 함께 깨지지 않는지 라이브로 확인(단위 테스트가 못 잡는 통합 회귀 검출).
+- 잡 84e568d6 (INDI, 수치+Wuxi+리스크 종합 질의) → done, error=None.
+- 마커 전부 정상 발화, **ERROR/Traceback 0건**:
+  - planner 구조화(8쿼리), critic 구조화 ×5 이터레이션, synthesizer 2단계 구조화 추출(findings 3·timeline 6), 자기 검증 패스(구조화), xbrl_ledger 원장 구축(5,148 USD 항목, CIK0001841925), 원장 일치 6건.
+- 결과: summary 607자, sections 6, key_findings 3, timeline 6, cross_validation 15(교차검증 + 환율 정합/이상 + 원장 일치). [unverified] 태깅·환율 이상 밴드 탐지도 정상 동작.
+- 결론: common 리팩터가 라이브 전 경로(소스 저장·신뢰도·JSON 폴백 파싱)에서 무결. 구조화 출력·XBRL·수치정합 방어가 통합 상태로 함께 작동 확인.
+- 범위 주의: ingest2 배치화(score/edges)는 deep_research 파이프라인이 아니라 별도 뉴스 파이프라인 → 이 E2E엔 미포함(주입 단위테스트 15개로 검증됨).
+
+### 추가(2026-07-16) - [확장] 다통화 FX 밴드 — numeric_consistency 환율 검사 RMB/USD → 다통화
+배경: 환율 정합/이상 검사가 frozenset(("RMB","USD")) 하드코딩이라 RMB만 커버(Fable·메모 지적). E2E에서도 RMB/USD만 발화 확인.
+- 일반화: _FX_BANDS(frozenset 키) → _FX_PER_USD_BANDS(통화코드→'USD 1당 단위' 밴드). USD를 피벗으로 (외화 등가액 ↔ USD 등가액) 쌍만 검사하도록 루프 재작성. 출처간 일관성도 rmb_usd_rates 단일 리스트 → rates_by_cur[통화] 통화별 그룹으로 확장.
+- 추가 통화: HKD(7.0~8.3)·JPY(70~180)·KRW(900~1700)·TWD(25~35). 밴드는 실제 변동폭보다 넓게(단위 亿/万 혼동·통화 오표기 같은 '큰 오류'만 잡는 목적). **EUR/GBP는 의도적 제외** — 환율이 1.0 근처라 무관한 두 금액이 우연히 근접할 때 오탐 위험이 크고 亿/万 단위혼동도 안 일어나 가치 낮음. CNY는 파서(_PREFIX_CUR)가 이미 RMB로 정규화.
+- RMB 동작·메시지 포맷(환율 정합/이상/상충, {cur}/USD) 완전 보존 → 기존 4개 FX 테스트 그대로 통과.
+- 검증: 신규 7개 — HKD/JPY/KRW/TWD 정합(각 실측 함축환율), HKD 10배 단위오류 이상, EUR 제외(무발화), 통화별 출처간 상충(둘 다 밴드 안이지만 9% 이탈). numeric 49 + backend 188 전량 green.
+
+### 추가(2026-07-16) - [확장] CJK 앵커 게이저티어 — 크로스출처 pro-rata 교차언어 엔티티 연결
+배경: 크로스출처 pro-rata(검사 4)의 앵커 추출(_ANCHOR_RE)이 Latin/숫자만 잡아 중국어 회사명('无锡' 등)이 앵커가 못 됐다(_ANCHOR_STOP 주석 "가젯티어 전까지"). 외부 API(GLEIF/OpenFIGI)는 네트워크·키 의존이라 불확실 → **오프라인 게이저티어 파일 + 로더**로 확실히 구현.
+- 핵심 가치: **교차언어 앵커링** — 중국어 출처의 '无锡'과 영어 출처의 'Wuxi'를 같은 canonical 앵커 'Wuxi'로 정규화해, 서로 다른 언어의 출처가 같은 딜임을 인식(FinVision의 중국 자회사 크로스보더 시나리오 정조준).
+- 신규 backend/app/deep_research/data/entity_gazetteer.json: canonical→[별칭(CJK 간체/번체 + Latin)] 형식. 검증된 매핑만 등재(무할루시네이션): Wuxi/无锡·無錫, BYD/比亚迪, SMIC/中芯国际, CATL/宁德时代, NIO/蔚来, XPeng/小鹏, BeiGene/百济神州, PDD/拼多多, Alibaba·Tencent·Baidu·JD 등 12개. GLEIF/OpenFIGI/Wikidata로 같은 형식 확장 가능.
+- numeric_consistency.py: _load_gazetteer(프로세스 1회, 파일 없음/손상 시 조용히 비활성 폴백), _has_cjk(한자/가나/한글 범위), _extract_anchors에 게이저티어 매칭 추가 — CJK 별칭은 부분문자열(공백 없는 CJK 대응), Latin 별칭은 단어경계(alternation 정규식, 긴 별칭 우선). 기존 regex 앵커·_ANCHOR_STOP 완전 보존. 모듈 로거 신설.
+- 검증: 신규 7개 — CJK 간체/번체→canonical, 교차언어 동일 canonical(比亚迪↔BYD), 보일러플레이트 CJK 오탐 0, Latin 변형(Pinduoduo→PDD) 정규화, 일반 대문자 stopword 여전히 제외, **교차언어 pro-rata 통합**(중국어 부분출처 40%$80M ↔ 영어 전체출처 100%$200M을 공유앵커 Wuxi로 연결). numeric 56 + backend 195 전량 green. 파일 경로는 __file__ 기반이라 CWD 무관(루트/backend 양쪽 로드 확인). 커밋 시 신규 data/ 파일 포함 필요.
+
+### 추가(2026-07-16) - [확장] 이미지 PDF OCR — 로컬 2단 PDF 추출 (텍스트레이어 → 스캔 OCR)
+배경(Fable brief §5-4): 추출이 Jina Reader 전적 의존이라 스캔 이미지 PDF(중국 공시 cninfo/SZSE 구형)는 빈손. PaddleOCR은 py3.14 휠 부재로 배제 → **pypdfium2(텍스트레이어+렌더링) + rapidocr-onnxruntime(중국어+영어 ONNX 내장, 시스템 바이너리 불필요)** 조합을 실측 설치 확인 후 채택.
+- 신규 sources/pdf_extractor.py: is_pdf_url(경로 확장자, 쿼리 무시) / extract_pdf(다운로드 20MB 캡·%PDF 매직 확인·to_thread) / _extract_pdf_bytes — ①pypdfium2 텍스트레이어(40p 캡) ②페이지당 평균 60자 미만이면 이미지 PDF 판정 → RapidOCR 폴백(8p 캡·2.0배율 렌더, 페이지 실패 개별 스킵). OCR 엔진 프로세스 싱글턴(실패 시 영구 비활성). 모든 실패 None(호출부 Jina 폴백) — 파이프라인 불사.
+- 라이브 실측이 잡은 결함: **CJK word_count 전멸** — 중국어는 공백이 없어 split() 기준 word_count가 한 자릿수 → extractor의 word_count>50 필터에서 OCR 결과가 전량 탈락할 뻔. _word_count(공백 단어 + CJK 문자수)로 수정, 스모크로 124>50 통과 확인.
+- 배선 extractor.extract_from_results: PDF URL 분리 → 로컬 추출 우선, 실패분은 Jina에 재시도(폴백 사슬). 기존 웹 경로 무변경.
+- 기능 실측(오프라인): 수제 텍스트레이어 PDF → text-layer 경로 175자 ✓. PIL로 그린 중국 공시 스캔 PDF(10줄) → **실 RapidOCR로 960,834,355/135/34.3769%/无锡 전부 인식(227자)** — OCR 텍스트가 그대로 수치정합(FX·pro-rata)·게이저티어 앵커(无锡→Wuxi)로 연결되는 사슬 성립. 라이브(네트워크): Berkshire 2023 letter PDF 7,002단어 추출 ✓.
+- requirements.txt: pypdfium2>=4.30, rapidocr-onnxruntime>=1.3, Pillow>=10.0 (rapidocr 미설치여도 텍스트레이어는 동작).
+- 검증: 신규 test_pdf_extractor.py 12개 — is_pdf_url, 텍스트레이어 충분 시 OCR 미호출, 이미지 PDF→fake OCR 폴백, CJK word_count 필터 통과, 엔진 폭발/부재 시 None 강등, 쓰레기 바이트 None, 배치 실패 필터. backend 207 전량 green, 부팅 43 routes.
+
+### 추가(2026-07-16) - [확장] 미러 탐색 — Wayback CDX 전략 추가 (accessible_resolver 2차 전략)
+조사(4후보 실측): CDX=키 불필요·라이브 확정 / akshare=py3.14 설치+cninfo 공시 라이브 조회 성공(후속 후보) / Brave·Exa=키 미보유로 보류. CDX부터 구현(사용자 지시).
+- 문제: 페이월 복구가 Wayback available API 단일 전략 — 'closest' 1개만 주고, **아카이브가 있어도 빈 결과를 주는 URL이 존재**(라이브 실측). 추적 파라미터 붙은 URL(검색결과에서 흔함)도 정확매칭 실패.
+- 구현: find_accessible_url 체인 available→CDX. _cdx_snapshot — CDX 인덱스에서 statuscode:200 필터 + limit=-3(음수=최신 N, 정확 URL 응답은 시간 오름차순임을 라이브로 확정) → 마지막 행=최신 200 스냅샷 → web.archive.org/web/{ts}/{original}. 정확 URL 빈손 + 쿼리스트링 존재 시 경로만으로 1회 재시도(_cdx_url_variants). **와일드카드 prefix 매칭은 의도적 배제** — '다른 기사'를 줄 위험(무할루시네이션). 모든 실패 None.
+- 라이브 증명: WSJ 기사 + '?mod=hp_lead_pos1'(추적 파라미터) → available 빈손 → **CDX가 쿼리 제거 변형으로 회수(method=cdx)**. 정확 URL은 체인 1단(wayback)이 그대로 처리(순서 보존).
+- 검증: 신규 test_accessible_resolver.py 10개 — 체인 순서(available 성공 시 CDX 미호출), 최신 행 선택, 쿼리 변형 재시도(+호출 순서), 쿼리 없으면 1회만, 헤더만/기형 행/비리스트 JSON/전실패 None, available 실패에도 CDX 시도. backend 217 전량 green.
+- 남은 미러탐색 후보: akshare cninfo 공시 소스(조사 완료·구현 대기 — PDF OCR과 직결), Brave/Exa(키 필요).
+
+### 추가(2026-07-16) - [확장] cninfo 공시 소스 (akshare) — 미러 탐색 중국 축
+웹 검색이 놓치는 중국 A주 공시 원문을 거래소 공시 플랫폼(巨潮资讯)에서 목록 API로 직접 수집. PDF OCR·CDX에 이은 미러탐색 마지막 구현 축(Brave/Exa는 키 필요로 보류).
+- 신규 sources/cninfo_disclosure.py: A주 6자리 코드 추출(00/30/60/68/8 프리픽스만 — '19'/'20' 시작은 연월 오탐 방지 제외, B주 200xxx 희귀 트레이드오프 명시) → akshare stock_zh_a_disclosure_report_cninfo(18개월, 코드당 캡) → 공시 제목의 쿼리 토큰(Latin 3자+ · CJK 2그램) 겹침 랭킹(무매칭 시 최신 5) → **정적 PDF URL 변환**(finalpage/{announcementTime}/{announcementId}.PDF — detail 링크 쿼리 파라미터 파싱, 패턴 라이브 실측 확정 92KB %PDF).
+- 보수적 활성 조건: 쿼리/컨텍스트(cn_ticker)에 A주 코드가 있을 때만 — 회사명만으로 검색해 잘못된 종목 공시를 '원문' 주입하는 사고 차단(무할루시네이션). akshare 미설치/실패는 빈 결과·코드 스킵(지연 임포트+to_thread — 임포트 수 초).
+- 배선: official_source_searcher.search에 CN 관할(primary/secondary) 시 병합, cninfo.com.cn을 searched_domains에 기록(커버리지 반영). 반환 PDF URL은 추출 단계의 로컬 PDF 2단 추출(텍스트레이어→OCR)과 직결.
+- 라이브 전체 사슬 증명: akshare 조회(000001) → 키워드(分红/权益) 랭킹 공시 3건 → 정적 PDF URL → **pdf_extractor가 실제 공시 본문 1,129단어 추출**(平安银行 권익분파 공고, 텍스트레이어 경로).
+- 검증: 신규 test_cninfo_disclosure.py 14개 — 코드 추출(프리픽스/연월 오탐/중복), PDF URL 파싱(폴백/무효), 랭킹(키워드/최신 폴백), search(코드 없으면 무조회, context 코드, 조회 실패 스킵, akshare 부재, 코드 캡). backend 231 전량 green, 부팅 43 routes. requirements에 akshare>=1.18 추가.

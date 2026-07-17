@@ -8,6 +8,8 @@ from pydantic import ValidationError
 
 from ingest2.analyze.score import (
     ImpactAnalysis,
+    ImpactAnalysisBatch,
+    _build_batch_prompt,
     _build_prompt,
     analyze_story,
     score_candidates,
@@ -254,6 +256,166 @@ def test_score_candidates_empty():
     result = mk_result([])
     scored = score_candidates(result, llm_fn=fake_llm(0.5), on_log=lambda m: None)
     assert scored == []
+
+
+# ---- 배치 스코어 (batch_llm_fn) ----
+
+def _fake_batch_llm(per_item: dict[str, float] | None = None, default: float = 0.5):
+    """호출 기록을 남기는 가짜 배치 콜러블. per_item으로 ITEM별 impact 지정."""
+    calls: list[list[str]] = []
+
+    def _batch(prompts: list[str]) -> list[ImpactAnalysis]:
+        calls.append(list(prompts))
+        out = []
+        for p in prompts:
+            score = default
+            for key, val in (per_item or {}).items():
+                if key in p:
+                    score = val
+                    break
+            out.append(ImpactAnalysis(impact_score=score, direction="positive", confidence=0.8))
+        return out
+
+    _batch.calls = calls  # type: ignore[attr-defined]
+    return _batch
+
+
+def test_batch_scores_all_stories_in_fewer_calls():
+    """스토리 12개 + batch_size 5 → 배치 3회로 전부 스코어(단건 12회 아님)."""
+    stories = [mk_story(f"s{i}", [f"e{i}"]) for i in range(12)]
+    result = mk_result(stories)
+    batch = _fake_batch_llm(default=0.6)
+    scored = score_candidates(
+        result, llm_fn=fake_llm(0.1), batch_llm_fn=batch, batch_size=5,
+        on_log=lambda m: None,
+    )
+    assert len(scored) == 12
+    assert all(s.aggregated_impact == 0.6 for s in scored)
+    # 배치 호출은 3회(5+5+2). 청크는 동시 실행이라 calls 기록 순서는 비결정적 →
+    # 순서 무관하게 개수 분포만 확인(스코어 결과 순서는 pool.map이 보존).
+    assert len(batch.calls) == 3
+    assert sorted((len(c) for c in batch.calls), reverse=True) == [5, 5, 2]
+    assert sum(len(c) for c in batch.calls) == 12
+
+
+def test_batch_preserves_per_story_mapping():
+    """배치 결과가 스토리별로 정확히 매핑되는지(순서 뒤섞임 없음)."""
+    ev_a = mk_event("ea", title="ALPHA earnings")
+    ev_b = mk_event("eb", title="BETA merger")
+    ev_c = mk_event("ec", title="GAMMA recall")
+    sa = mk_story("sa", ["ea"]); sb = mk_story("sb", ["eb"]); sc = mk_story("sc", ["ec"])
+    result = mk_result([sa, sb, sc], events_by_id={"ea": ev_a, "eb": ev_b, "ec": ev_c})
+    batch = _fake_batch_llm(per_item={"ALPHA": 0.9, "BETA": 0.3, "GAMMA": 0.7})
+    scored = score_candidates(
+        result, llm_fn=fake_llm(0.0), batch_llm_fn=batch, batch_size=10,
+        on_log=lambda m: None,
+    )
+    by_id = {s.id: s.aggregated_impact for s in scored}
+    assert by_id["sa"] == 0.9
+    assert by_id["sb"] == 0.3
+    assert by_id["sc"] == 0.7
+
+
+def test_batch_failure_falls_back_to_single():
+    """배치 호출이 터지면 단건 llm_fn으로 폴백해 전부 스코어."""
+    def exploding_batch(prompts: list[str]) -> list[ImpactAnalysis]:
+        raise RuntimeError("batch API down")
+
+    single_calls = [0]
+
+    def counting_single(prompt: str) -> ImpactAnalysis:
+        single_calls[0] += 1
+        return ImpactAnalysis(impact_score=0.55, direction="positive", confidence=0.7)
+
+    stories = [mk_story(f"s{i}", [f"e{i}"]) for i in range(3)]
+    result = mk_result(stories)
+    scored = score_candidates(
+        result, llm_fn=counting_single, batch_llm_fn=exploding_batch, batch_size=5,
+        on_log=lambda m: None,
+    )
+    assert len(scored) == 3
+    assert all(s.aggregated_impact == 0.55 for s in scored)
+    assert single_calls[0] == 3  # 배치 실패 → 3건 단건 폴백
+
+
+def test_batch_count_mismatch_falls_back():
+    """배치가 개수를 잘못 반환하면(부족) 그 청크는 단건 폴백."""
+    def short_batch(prompts: list[str]) -> list[ImpactAnalysis]:
+        # 요청보다 적게 반환 → 매핑 어긋남 방지 위해 폴백돼야 함
+        return [ImpactAnalysis(impact_score=0.9, direction="positive", confidence=0.8)]
+
+    single_calls = [0]
+
+    def counting_single(prompt: str) -> ImpactAnalysis:
+        single_calls[0] += 1
+        return ImpactAnalysis(impact_score=0.33, direction="uncertain", confidence=0.6)
+
+    stories = [mk_story(f"s{i}", [f"e{i}"]) for i in range(3)]
+    result = mk_result(stories)
+    scored = score_candidates(
+        result, llm_fn=counting_single, batch_llm_fn=short_batch, batch_size=5,
+        on_log=lambda m: None,
+    )
+    assert len(scored) == 3
+    assert all(s.aggregated_impact == 0.33 for s in scored)
+    assert single_calls[0] == 3
+
+
+def test_batch_partial_fallback_survives_single_error():
+    """배치 실패 후 단건 폴백에서 일부가 또 터져도 그 스토리는 원본 유지."""
+    def exploding_batch(prompts: list[str]) -> list[ImpactAnalysis]:
+        raise RuntimeError("batch down")
+
+    def flaky_single(prompt: str) -> ImpactAnalysis:
+        if "eb" in prompt or "BETA" in prompt:
+            raise RuntimeError("single down for b")
+        return ImpactAnalysis(impact_score=0.7, direction="positive", confidence=0.8)
+
+    ev_b = mk_event("eb", title="BETA merger")
+    sa = mk_story("sa", ["ea"], impact=0.11)
+    sb = mk_story("sb", ["eb"], impact=0.42)
+    result = mk_result([sa, sb], events_by_id={"eb": ev_b})
+    scored = score_candidates(
+        result, llm_fn=flaky_single, batch_llm_fn=exploding_batch, batch_size=5,
+        on_log=lambda m: None,
+    )
+    by_id = {s.id: s.aggregated_impact for s in scored}
+    assert by_id["sa"] == 0.7           # 폴백 성공
+    assert by_id["sb"] == pytest.approx(0.42)  # 폴백도 실패 → 원본 유지
+
+
+def test_batch_results_sorted_descending():
+    stories = [mk_story(f"s{i}", [f"e{i}"]) for i in range(5)]
+    result = mk_result(stories, events_by_id={
+        f"e{i}": mk_event(f"e{i}", title=f"TITLE{i}") for i in range(5)
+    })
+    # 각 ITEM 프롬프트에 TITLE{i}가 들어가므로 그 기준으로 impact 부여
+    batch = _fake_batch_llm(per_item={f"TITLE{i}": i * 0.2 for i in range(5)})
+    scored = score_candidates(
+        result, llm_fn=fake_llm(0.0), batch_llm_fn=batch, batch_size=5,
+        on_log=lambda m: None,
+    )
+    impacts = [s.aggregated_impact for s in scored]
+    assert impacts == sorted(impacts, reverse=True)
+
+
+def test_build_batch_prompt_numbers_items():
+    prompts = ["first story detail", "second story detail", "third story detail"]
+    combined = _build_batch_prompt(prompts)
+    assert "===== ITEM 1 =====" in combined
+    assert "===== ITEM 3 =====" in combined
+    assert "EXACTLY 3" in combined
+    for p in prompts:
+        assert p in combined
+
+
+def test_impact_analysis_batch_schema():
+    b = ImpactAnalysisBatch(analyses=[
+        ImpactAnalysis(impact_score=0.5, direction="positive", confidence=0.8),
+        ImpactAnalysis(impact_score=0.2, direction="negative", confidence=0.6),
+    ])
+    assert len(b.analyses) == 2
+    assert ImpactAnalysisBatch().analyses == []
 
 
 def test_score_candidates_uses_shallow_and_deep():

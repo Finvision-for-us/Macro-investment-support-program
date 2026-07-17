@@ -2,8 +2,8 @@
 from __future__ import annotations
 import logging
 import re
-from urllib.parse import urlparse
 
+from app.deep_research.common import domain_of
 from app.deep_research.models import SearchResult, ExtractedContent, SourceInfo, CredibilityLevel
 from app.deep_research.sources.source_registry import (
     get_source_by_domain, get_domain_tier,
@@ -23,20 +23,13 @@ _TIER_SCORE: dict[int, tuple[float, CredibilityLevel]] = {
 }
 
 
-def _extract_domain(url: str) -> str:
-    try:
-        return urlparse(url).netloc.removeprefix("www.").lower()
-    except Exception:
-        return ""
-
-
 def score_url(url: str) -> tuple[float, CredibilityLevel]:
     """
     URL → (점수 0~1, CredibilityLevel)
     tier1(규제 공시)=1.0 / tier2(공식 거래소·Tier-1 미디어)=0.85 /
     tier3(전문 분석)=0.65 / tier4(자동생성·루머·소셜)=0.25 / 미등록=0.5
     """
-    domain = _extract_domain(url)
+    domain = domain_of(url)
     if not domain:
         return 0.5, CredibilityLevel.MEDIUM
 

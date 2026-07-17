@@ -2,8 +2,8 @@
 from __future__ import annotations
 import re
 import logging
-from urllib.parse import urlparse
 
+from app.deep_research.common import domain_of
 from app.deep_research.agents.source_matcher import _extract_key_facts, _fuzzy_match
 from app.deep_research.sources.source_registry import (
     get_domain_weight, LOW_TRUST_DOMAINS,
@@ -17,11 +17,7 @@ logger = logging.getLogger(__name__)
 _LOW_QUALITY_DOMAINS = LOW_TRUST_DOMAINS  # 하위호환 alias
 
 def _domain_weight(url: str) -> int:
-    try:
-        domain = urlparse(url).netloc.removeprefix("www.")
-    except Exception:
-        domain = url
-    return get_domain_weight(domain)
+    return get_domain_weight(domain_of(url) or url)
 
 
 class MultiSourceCrossChecker:

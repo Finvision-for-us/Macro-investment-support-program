@@ -4,9 +4,10 @@ import json
 import logging
 import re
 from typing import Literal, Optional
-from urllib.parse import urlparse
 
 from pydantic import BaseModel
+
+from app.deep_research.common import domain_of, parse_json_object
 
 from app.deep_research.config import (
     GEMINI_API_KEY, DEEP_RESEARCH_SYNTH_MODEL, DEEP_RESEARCH_EXTRACT_MODEL,
@@ -340,7 +341,7 @@ class Synthesizer:
                 prompt,
                 request_options={"timeout": 120},
             )
-            result = _parse_json(response.text.strip())
+            result = parse_json_object(response.text.strip())
             if result and isinstance(result, dict):
                 logger.info("[synthesizer] 2단계 메타데이터 추출 완료")
                 return result
@@ -387,7 +388,7 @@ class Synthesizer:
                 verify_prompt,
                 request_options={"timeout": 120},
             )
-            verified = _parse_json(resp.text.strip())
+            verified = parse_json_object(resp.text.strip())
             if verified and isinstance(verified, dict):
                 logger.info("[synthesizer] 자기 검증 패스 완료")
                 return verified
@@ -789,7 +790,7 @@ def _build_source_list(
     for c in contents:
         if c.url not in seen:
             seen.add(c.url)
-            domain = urlparse(c.url).netloc.removeprefix("www.")
+            domain = domain_of(c.url)
             _, credibility = score_url(c.url)
             sources.append(SourceInfo(
                 url=c.url, title=c.title, domain=domain, credibility=credibility
@@ -798,7 +799,7 @@ def _build_source_list(
     for r in search_results:
         if r.url and r.url not in seen:
             seen.add(r.url)
-            domain = urlparse(r.url).netloc.removeprefix("www.")
+            domain = domain_of(r.url)
             _, credibility = score_url(r.url)
             sources.append(SourceInfo(
                 url=r.url, title=r.title, domain=domain, credibility=credibility
@@ -842,18 +843,3 @@ def _coerce_confidence(value) -> ConfidenceLevel:
     except Exception:
         return ConfidenceLevel.MEDIUM
     return _CONFIDENCE_MAP.get(s, ConfidenceLevel.MEDIUM)
-
-
-def _parse_json(text: str) -> Optional[dict]:
-    text = re.sub(r'^```(?:json)?\n?', '', text.strip())
-    text = re.sub(r'\n?```$', '', text)
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group())
-            except json.JSONDecodeError:
-                pass
-    return None

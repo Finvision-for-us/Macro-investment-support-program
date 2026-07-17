@@ -18,6 +18,7 @@ from app.deep_research.storage.raw_sources import RawSourceStorage
 from app.deep_research.discovery.lead_follower import lead_follower
 from app.deep_research.discovery.alternate_finder import alternate_instance_finder
 from app.deep_research.discovery.accessible_resolver import accessible_resolver, is_gated
+from app.deep_research.common import domain_of
 from app.deep_research.config import (
     MAX_ITERATIONS, MAX_RUN_SECONDS, MAX_COST_USD_PER_RUN,
     DISCOVERY_ENABLED, DISCOVERY_MAX_DEPTH, DISCOVERY_BREADTH, DISCOVERY_MAX_SEARCHES,
@@ -186,9 +187,7 @@ class DeepResearchPipeline:
             metadata.recovered_sources += recovered_main
             all_contents.extend(contents)
             for c in contents:
-                from urllib.parse import urlparse
-                raw_storage.store(c.url, c.title, c.content,
-                                  urlparse(c.url).netloc.removeprefix("www."))
+                raw_storage.store(c.url, c.title, c.content, domain_of(c.url))
             await emit("extracting", f"{len(contents)}개 페이지 추출 완료", 50,
                       {"extracted_count": len(contents)})
 
@@ -216,10 +215,8 @@ class DeepResearchPipeline:
                         )
                         all_contents.extend(official_contents)
                         for c in official_contents:
-                            from urllib.parse import urlparse as _up
                             raw_storage.store(
-                                c.url, c.title, c.content,
-                                _up(c.url).netloc.removeprefix("www."),
+                                c.url, c.title, c.content, domain_of(c.url),
                             )
                         official_extracted_count = len(official_contents)
                         await emit(
@@ -304,9 +301,7 @@ class DeepResearchPipeline:
                         metadata.recovered_sources += recovered  # 메인 경로 복구분에 누적
                         all_contents.extend(disc_contents)
                         for c in disc_contents:
-                            from urllib.parse import urlparse as _up
-                            raw_storage.store(c.url, c.title, c.content,
-                                              _up(c.url).netloc.removeprefix("www."))
+                            raw_storage.store(c.url, c.title, c.content, domain_of(c.url))
                         await emit("searching",
                                    f"심층 확장: 단서 {metadata.discovery_leads}개 추적, "
                                    f"본문 {len(disc_contents)}건(+복구 {recovered}) 추가", 59)
@@ -368,9 +363,7 @@ class DeepResearchPipeline:
                 metadata.recovered_sources += recovered_extra
                 all_contents.extend(extra_contents)
                 for c in extra_contents:
-                    from urllib.parse import urlparse
-                    raw_storage.store(c.url, c.title, c.content,
-                                      urlparse(c.url).netloc.removeprefix("www."))
+                    raw_storage.store(c.url, c.title, c.content, domain_of(c.url))
                 await emit("extracting",
                           f"추가 {len(extra_contents)}개 페이지 추출", 75)
 

@@ -100,6 +100,53 @@ def test_legal_solicitation_is_penalized_and_capped():
     assert any(item.story.id == "n1" for item in ranked)
 
 
+def test_legit_deadline_not_flagged_as_solicitation():
+    """정당한 금융 뉴스의 'deadline'(규제·공개매수·만기)은 로펌광고로 오탐 금지."""
+    result = mk_result([], [])
+    for title in [
+        "SEC filing deadline extended for NVDA merger vote",
+        "Tender offer deadline is Friday for the buyout",
+        "Debt maturity deadline looms for the issuer",
+        "US government shutdown deadline approaches",
+    ]:
+        story = mk_story("s", ["e1"], impact=0.5, title=title)
+        assert not is_legal_solicitation(story, result), title
+
+
+def test_legit_reported_losses_not_flagged():
+    """실적 뉴스의 'reported losses of $X'는 로펌광고로 오탐 금지."""
+    result = mk_result([], [])
+    for title in [
+        "Micron reported net losses of $2 billion last quarter",
+        "Startup posts operating losses of $50 million",
+    ]:
+        story = mk_story("s", ["e1"], impact=0.5, title=title)
+        assert not is_legal_solicitation(story, result), title
+
+
+def test_legal_deadline_reminder_still_flagged():
+    """로펌광고 문맥의 'deadline reminder'·'losses of more than'은 계속 탐지."""
+    result = mk_result([], [])
+    reminder = mk_story("s1", ["e1"], impact=0.5,
+                        title="Deadline reminder for affected investors")
+    assert is_legal_solicitation(reminder, result)
+
+    big_loss = mk_story("s2", ["e2"], impact=0.5,
+                        title="Investors with losses of more than $100,000 should act")
+    assert is_legal_solicitation(big_loss, result)
+
+
+def test_bare_deadline_no_longer_penalizes_ranking():
+    """'deadline' 단독 뉴스가 legal 페널티/cap 없이 정상 랭크되는지(엔드투엔드)."""
+    normal = mk_story("n", ["e1"], impact=0.60,
+                      title="Tender offer deadline set for NVDA acquisition")
+    result = mk_result([normal], [mk_event("e1", "Tender offer deadline Friday")])
+    ranked = rank_final([normal], result)
+    assert len(ranked) == 1
+    # legal 페널티(-0.25) 미적용 → impact 그대로(보너스 없으면 동일)
+    assert ranked[0].final_score >= 0.60
+
+
 def test_primary_ticker_diversity_cap():
     stories = [
         mk_story("a", ["e1"], impact=0.90, tickers=("NVDA",)),
