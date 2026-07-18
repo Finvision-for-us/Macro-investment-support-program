@@ -72,6 +72,15 @@ class TestPdfUrl(unittest.TestCase):
             cd._pdf_url_from_link(DETAIL, ""),
             "http://static.cninfo.com.cn/finalpage/2026-06-26/1225387929.PDF")
 
+    def test_time_suffixed_announcement_time(self):
+        """announcementTime이 '날짜 시:분:초' 형식이어도 변환된다.
+        (라이브 실측: 002594는 시간 포함 → 미처리 시 CN 공시 병합 전량 탈락 버그)"""
+        link = (DETAIL.replace("announcementTime=2026-06-26",
+                               "announcementTime=2026-07-02 00:00:00"))
+        self.assertEqual(
+            cd._pdf_url_from_link(link, ""),
+            "http://static.cninfo.com.cn/finalpage/2026-07-02/1225387929.PDF")
+
     def test_falls_back_to_time_str(self):
         link = "http://www.cninfo.com.cn/new/disclosure/detail?announcementId=123456"
         self.assertEqual(

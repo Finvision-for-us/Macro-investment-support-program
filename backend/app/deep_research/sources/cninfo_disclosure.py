@@ -86,8 +86,11 @@ def _pdf_url_from_link(link: str, time_str: str) -> Optional[str]:
     try:
         qs = parse_qs(urlparse(link).query)
         aid = (qs.get("announcementId") or [""])[0]
-        date = (qs.get("announcementTime") or [""])[0] or (time_str or "")[:10]
-        if aid.isdigit() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", date or ""):
+        # announcementTime은 종목에 따라 '2026-07-02' 또는 '2026-07-02 00:00:00'
+        # 양쪽 형식이 온다(라이브 실측: 000001은 날짜만, 002594는 시간 포함) → [:10] 정규화.
+        raw_date = (qs.get("announcementTime") or [""])[0] or (time_str or "")
+        date = raw_date[:10]
+        if aid.isdigit() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
             return _CNINFO_PDF.format(date=date, aid=aid)
     except Exception:
         pass

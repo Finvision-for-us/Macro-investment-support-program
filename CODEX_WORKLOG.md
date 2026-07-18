@@ -1234,3 +1234,10 @@ Fable 리뷰의 유일한 '재설계'급 항목. research_lab/langfuse_deep_rese
 - 배선: official_source_searcher.search에 CN 관할(primary/secondary) 시 병합, cninfo.com.cn을 searched_domains에 기록(커버리지 반영). 반환 PDF URL은 추출 단계의 로컬 PDF 2단 추출(텍스트레이어→OCR)과 직결.
 - 라이브 전체 사슬 증명: akshare 조회(000001) → 키워드(分红/权益) 랭킹 공시 3건 → 정적 PDF URL → **pdf_extractor가 실제 공시 본문 1,129단어 추출**(平安银行 권익분파 공고, 텍스트레이어 경로).
 - 검증: 신규 test_cninfo_disclosure.py 14개 — 코드 추출(프리픽스/연월 오탐/중복), PDF URL 파싱(폴백/무효), 랭킹(키워드/최신 폴백), search(코드 없으면 무조회, context 코드, 조회 실패 스킵, akshare 부재, 코드 캡). backend 231 전량 green, 부팅 43 routes. requirements에 akshare>=1.18 추가.
+
+### 추가(2026-07-16) - [검증→수정] 크로스보더 종합 라이브 E2E (BYD 002594) — 치명 크래시 1 + 변환 버그 1 발견·수정
+§6 "종합 라이브 최종 검증 미완" 해소 목적. 신형 사슬(CN관할→cninfo→PDF→FX/앵커)이 파이프라인 안에서 함께 도는지 BYD(게이저티어 등재·실존 A주)로 검증 → 1차 실행에서 진짜 결함 2개가 드러남.
+- **치명 1: PDFium 동시 호출 프로세스 즉사** — 1차 잡이 PDF 배치(동시 3) 파싱 시점에 uvicorn이 Python 트레이스백 없이 사망(SZSE PDF 다운로드 200 직후). PDFium은 스레드 안전하지 않아 동시 파싱/렌더 시 네이티브 액세스 위반. → `_PDFIUM_LOCK`(threading.Lock)으로 네이티브 구간(파싱→텍스트→렌더→OCR) 전체 직렬화, 다운로드 I/O는 병렬 유지. 검증: 크래시 지점의 실제 SZSE PDF 포함 6건 동시 3 스트레스 → 6/6 성공·프로세스 생존.
+- **버그 2: cninfo announcementTime 형식 편차** — 002594 링크는 '2026-07-02 00:00:00'(시간 포함)이라 YYYY-MM-DD fullmatch 탈락 → 선별 7건 전량 병합 실패(000001은 우연히 날짜만이라 첫 라이브에서 안 걸림). → [:10] 정규화. 회귀 테스트 추가(시간 포함 형식). 라이브: BYD 7건 변환 + 공시 PDF 1,826단어 실추출.
+- **2차 E2E 완주(잡 fd9cfdf5)**: done·오류 0·서버 생존. 소스 286개. 마커 — PDF text-layer ×15(+크기캡 차단 ×3), wayback 회수 ×5, cninfo 선별(225→7), 구조화 planner/critic×5/추출/자기검증 전부. cross_validation 12건: **[pro-rata 정합] 8,142.70万元≈81,910.64万元×10% (RMB)** + **[환율 정합] ×5**(¥804B≈$116B 등 실제 BYD 수치) — 중국어 공시 수치가 결정론 검사를 실전 관통. 1차 실행에선 야생 스캔 PDF(미래에셋) OCR 5,106자도 확인.
+- backend 232 전량 green(회귀 1 추가). 참고: 일시적 cninfo 네트워크 플레이크는 설계된 조용한 폴백으로 처리됨(재시도서 정상).

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -44,6 +45,12 @@ _DOWNLOAD_TIMEOUT = 30.0
 # OCR 엔진은 무겁다(모델 로드 수백 ms) — 프로세스 싱글턴, 실패 시 영구 비활성.
 _ocr_engine = None
 _ocr_tried = False
+
+# PDFium은 스레드 안전하지 않다 — 여러 스레드가 동시에 파싱/렌더하면 네이티브
+# 액세스 위반으로 '프로세스 전체'가 트레이스백 없이 죽는다(라이브 E2E 실측:
+# extract_pdf_batch 동시 3건 파싱 시점에 uvicorn 즉사). 네이티브 구간(파싱→
+# 텍스트→렌더→OCR)을 전역 락으로 직렬화한다. 다운로드(I/O)는 병렬 유지.
+_PDFIUM_LOCK = threading.Lock()
 
 
 def is_pdf_url(url: str) -> bool:
@@ -110,28 +117,33 @@ def _ocr_pages(doc) -> str:
 
 
 def _extract_pdf_bytes(data: bytes, url: str) -> Optional[ExtractedContent]:
-    """PDF 바이트 → ExtractedContent. 텍스트레이어 → (부족 시) OCR 순."""
+    """PDF 바이트 → ExtractedContent. 텍스트레이어 → (부족 시) OCR 순.
+
+    네이티브 구간 전체를 _PDFIUM_LOCK으로 직렬화 — PDFium 동시 호출은 프로세스를
+    죽인다(모듈 상단 주석 참조).
+    """
     if not _PDFIUM_OK:
         return None
-    try:
-        doc = _pdfium.PdfDocument(data)
-    except Exception as e:
-        logger.warning(f"[pdf] 파싱 실패 {url}: {e}")
-        return None
-
-    try:
-        text, pages_read = _pdf_text_layer(doc)
-        method = "text-layer"
-        # 페이지당 평균 문자수가 임계 미만 → 스캔 이미지 PDF로 판정 → OCR
-        if pages_read > 0 and len(text) / pages_read < _IMAGE_PDF_CHARS_PER_PAGE:
-            ocr_text = _ocr_pages(doc)
-            if len(ocr_text) > len(text):
-                text, method = ocr_text, "ocr"
-    finally:
+    with _PDFIUM_LOCK:
         try:
-            doc.close()
-        except Exception:
-            pass
+            doc = _pdfium.PdfDocument(data)
+        except Exception as e:
+            logger.warning(f"[pdf] 파싱 실패 {url}: {e}")
+            return None
+
+        try:
+            text, pages_read = _pdf_text_layer(doc)
+            method = "text-layer"
+            # 페이지당 평균 문자수가 임계 미만 → 스캔 이미지 PDF로 판정 → OCR
+            if pages_read > 0 and len(text) / pages_read < _IMAGE_PDF_CHARS_PER_PAGE:
+                ocr_text = _ocr_pages(doc)
+                if len(ocr_text) > len(text):
+                    text, method = ocr_text, "ocr"
+        finally:
+            try:
+                doc.close()
+            except Exception:
+                pass
 
     if len(text) < _MIN_CONTENT_CHARS:
         logger.info(f"[pdf] 추출 텍스트 부족({len(text)}자) {url}")
