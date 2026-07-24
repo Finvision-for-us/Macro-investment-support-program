@@ -13,12 +13,25 @@ function formatDelta(change, prev, unit) {
   return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`
 }
 
-export function MacroPanel({ events }) {
+// 관측일과 스냅샷 기준일(asOf)의 차이를 "최근 갱신일" 라벨로 — 브라우저 시계가 아니라
+// 데이터 기준일로 계산해야 타임라인이 어긋나지 않는다.
+function updatedLabel(observedIso, asOf) {
+  const mmdd = (observedIso || '').slice(5, 10)  // MM-DD
+  if (!observedIso || !asOf) return mmdd
+  const o = new Date(observedIso.slice(0, 10))
+  const a = new Date(asOf)
+  const days = Math.round((a - o) / 86_400_000)
+  const rel = days <= 0 ? '오늘' : days === 1 ? '어제' : `${days}일 전`
+  return `갱신 ${mmdd} · ${rel}`
+}
+
+export function MacroPanel({ events, asOf }) {
   if (!events?.length) return null
 
+  // fetch_latest_events 는 시리즈당 1건이지만, 방어적으로 시리즈별 최신 1건만 유지
   const seen = new Set()
   const dedup = []
-  for (const e of [...events].sort((a, b) => Math.abs(b.sigma_z) - Math.abs(a.sigma_z))) {
+  for (const e of [...events].sort((a, b) => (b.observed_at || '').localeCompare(a.observed_at || ''))) {
     if (seen.has(e.series_id)) continue
     seen.add(e.series_id)
     dedup.push(e)
@@ -26,15 +39,15 @@ export function MacroPanel({ events }) {
 
   return (
     <section className="mb-8">
-      <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-zinc-500">오늘의 거시 · 1σ 이상 변화</h2>
+      <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-zinc-500">오늘의 거시 · 최신 관측치</h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {dedup.slice(0, 6).map((m) => {
+        {dedup.slice(0, 8).map((m) => {
           const isUp = m.change >= 0
           return (
             <article key={m.id} className="glass-panel glass-card-hover rounded-xl p-4 flex flex-col justify-between" title={m.summary_ko}>
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-sm font-bold text-zinc-800">{m.series_label_ko}</span>
-                <span className="text-[10px] font-medium tabular-nums text-zinc-400">{m.observed_at?.slice(0, 10)}</span>
+                <span className="text-[10px] font-medium tabular-nums text-zinc-400 shrink-0">{updatedLabel(m.observed_at, asOf)}</span>
               </div>
               <div className="mt-3 flex items-center justify-between">
                 <div className="flex items-baseline gap-2">

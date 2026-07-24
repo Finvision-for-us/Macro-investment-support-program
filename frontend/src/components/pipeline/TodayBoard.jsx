@@ -74,7 +74,7 @@ export function TodayBoard({ data, topStories }) {
           </div>
         </header>
 
-        <MacroPanel events={data.macro_events} />
+        <MacroPanel events={data.macro_events} asOf={data.date} />
         <ThemePicker themes={data.themes} storyById={storyById} onSelectTheme={setSelectedThemeId} />
 
         <footer className="mt-16 text-center text-[10px] text-zinc-400 font-bold">생성 시각: {data.generated_at}</footer>
