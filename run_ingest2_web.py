@@ -69,7 +69,7 @@ def main() -> None:
     prev = load_previous_snapshot(date_str)
     if prev is not None:
         print(f"Loaded yesterday snapshot {prev.date} ({len(prev.stories)} stories)")
-        today_linked = life_link.link_to_previous(lifecycle_stories, prev)
+        today_linked = life_link.link_to_previous(lifecycle_stories, prev, today_date=date_str)
         final_stories = life_state.label_today(today_linked, prev, today_date=date_str)
     else:
         print("No yesterday snapshot found. All stories initialized as active.")

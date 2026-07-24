@@ -24,7 +24,18 @@ from src.lifecycle.store import LifecycleStory, Snapshot
 LINK_SIMILARITY_THRESHOLD = 0.75
 MIN_TICKER_OVERLAP = 1
 
+# 부모 후보의 마지막 신호(last_seen)가 오늘로부터 이 일수 이내여야 연결(진행중)을 허용.
+# 연결과 종결(resolved)이 서로 다른 시계를 쓰지 않도록 하는 게이트 — 큰 공백(예: 2주)
+# 만에 실행했을 때 옛 스토리를 "진행중"으로 잘못 이어붙이는 것을 막는다.
+MAX_LINK_GAP_DAYS = 1
+
 EmbedFn = Callable[[list[str]], np.ndarray]
+
+_DATE_FMT = "%Y-%m-%d"
+
+
+def _days_since(last_seen: str, today: str) -> int:
+    return (datetime.strptime(today, _DATE_FMT) - datetime.strptime(last_seen, _DATE_FMT)).days
 
 
 def _story_text(s: LifecycleStory) -> str:
@@ -45,6 +56,8 @@ def link_to_previous(
     today_stories: list[LifecycleStory],
     previous: Snapshot | None,
     *,
+    today_date: str | None = None,
+    max_link_gap_days: int = MAX_LINK_GAP_DAYS,
     sim_threshold: float = LINK_SIMILARITY_THRESHOLD,
     min_ticker_overlap: int = MIN_TICKER_OVERLAP,
     embed_fn: EmbedFn = embed_texts,
@@ -54,6 +67,10 @@ def link_to_previous(
     이 함수는 결정론적이며 LLM 호출 없음. 임베딩은 ``embed_fn`` 으로 1회 호출
     (오늘 N개 + 어제 M개의 텍스트 1배치). 테스트에서는 ``embed_fn`` 을 주입해
     Gemini 의존성 없이 검증 가능.
+
+    ``today_date`` 를 넘기면 부모 후보를 마지막 신호가 ``max_link_gap_days`` 일 이내인
+    것으로 제한한다(큰 공백 만의 실행에서 옛 스토리를 잘못 이어붙이는 것 방지).
+    ``today_date`` 가 없으면 게이트를 적용하지 않는다(하위 호환).
     """
     if not today_stories:
         return []
@@ -64,8 +81,14 @@ def link_to_previous(
 
     yesterday = previous.stories
 
+    def _recent_enough(y: LifecycleStory) -> bool:
+        if today_date is None:
+            return True
+        return _days_since(y.last_seen_date, today_date) <= max_link_gap_days
+
     # 1) ticker 사전 필터 — 후보 0개면 임베딩 skip
     #    + 빈 텍스트 (title/narrative 둘 다 비어있음) 인 스토리는 임베딩 거부 회피 위해 후보 제외
+    #    + last_seen 이 오래된(공백 초과) 부모는 후보에서 제외 (연결↔종결 시계 일치)
     candidates_per_today: dict[int, list[int]] = {}
     for ti, t in enumerate(today_stories):
         if not _story_text(t):
@@ -73,7 +96,9 @@ def link_to_previous(
         cands = [
             yi
             for yi, y in enumerate(yesterday)
-            if _story_text(y) and _ticker_overlap(t.tickers, y.tickers) >= min_ticker_overlap
+            if _story_text(y)
+            and _recent_enough(y)
+            and _ticker_overlap(t.tickers, y.tickers) >= min_ticker_overlap
         ]
         if cands:
             candidates_per_today[ti] = cands
