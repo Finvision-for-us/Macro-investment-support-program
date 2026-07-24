@@ -251,3 +251,84 @@ def fetch_macro_events(
     # 최신 → 과거 순
     events.sort(key=lambda e: e.observed_at, reverse=True)
     return events
+
+
+# ---------------------------------------------------------------------------
+# 최신 관측치 (패널용 — 현재값 유지)
+# ---------------------------------------------------------------------------
+
+
+def latest_event(
+    series_id: str,
+    observations: list[MacroObservation],
+) -> MacroEvent | None:
+    """시리즈의 **최신 관측치**를 MacroEvent 로 반환 (직전 대비 변화·σ 포함).
+
+    ``detect_events`` 가 '큰 변동(≥threshold σ)만' 뽑는 것과 달리, 변동 크기와 무관하게
+    항상 최신 1건을 낸다 — 패널이 '오늘의 현재값'을 유지하도록. 관측치 2개 미만이면 None.
+    """
+    if len(observations) < 2:
+        return None
+    diffs = _changes(observations)
+    try:
+        sigma = statistics.pstdev(diffs)
+    except statistics.StatisticsError:
+        sigma = 0.0
+    prev = observations[-2]
+    cur = observations[-1]
+    change = cur.value - prev.value
+    z = (change / sigma) if sigma else 0.0
+    meta = SERIES_META.get(series_id, {"label_ko": series_id, "unit": ""})
+    ts = datetime.combine(cur.date, datetime.min.time()).replace(tzinfo=timezone.utc)
+    return MacroEvent(
+        id=f"macro_{series_id}_{cur.date.strftime('%Y%m%d')}",
+        series_id=series_id,
+        series_label_ko=meta["label_ko"],
+        unit=meta["unit"],
+        observed_at=ts,
+        value=cur.value,
+        prev_value=prev.value,
+        change=change,
+        sigma_z=round(z, 3),
+        summary_ko=_make_summary(series_id, prev.value, cur.value, z),
+    )
+
+
+def fetch_latest_events(
+    *,
+    series_ids: Iterable[str] | None = None,
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+    fetch_fn: Callable[..., list[MacroObservation]] = fetch_series,
+    market_fetch_fn: Callable[..., list[MacroObservation]] | None = None,
+) -> list[MacroEvent]:
+    """모든 시리즈 fetch → 시리즈별 **최신 관측치** 1건씩 (변동 크기 무관).
+
+    패널이 '최근 갱신일 기준 현재값'을 표시하도록 ``detect_events``(σ 충격) 대신 사용.
+
+    ``market_fetch_fn`` 을 주면(예: Yahoo) 일간 지표를 저지연 소스로 **우선** 시도하고,
+    빈 list/예외면 FRED(``fetch_fn``)로 폴백한다. 미지원 시리즈는 market_fetch_fn 이
+    빈 list 를 돌려 FRED 로 폴백. ``fetch_fn``/``market_fetch_fn`` 주입으로 HTTP 없이 검증 가능.
+    """
+    series_ids = list(series_ids or SERIES_META.keys())
+    events: list[MacroEvent] = []
+    for sid in series_ids:
+        obs: list[MacroObservation] = []
+        # 1) 저지연 시장 소스 우선 (일간 지표) — 실패/미지원 시 FRED 폴백
+        if market_fetch_fn is not None:
+            try:
+                obs = market_fetch_fn(sid, lookback_days=lookback_days) or []
+            except Exception:  # noqa: BLE001 — Yahoo 실패는 FRED 로 폴백
+                obs = []
+        # 2) FRED (폴백 또는 기본)
+        if not obs:
+            try:
+                obs = fetch_fn(sid, lookback_days=lookback_days)
+            except MissingFredKeyError:
+                raise
+            except Exception:  # noqa: BLE001 — 1개 시리즈 실패로 전체 중단 X
+                continue
+        ev = latest_event(sid, obs)
+        if ev is not None:
+            events.append(ev)
+    events.sort(key=lambda e: e.observed_at, reverse=True)
+    return events

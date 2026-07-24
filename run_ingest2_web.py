@@ -81,8 +81,11 @@ def main() -> None:
     t0 = time.perf_counter()
     macro_events = []
     try:
-        macro_events = macro_fred.fetch_macro_events(emit_days=14, sigma_threshold=1.0)
-        print(f"Fetched {len(macro_events)} macro events.")
+        from src.macro import market as macro_market
+        macro_events = macro_fred.fetch_latest_events(  # 시리즈별 최신 관측치(현재값)
+            market_fetch_fn=macro_market.fetch_yahoo_observations,  # 일간은 Yahoo 우선, FRED 폴백
+        )
+        print(f"Fetched {len(macro_events)} macro latest observations.")
     except Exception as e:
         print(f"Failed to fetch macro events: {e}")
 

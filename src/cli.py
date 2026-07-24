@@ -888,9 +888,12 @@ def cmd_lifecycle_link(
     macro_events = []
     if not skip_macro:
         try:
-            macro_events = macro_fred.fetch_macro_events(emit_days=14, sigma_threshold=1.0)
+            from src.macro import market as macro_market
+            macro_events = macro_fred.fetch_latest_events(  # 시리즈별 최신 관측치(현재값)
+                market_fetch_fn=macro_market.fetch_yahoo_observations,  # 일간은 Yahoo 우선, FRED 폴백
+            )
             console.print(
-                f"[green]Macro events: {len(macro_events)} (1σ+, 최근 14일)[/]"
+                f"[green]Macro latest: {len(macro_events)} (일간=Yahoo, 월간=FRED)[/]"
             )
         except macro_fred.MissingFredKeyError:
             console.print("[yellow]FRED_API_KEY 없음 — macro skip[/]")
