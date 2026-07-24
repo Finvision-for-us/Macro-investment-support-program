@@ -215,3 +215,66 @@ def test_theme_model_serializes_json():
     s = t.model_dump_json()
     assert "테스트" in s
     assert '"direction":"uncertain"' in s
+
+
+# ----- 정기 공시 필터 + tier 승격 (신규) -----------------------------------
+
+
+def test_is_routine_filing_flags_sec_forms():
+    assert themes.is_routine_filing(
+        _story("s", title="IIOT-OXYS, Inc. (ITOX), 2026년 2분기 10-Q 분기 보고서 제출")
+    )
+    assert themes.is_routine_filing(
+        _story("s", title="GridAI Technologies Corp. (GRDX), S-1/A 수정 신고서 제출")
+    )
+    assert themes.is_routine_filing(
+        _story("s", title="ProPhase Labs, Inc. (PRPH), 10-Q/A 수정 보고서 제출")
+    )
+
+
+def test_is_routine_filing_ignores_real_news():
+    # 폼 토큰 없음 → 뉴스
+    assert not themes.is_routine_filing(
+        _story("s", title="Rocket Lab, 80억 달러 규모 Iridium 인수 발표와 주가 급등의 명암")
+    )
+    assert not themes.is_routine_filing(
+        _story("s", title="AMD, Helios 시스템과 MI400으로 NVDA의 강력한 대항마 부상")
+    )
+
+
+def test_build_themes_excludes_routine_filings():
+    filing = _story("f", title="ACME Inc. (ACME), 2026년 2분기 10-Q 보고서 제출", score=0.9)
+    news = _story("n", title="빅딜 인수 발표", narrative="설명", score=0.3)
+    table = {
+        themes._story_text(filing): _angle_vec(0),
+        themes._story_text(news): _angle_vec(math.pi / 2),
+    }
+    out = themes.build_themes([filing, news], embed_fn=_make_embed_fn(table), name_fn=_stub_name)
+    ids = {sid for t in out for sid in t.story_ids}
+    assert "f" not in ids  # 정기 공시 제외
+    assert "n" in ids
+
+
+def test_single_high_impact_story_promoted_to_headline_with_desc():
+    s = _story("s1", title="대형 M&A 발표", narrative="80억 달러 인수", score=0.9)
+    out = themes.build_themes(
+        [s], embed_fn=_make_embed_fn({themes._story_text(s): _angle_vec(0)}), name_fn=_stub_name
+    )
+    assert len(out) == 1
+    assert out[0].tier == "headline"          # 단독이어도 headline 승격
+    assert out[0].description == "80억 달러 인수"  # narrative_short 재사용 (빈 설명 방지)
+
+
+def test_headline_by_peak_impact_not_by_count():
+    """단독 고임팩트(0.9) 스토리가 저임팩트 2건 뭉치(0.2+0.2)보다 헤드라인."""
+    hot = _story("hot", title="초대형 뉴스", narrative="x", score=0.9)
+    a = _story("a", title="AA", narrative="x", score=0.2)
+    b = _story("b", title="BB", narrative="x", score=0.2)
+    table = {
+        themes._story_text(a): _angle_vec(0),
+        themes._story_text(b): _angle_vec(0),   # a,b 묶임
+        themes._story_text(hot): _angle_vec(math.pi / 2),  # hot 단독
+    }
+    out = themes.build_themes([hot, a, b], embed_fn=_make_embed_fn(table), name_fn=_stub_name)
+    headline = next(t for t in out if t.tier == "headline")
+    assert headline.story_ids == ["hot"]

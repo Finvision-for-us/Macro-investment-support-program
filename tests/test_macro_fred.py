@@ -171,6 +171,97 @@ def test_fetch_macro_events_missing_key_raises():
         fred.fetch_macro_events(series_ids=["FEDFUNDS"], fetch_fn=keyless_fetch)
 
 
+# ----- latest_event / fetch_latest_events -----------------------------------
+
+
+def test_latest_event_returns_most_recent_regardless_of_size():
+    """변동이 작아도 최신 관측치 1건을 반환 (detect_events 와 달리 threshold 없음)."""
+    obs = [_obs("2026-01-01", 4.00), _obs("2026-01-02", 4.00), _obs("2026-01-03", 4.01)]
+    ev = fred.latest_event("DGS10", obs)
+    assert ev is not None
+    assert ev.observed_at.date() == date(2026, 1, 3)
+    assert ev.value == pytest.approx(4.01)
+    assert ev.prev_value == pytest.approx(4.00)
+
+
+def test_latest_event_none_when_too_few():
+    assert fred.latest_event("DGS10", []) is None
+    assert fred.latest_event("DGS10", [_obs("2026-01-01", 4.0)]) is None
+
+
+def test_latest_event_zero_variance_gives_zero_sigma():
+    obs = [_obs(f"2026-01-{i+1:02d}", 4.0) for i in range(5)]
+    ev = fred.latest_event("DGS10", obs)
+    assert ev is not None
+    assert ev.sigma_z == 0.0
+    assert ev.change == pytest.approx(0.0)
+
+
+def test_fetch_latest_events_one_per_series():
+    fake = {
+        "FEDFUNDS": [_obs("2026-05-24", 4.0), _obs("2026-05-25", 3.75)],
+        "DGS10": [_obs("2026-05-25", 4.5), _obs("2026-05-26", 4.6)],
+    }
+
+    def fake_fetch(sid, lookback_days):
+        return fake.get(sid, [])
+
+    events = fred.fetch_latest_events(
+        series_ids=["FEDFUNDS", "DGS10", "VIXCLS"],  # VIXCLS 빈 데이터 → 제외
+        fetch_fn=fake_fetch,
+    )
+    assert len(events) == 2
+    assert {e.series_id for e in events} == {"FEDFUNDS", "DGS10"}
+    assert events[0].observed_at >= events[1].observed_at  # 최신순
+    by = {e.series_id: e for e in events}
+    assert by["FEDFUNDS"].value == pytest.approx(3.75)  # 각 시리즈 최신값
+    assert by["DGS10"].value == pytest.approx(4.6)
+
+
+def test_fetch_latest_events_missing_key_raises():
+    def keyless(sid, lookback_days):
+        raise fred.MissingFredKeyError("no key")
+
+    with pytest.raises(fred.MissingFredKeyError):
+        fred.fetch_latest_events(series_ids=["FEDFUNDS"], fetch_fn=keyless)
+
+
+def test_fetch_latest_events_prefers_market_source_with_fred_fallback():
+    """market_fetch_fn 이 지원하는 시리즈는 market 값, 미지원(빈 list)은 FRED 폴백."""
+
+    def fake_market(sid, lookback_days):
+        if sid == "VIXCLS":  # Yahoo: 더 신선한 07-23
+            return [_obs("2026-07-22", 16.0), _obs("2026-07-23", 18.0)]
+        return []  # 미지원 → FRED 폴백
+
+    def fake_fred(sid, lookback_days):  # FRED: 07-22 까지만
+        return [_obs("2026-07-21", 4.0), _obs("2026-07-22", 4.1)]
+
+    events = fred.fetch_latest_events(
+        series_ids=["VIXCLS", "DGS10"], fetch_fn=fake_fred, market_fetch_fn=fake_market
+    )
+    by = {e.series_id: e for e in events}
+    assert by["VIXCLS"].observed_at.date() == date(2026, 7, 23)  # Yahoo 사용
+    assert by["VIXCLS"].value == pytest.approx(18.0)
+    assert by["DGS10"].observed_at.date() == date(2026, 7, 22)   # FRED 폴백
+
+
+def test_fetch_latest_events_falls_back_when_market_raises():
+    """market 소스가 예외를 던지면 조용히 FRED 로 폴백."""
+
+    def boom_market(sid, lookback_days):
+        raise RuntimeError("yahoo down")
+
+    def fake_fred(sid, lookback_days):
+        return [_obs("2026-07-21", 4.0), _obs("2026-07-22", 4.1)]
+
+    events = fred.fetch_latest_events(
+        series_ids=["VIXCLS"], fetch_fn=fake_fred, market_fetch_fn=boom_market
+    )
+    assert len(events) == 1
+    assert events[0].observed_at.date() == date(2026, 7, 22)  # FRED 폴백
+
+
 # ----- SERIES_META ----------------------------------------------------------
 
 

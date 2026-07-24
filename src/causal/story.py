@@ -8,10 +8,15 @@ from google.genai import types
 
 from src.causal.schema import Story
 from src.config import GEMINI_MODEL_FAST
+from src.glossary import render_glossary_block
 from src.ingest.schema import Event
 from src.llm import gemini_client, retry_gemini
 from src.prompting import clip_for_prompt
 
+# 출력 순서 주의: 내러티브를 먼저, title 을 마지막에 생성한다.
+# LLM 은 위에서 아래로(autoregressive) 쓰므로 title 을 먼저 두면 본문이 없는 상태로
+# 원문을 급히 압축하다 핵심 용어가 미끄러진다(예: 침묵기간 → 보호예수). 본문을 먼저
+# 확정한 뒤 그 어휘를 그대로 재사용해 title 을 뽑게 하면 제목↔본문 용어 불일치가 사라진다.
 _NARRATIVE_PROMPT = """You are a financial analyst writing a Story narrative.
 
 STORY CONTEXT
@@ -30,14 +35,17 @@ DEEP RESEARCH CLAIMS (key facts already verified)
 {claims_block}
 
 TASK
-Produce three outputs (Korean, 한국어):
-1. title (~50자): A single sentence headline capturing the overarching theme.
-2. narrative_short (~300자): Concise summary; what's happening and the main implication.
-3. narrative_long (800-1500자): Full analysis including:
+Produce these outputs (Korean, 한국어). Generate them IN THIS ORDER — narrative FIRST, title LAST:
+1. narrative_long (800-1500자): Full analysis including:
    - The causal chain (use ↓ or "→" to show cause→effect)
    - Affected entities and how
    - Counter-evidence or risks
    - Watch points for the next 1-4 weeks
+2. narrative_short (~300자): Concise summary; what's happening and the main implication.
+3. title (~50자): A single-sentence headline. Derive it by compressing the narrative you just
+   wrote above. Reuse the exact key terms (events, concepts, entities) as they already appear in
+   your narrative — do NOT paraphrase a key term into a different or more familiar word, and do
+   NOT introduce any term that does not appear in your narrative.
 
 LANGUAGE RULES
 - Write all narrative in natural Korean (한국어로 자연스럽게).
@@ -47,16 +55,65 @@ LANGUAGE RULES
 - In title and narrative, only reference DIRECT tickers (those explicitly named in articles).
   INDIRECT tickers are secondary speculation — mention them only in narrative_long as
   "파급 가능성" with appropriate hedging, never in the title.
-- Do NOT confuse IPO quiet period / analyst coverage restrictions with lock-up,
-  insider share lockups, 보호예수, or 의무보유확약. Translate them distinctly.
 
-Return ONLY JSON in this exact shape:
+TERMINOLOGY (원어 → 정답 한국어. 아래 혼동어는 title·narrative 어디에도 쓰지 말 것):
+{glossary_block}
+
+Return ONLY JSON in this exact shape (note the order — title comes LAST, after the narrative):
 {{
-  "title": "...",
+  "narrative_long": "...",
   "narrative_short": "...",
-  "narrative_long": "..."
+  "title": "..."
 }}
 """
+
+
+def _scrub_title_tickers(
+    title: str,
+    direct: list[str],
+    indirect: list[str],
+) -> str:
+    """제목에서 간접 티커(AI 추론)만 제거한다.
+
+    직접 티커(원문에 실제 언급된)는 건드리지 않는다 — 개수와 무관하게 보존.
+    간접 티커가 제목에 나타나면 AI 추론이 제목 생성에 영향을 준 것이므로 제거.
+    """
+    to_strip: set[str] = set(indirect)
+
+    if not to_strip:
+        return title
+
+    # (TICKER) 형식 심볼은 제거 대상에서 제외 — 이미 한국어 회사명이 앞에 있음
+    paren_tickers = {
+        m.group(1)
+        for m in re.finditer(r"\(([A-Z]{1,5})\)", title)
+    }
+    to_strip -= paren_tickers
+
+    # 긴 심볼부터 제거해 부분치환 방지
+    for ticker in sorted(to_strip, key=len, reverse=True):
+        # \b 대신 ASCII 전용 비인접 조건 사용:
+        # Python 유니코드 모드에서 한국어 조사(와·과·등·의)가 \w로 처리되어
+        # \b가 한국어 조사 앞에서 경계를 인식하지 못하는 문제를 회피.
+        # 뒤따르는 콤마(,)도 같이 제거 — 쉼표로 나열된 티커 목록에서 잔류 방지.
+        title = re.sub(
+            rf"(?<![A-Za-z]){re.escape(ticker)}(?![A-Za-z])[,]?\s*(?:등|와|과|및|의)?\s*",
+            " ",
+            title,
+        )
+
+    # 후처리
+    title = re.sub(r"\(\s*\)", "", title)         # 빈 괄호 ()
+    title = re.sub(r"\s+·\s+", " ", title)        # 단독 중점 " · " → 공백
+    title = re.sub(r"·\s*·", "·", title)          # 이중 중점
+    title = re.sub(r",\s*,", ",", title)           # 이중 콤마
+    title = re.sub(r"[,·]\s*$", "", title)         # 끝 구분자
+    title = re.sub(r"^[,·]\s*", "", title)         # 시작 구분자
+    title = re.sub(r"[: ]+,", " ", title)          # 콜론/공백 뒤 콤마 ( ": ," 패턴)
+    title = re.sub(r"[ \t]{2,}", " ", title)       # 이중 공백
+    title = re.sub(r"[:—\-]\s*$", "", title).strip()
+    title = re.sub(r"^[:—\-]\s*", "", title).strip()
+    return title or (direct[0] if direct else "(제목 없음)")
 
 
 def _strip_json(text: str) -> str:
@@ -167,6 +224,7 @@ def generate_narrative(
         events_block=_format_events_block(story, events_by_id),
         edges_block=_format_edges_block(story, events_by_id),
         claims_block=_format_claims_block(story, deep_reports),
+        glossary_block=render_glossary_block(),
     )
     try:
         result = _call(prompt)
@@ -178,9 +236,11 @@ def generate_narrative(
                 "narrative_long": "",
             }
         )
+    raw_title = str(result.get("title", ""))[:120]
+    clean_title = _scrub_title_tickers(raw_title, story.affected_tickers, indirect_all)
     return story.model_copy(
         update={
-            "title": str(result.get("title", ""))[:120],
+            "title": clean_title,
             "narrative_short": str(result.get("narrative_short", ""))[:600],
             "narrative_long": str(result.get("narrative_long", ""))[:3000],
         }
