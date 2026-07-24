@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Optional
-from urllib.parse import urlparse
 
+from app.deep_research.common import domain_of
 from app.deep_research.agents.jurisdiction_detector import JurisdictionResult
 from app.deep_research.agents.multilingual_query_builder import (
     MultilingualQueryBuilder, LocalizedQuery,
@@ -83,6 +83,23 @@ class OfficialSourceSearcher:
                 continue
             all_results.extend(r)
 
+        # CN 관할이면 cninfo 공시 목록을 1차 자료로 병합 (A주 코드 있을 때만 활성 —
+        # 정적 PDF URL로 반환돼 추출 단계의 로컬 PDF 2단 추출과 직결)
+        if "CN" == jurisdiction.primary or "CN" in (jurisdiction.secondary or []):
+            try:
+                from app.deep_research.sources.cninfo_disclosure import (
+                    cninfo_disclosure_source,
+                )
+                cn_results = await cninfo_disclosure_source.search_disclosures(
+                    original_query, context=context,
+                )
+                if cn_results:
+                    self._last_searched_domains.add("cninfo.com.cn")
+                    all_results.extend(cn_results)
+                    logger.info(f"[official_searcher] cninfo 공시 {len(cn_results)}건 병합")
+            except Exception as e:
+                logger.warning(f"[official_searcher] cninfo 소스 실패(무시): {e}")
+
         # 중복 URL 제거
         seen: set[str] = set()
         unique = [r for r in all_results if not (r.url in seen or seen.add(r.url))]
@@ -124,23 +141,33 @@ class OfficialSourceSearcher:
         jurisdiction: JurisdictionResult,
         collected_urls: list[str],
         official_extracted_count: int = 0,
+        topic: str = "all",
     ) -> dict:
+        """커버리지 산정.
+
+        topic="company"면 기대 도메인을 증권 규제기관·거래소(공시가 사는 곳)로
+        한정한다 — 종목 질문에 연준·재무부·통계청(central_bank/ministry)까지
+        기대치로 넣으면 '미확인'만 쌓여 커버리지가 항상 나빠 보이는 문제
+        (INDI 라이브 실측: 확인 2/미확인 8, 미확인 대부분이 거시 기관).
+        """
         all_countries = [jurisdiction.primary] + list(jurisdiction.secondary)
+        relevant_categories = (
+            {"regulator", "exchange"} if topic == "company"
+            else {"regulator", "exchange", "central_bank", "ministry", "index_provider"}
+        )
         expected_domains = [
             s.domain
             for country in all_countries
             for s in get_sources_for_country(country)
-            if s.tier == 1
+            if s.tier == 1 and s.category in relevant_categories
         ]
 
         # 수집된 URL에서 도메인 추출
         collected_domains: set[str] = set()
         for url in collected_urls:
-            try:
-                d = urlparse(url).netloc.removeprefix("www.").lower()
+            d = domain_of(url)
+            if d:
                 collected_domains.add(d)
-            except Exception:
-                pass
 
         checked: list[str] = []
         unchecked: list[str] = []

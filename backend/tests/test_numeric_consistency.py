@@ -214,6 +214,46 @@ class TestCrossSourceProrata(unittest.TestCase):
             C("另一估算100%总额人民币2,796,000,000元。", "c")])
         self.assertFalse(any("교차출처" in s for s in r.consistent))
 
+    def test_fires_via_cross_lingual_gazetteer_anchor(self):
+        """게이저티어 교차언어 앵커: 중국어 출처('无锡')와 영어 출처('Wuxi')가
+        같은 canonical 'Wuxi'로 연결돼 흩어진 pro-rata를 정합한다."""
+        r = nc.analyze([
+            C("无锡 target: acquired a 40% equity stake for $80,000,000.", "cn"),
+            C("The Wuxi deal aggregate 100% consideration of $200,000,000.", "en")])
+        self.assertTrue(any("교차출처" in s and "Wuxi" in s for s in r.consistent))
+
+
+class TestGazetteerAnchors(unittest.TestCase):
+    """CJK 앵커 게이저티어 — 중국어 회사명을 canonical 앵커로 정규화(교차언어)."""
+
+    def _anchors(self, text):
+        return set(nc._extract_anchors(text))
+
+    def test_cjk_simplified_maps_to_canonical(self):
+        self.assertIn("Wuxi", self._anchors("交易对价为无锡英迪微电子的股权"))
+
+    def test_cjk_traditional_maps_to_canonical(self):
+        self.assertIn("Wuxi", self._anchors("出售無錫股權予買方"))
+
+    def test_cross_lingual_same_canonical(self):
+        """중국어·영어 표기가 동일 canonical → 교차출처 연결의 근거."""
+        cn = self._anchors("比亚迪 电池 业务")
+        en = self._anchors("BYD battery unit")
+        self.assertIn("BYD", cn)
+        self.assertIn("BYD", en)
+
+    def test_boilerplate_cjk_no_false_anchor(self):
+        """엔티티가 아닌 CJK 상용어(公司/股份/交易…)는 앵커가 되지 않는다."""
+        self.assertEqual(self._anchors("公司股份有限交易对价净额税后"), set())
+
+    def test_latin_variant_normalized(self):
+        """Latin 별칭 변형(Pinduoduo)도 canonical(PDD)을 함께 만든다."""
+        self.assertIn("PDD", self._anchors("Pinduoduo Q3 results"))
+
+    def test_latin_stopword_still_rejected(self):
+        """게이저티어와 무관한 일반 대문자 boilerplate는 여전히 제외."""
+        self.assertEqual(self._anchors("THE COMPANY AGREEMENT REVENUE"), set())
+
 
 class TestKoreanMoneyParsing(unittest.TestCase):
     """한국어 금액 표기(조/억/만) 파싱 — FinVision 리포트는 한국어라 이 표기가
@@ -377,6 +417,62 @@ class TestCrossCurrency(unittest.TestCase):
         """단일 통화만 있으면 환율 검사가 아무것도 만들지 않는다."""
         r = nc.analyze([C("交易对价为人民币960,834,355元。", "sec.gov")])
         self.assertFalse(any("환율" in s for s in r.consistent + r.conflicts))
+
+    # ── 다통화 밴드 확장 (RMB 외) ──
+
+    def test_hkd_usd_reconciles(self):
+        """HK$1,050 million ≈ $135M → 함축 FX ~7.78 정합(HKD 밴드 7.0~8.3)."""
+        r = nc.analyze([C(
+            "total consideration of HK$1,050 million, or approximately "
+            "$135 million, in cash.", "hkexnews.hk")])
+        self.assertTrue(any("환율 정합" in s and "HKD/USD" in s for s in r.consistent))
+        self.assertEqual(r.conflicts, [])
+
+    def test_jpy_usd_reconciles(self):
+        """JPY 15,000 million ≈ $100M → 함축 FX 150 정합(JPY 밴드 70~180)."""
+        r = nc.analyze([C(
+            "acquisition price of JPY 15,000 million, or about $100 million.",
+            "jpx.co.jp")])
+        self.assertTrue(any("환율 정합" in s and "JPY/USD" in s for s in r.consistent))
+        self.assertEqual(r.conflicts, [])
+
+    def test_krw_usd_reconciles(self):
+        """1,350억 원 ≈ $100M → 함축 FX 1350 정합(KRW 밴드 900~1700)."""
+        r = nc.analyze([C(
+            "매각 대가 1,350억 원, 약 $100 million 규모로 현금 지급.", "dart.fss.or.kr")])
+        self.assertTrue(any("환율 정합" in s and "KRW/USD" in s for s in r.consistent))
+        self.assertEqual(r.conflicts, [])
+
+    def test_twd_usd_reconciles(self):
+        """NT$3,000 million ≈ $100M → 함축 FX 30 정합(TWD 밴드 25~35)."""
+        r = nc.analyze([C(
+            "deal valued at NT$3,000 million, or approximately $100 million.",
+            "twse.com.tw")])
+        self.assertTrue(any("환율 정합" in s and "TWD/USD" in s for s in r.consistent))
+        self.assertEqual(r.conflicts, [])
+
+    def test_hkd_unit_error_flagged(self):
+        """HKD를 10배로 오표기하면 함축 FX가 밴드 밖 → 환율 이상."""
+        r = nc.analyze([C(
+            "consideration of HK$10,500 million, or approximately $135 million.",
+            "x")])
+        self.assertTrue(any("환율 이상" in s and "HKD/USD" in s for s in r.conflicts))
+        self.assertTrue(any("환율" in q for q in r.followup_queries))
+
+    def test_eur_not_flagged_excluded_currency(self):
+        """EUR/GBP는 밴드에서 제외(1.0 근처 오탐 위험) → 환율 판정 없음."""
+        r = nc.analyze([C(
+            "purchase price of EUR 120 million, or about $130 million.", "esma.europa.eu")])
+        self.assertFalse(any("환율" in s for s in r.consistent + r.conflicts))
+
+    def test_cross_source_fx_conflict_per_currency(self):
+        """둘 다 밴드 안이지만 함축환율이 출처 간 5% 넘게 어긋나면 [환율 상충].
+        (7.48 vs 8.22 HKD/USD — 둘 다 7.0~8.3 안, 중앙값 대비 9% 이탈)"""
+        r = nc.analyze([
+            C("consideration of HK$1,010 million, or approximately $135 million.", "a.com"),
+            C("consideration of HK$1,110 million, or approximately $135 million.", "b.com"),
+        ])
+        self.assertTrue(any("환율 상충" in s and "HKD/USD" in s for s in r.conflicts))
 
 
 class TestSynthesizerExposure(unittest.TestCase):

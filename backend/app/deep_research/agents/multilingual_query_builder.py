@@ -258,6 +258,14 @@ class MultilingualQueryBuilder:
                 language="en", country="US",
                 query_type="official_site", site_domain="sec.gov",
             ))
+        # IR·보도자료 1차 자료 (회사 IR 도메인은 사전에 알 수 없어 site: 없이
+        # 공식 발표 성격 키워드로 타격 — businesswire/globenewswire/IR 페이지가 걸린다)
+        en_kw = (_ev(event_type, "en") or ["announcement"])[0]
+        result.queries.append(LocalizedQuery(
+            query=f'"{company_name or entity}" investor relations press release {en_kw}',
+            language="en", country="US",
+            query_type="official_site", site_domain="",
+        ))
 
     def _add_cn_queries(
         self, result: MultilingualQueries,

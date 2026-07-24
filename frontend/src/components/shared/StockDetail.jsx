@@ -693,6 +693,7 @@ function SkeletonCard() {
    ══════════════════════════════════════════════════════════════════ */
 export default function StockDetail({ ticker }) {
   const [overview, setOverview] = useState(null)
+  const [quote, setQuote] = useState(null) // 현재가 즉시 표시용 (overview보다 빠름/독립)
   const [loading, setLoading] = useState(false)
   const [selectedMetrics, setSelectedMetrics] = useState([])
   const [aiKeyMetrics, setAiKeyMetrics] = useState(null) // AI 종목별 핵심지표
@@ -742,21 +743,23 @@ export default function StockDetail({ ticker }) {
       .catch(() => {})
   }, [ticker])
 
-  // ── 30초마다 주가 자동 갱신 ──
+  // ── 현재가: 즉시 1회 + 30초마다 자동 갱신 ──
+  // overview(무거움, 수 초~타임아웃 가능)와 독립으로 quote(가벼움)를 바로 받아
+  // 헤더에 현재가를 먼저 띄운다. overview가 실패해도 현재가는 표시된다.
   useEffect(() => {
-    if (!ticker || !overview || overview.error) return
-    const interval = setInterval(() => {
+    if (!ticker) return
+    setQuote(null)
+    const fetchQuote = () => {
       stockAPI.getQuote(ticker)
         .then(r => {
-          const q = r.data
-          if (q.current_price != null) {
-            setOverview(prev => prev ? { ...prev, current_price: q.current_price } : prev)
-          }
+          if (r.data?.current_price != null) setQuote(r.data)
         })
-        .catch(() => {}) // 실패 시 무시 (다음 30초에 재시도)
-    }, 30000)
+        .catch(() => {}) // 실패 시 무시 (다음 주기에 재시도)
+    }
+    fetchQuote()
+    const interval = setInterval(fetchQuote, 30000)
     return () => clearInterval(interval)
-  }, [ticker, overview?.ticker])
+  }, [ticker])
 
   const toggleMetric = (key) => {
     setSelectedMetrics(prev =>
@@ -770,10 +773,41 @@ export default function StockDetail({ ticker }) {
     </div>
   )
 
-  if (loading && !overview) return <SkeletonCard />
+  // 현재가·전일 대비 — quote(즉시 조회) 우선, overview는 폴백
+  const currentPrice = quote?.current_price ?? overview?.current_price ?? null
+  const dayChange = quote?.current_price != null && quote?.previous_close
+    ? quote.current_price - quote.previous_close
+    : null
+  const dayChangePct = dayChange != null && quote.previous_close
+    ? (dayChange / quote.previous_close * 100)
+    : null
 
-  const priceChange = overview?.current_price && overview?.['52w_low']
-    ? ((overview.current_price - overview['52w_low']) / overview['52w_low'] * 100).toFixed(1)
+  const priceHeader = currentPrice != null && (
+    <div className="text-right">
+      <p className="text-3xl font-extrabold text-slate-900">${currentPrice.toFixed(2)}</p>
+      {dayChange != null && (
+        <div className={`flex items-center gap-1 justify-end text-sm mt-1 font-semibold ${dayChange >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+          {dayChange >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+          전일 대비 {dayChange >= 0 ? '+' : ''}{dayChange.toFixed(2)} ({dayChangePct >= 0 ? '+' : ''}{dayChangePct.toFixed(2)}%)
+        </div>
+      )}
+    </div>
+  )
+
+  if (loading && !overview) return (
+    <div className="space-y-5">
+      {currentPrice != null && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex items-start justify-between">
+          <h2 className="text-2xl font-extrabold text-slate-900">{ticker}</h2>
+          {priceHeader}
+        </div>
+      )}
+      <SkeletonCard />
+    </div>
+  )
+
+  const priceChange = currentPrice && overview?.['52w_low']
+    ? ((currentPrice - overview['52w_low']) / overview['52w_low'] * 100).toFixed(1)
     : null
 
   // AI 종목별 핵심지표 (있으면 AI, 없으면 섹터 기반 폴백)
@@ -783,6 +817,13 @@ export default function StockDetail({ ticker }) {
 
   return (
     <div className="space-y-5">
+      {/* ── 헤더 폴백: overview 실패해도 현재가는 표시 ── */}
+      {(!overview || overview.error) && currentPrice != null && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex items-start justify-between">
+          <h2 className="text-2xl font-extrabold text-slate-900">{ticker}</h2>
+          {priceHeader}
+        </div>
+      )}
       {/* ── 헤더 카드 ── */}
       {overview && !overview.error && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
@@ -805,10 +846,15 @@ export default function StockDetail({ ticker }) {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-3xl font-extrabold text-slate-900">${overview.current_price?.toFixed(2) ?? '-'}</p>
+              <p className="text-3xl font-extrabold text-slate-900">{currentPrice != null ? `$${currentPrice.toFixed(2)}` : '-'}</p>
+              {dayChange != null && (
+                <div className={`flex items-center gap-1 justify-end text-sm mt-1 font-semibold ${dayChange >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {dayChange >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                  전일 대비 {dayChange >= 0 ? '+' : ''}{dayChange.toFixed(2)} ({dayChangePct >= 0 ? '+' : ''}{dayChangePct.toFixed(2)}%)
+                </div>
+              )}
               {priceChange && (
-                <div className={`flex items-center gap-1 justify-end text-sm mt-1 font-medium ${parseFloat(priceChange) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {parseFloat(priceChange) >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                <div className={`flex items-center gap-1 justify-end text-xs mt-0.5 font-medium ${parseFloat(priceChange) >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
                   52주 저가 대비 {priceChange}%
                 </div>
               )}

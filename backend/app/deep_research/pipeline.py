@@ -11,13 +11,18 @@ from app.deep_research.agents.searcher import Searcher
 from app.deep_research.agents.extractor import Extractor
 from app.deep_research.agents.critic import Critic
 from app.deep_research.agents.synthesizer import Synthesizer
+from app.deep_research import llm_client
 from app.deep_research.agents.jurisdiction_detector import jurisdiction_detector
 from app.deep_research.agents.evidence_ranker import evidence_ranker
 from app.deep_research.sources.official_source_searcher import official_source_searcher
+from app.deep_research.sources.filing_timeline import FilingTimelineSource
+from app.deep_research.sources.ir_newsroom import IRNewsroomSource
+from app.deep_research.sources.market_context import MarketContextSource
 from app.deep_research.storage.raw_sources import RawSourceStorage
 from app.deep_research.discovery.lead_follower import lead_follower
 from app.deep_research.discovery.alternate_finder import alternate_instance_finder
 from app.deep_research.discovery.accessible_resolver import accessible_resolver, is_gated
+from app.deep_research.common import domain_of
 from app.deep_research.config import (
     MAX_ITERATIONS, MAX_RUN_SECONDS, MAX_COST_USD_PER_RUN,
     DISCOVERY_ENABLED, DISCOVERY_MAX_DEPTH, DISCOVERY_BREADTH, DISCOVERY_MAX_SEARCHES,
@@ -80,6 +85,36 @@ def _dedupe_strings(items: list[str]) -> list[str]:
     return out
 
 
+def _build_counter_queries(request: DeepResearchRequest) -> list[SubQuery]:
+    """질문 종류·산업과 무관하게 최소 반증/공식 fallback 쿼리를 만든다."""
+    ctx = request.context or {}
+    anchor = " ".join(filter(None, [
+        str(ctx.get("ticker") or "").strip(),
+        str(ctx.get("company_name") or ctx.get("company") or "").strip(),
+    ])).strip()
+    counter_base = f"{anchor} {request.query}".strip()
+    return [
+        SubQuery(
+            query=(
+                f"{counter_base} contradictory evidence downside risks "
+                f"failure conditions latest"
+            ),
+            priority=1,
+            sources=["grounding", "tavily", "parallel"],
+            rationale="counter_evidence: 투자 논리를 반박하거나 무효화할 최신 근거",
+        ),
+        SubQuery(
+            query=(
+                f"{counter_base} site:sec.gov 10-K 10-Q risk factors "
+                f"legal proceedings commitments contingencies"
+            ),
+            priority=1,
+            sources=["sec", "grounding", "tavily", "parallel"],
+            rationale="counter_evidence: 공식 공시 fallback과 누락 위험 확인",
+        ),
+    ]
+
+
 class DeepResearchPipeline:
     """심층 리서치 메인 파이프라인."""
 
@@ -89,10 +124,25 @@ class DeepResearchPipeline:
         self.extractor = Extractor()
         self.critic = Critic()
         self.synthesizer = Synthesizer()
+        self.filing_timeline = FilingTimelineSource()
+        self.ir_newsroom = IRNewsroomSource()
+        self.market_context = MarketContextSource()
         self._official_searcher_initialized = False
         self._discovery_wired = False
+        # 하위 에이전트와 llm_client 사용량 계측이 mutable state를 보유한다.
+        # 동일 프로세스의 동시 실행이 서로 reset하지 못하도록 정확성을 우선해 직렬화한다.
+        self._run_lock = asyncio.Lock()
 
     async def run(
+        self,
+        request: DeepResearchRequest,
+        job_id: str,
+        event_queue: Optional[asyncio.Queue] = None,
+    ) -> DeepResearchResponse:
+        async with self._run_lock:
+            return await self._run_isolated(request, job_id, event_queue)
+
+    async def _run_isolated(
         self,
         request: DeepResearchRequest,
         job_id: str,
@@ -132,9 +182,14 @@ class DeepResearchPipeline:
                 tavily_src = self.searcher._sources.get("tavily")
                 parallel_src = self.searcher._sources.get("parallel")
                 official_source_searcher.set_sources(tavily_src, parallel_src)
+                self.ir_newsroom.set_sources(
+                    tavily_src, self.searcher._sources.get("grounding"),
+                    parallel_src,
+                )
                 self._official_searcher_initialized = True
 
             official_source_searcher.reset_tracking()
+            llm_client.reset_usage()  # 잡 단위 실비용 집계 시작
 
             # ── 잡 간 상태 누수 방지 (싱글턴 파이프라인) ──
             # searcher._url_seen/_total_queries·extractor._extracted_urls가 리셋되지
@@ -186,50 +241,47 @@ class DeepResearchPipeline:
             metadata.recovered_sources += recovered_main
             all_contents.extend(contents)
             for c in contents:
-                from urllib.parse import urlparse
-                raw_storage.store(c.url, c.title, c.content,
-                                  urlparse(c.url).netloc.removeprefix("www."))
+                raw_storage.store(c.url, c.title, c.content, domain_of(c.url))
             await emit("extracting", f"{len(contents)}개 페이지 추출 완료", 50,
                       {"extracted_count": len(contents)})
 
-            # ── 3a. 공식 소스 집중 검색 (비미국 관할 또는 cross-border) ──
+            # ── 3a. 공식 소스 집중 검색 (전 관할 — US 단일 포함) ──
+            # 과거엔 US 단일 관할이면 스킵했으나, 그러면 가장 흔한 케이스(미국 종목)에서
+            # SEC EDGAR·IR 1차 자료 직접 타격이 빠진다(INDI 라이브 실측: 공식쿼리 0).
             official_results_count = 0
             official_extracted_count = 0
-            if jurisdiction.primary != "US" or jurisdiction.is_cross_border:
-                sec_label = jurisdiction.primary + (
-                    f"+{jurisdiction.secondary[0]}" if jurisdiction.secondary else ""
+            sec_label = jurisdiction.primary + (
+                f"+{jurisdiction.secondary[0]}" if jurisdiction.secondary else ""
+            )
+            await emit("searching", f"공식 소스 집중 검색 ({sec_label})...", 51)
+            try:
+                official_results = await official_source_searcher.search(
+                    request.query, jurisdiction,
+                    max_results_per_query=5,
+                    context=request.context,
                 )
-                await emit("searching", f"공식 소스 집중 검색 ({sec_label})...", 51)
-                try:
-                    official_results = await official_source_searcher.search(
-                        request.query, jurisdiction,
-                        max_results_per_query=5,
-                        context=request.context,
+                if official_results:
+                    all_results.extend(official_results)
+                    official_results_count = len(official_results)
+                    # 본문 추출
+                    official_contents = await self.extractor.extract_from_results(
+                        official_results,
+                        max_extract=min(len(official_results), 10),
                     )
-                    if official_results:
-                        all_results.extend(official_results)
-                        official_results_count = len(official_results)
-                        # 본문 추출
-                        official_contents = await self.extractor.extract_from_results(
-                            official_results,
-                            max_extract=min(len(official_results), 10),
+                    all_contents.extend(official_contents)
+                    for c in official_contents:
+                        raw_storage.store(
+                            c.url, c.title, c.content, domain_of(c.url),
                         )
-                        all_contents.extend(official_contents)
-                        for c in official_contents:
-                            from urllib.parse import urlparse as _up
-                            raw_storage.store(
-                                c.url, c.title, c.content,
-                                _up(c.url).netloc.removeprefix("www."),
-                            )
-                        official_extracted_count = len(official_contents)
-                        await emit(
-                            "searching",
-                            f"공식 소스 {official_results_count}건 수집 / "
-                            f"{official_extracted_count}건 본문 추출",
-                            53,
-                        )
-                except Exception as e:
-                    logger.warning(f"[pipeline] 공식 소스 검색 실패 (계속): {e}")
+                    official_extracted_count = len(official_contents)
+                    await emit(
+                        "searching",
+                        f"공식 소스 {official_results_count}건 수집 / "
+                        f"{official_extracted_count}건 본문 추출",
+                        53,
+                    )
+            except Exception as e:
+                logger.warning(f"[pipeline] 공식 소스 검색 실패 (계속): {e}")
 
             metadata.generated_queries = _dedupe_strings(
                 metadata.generated_queries + official_source_searcher.last_query_strings
@@ -285,7 +337,65 @@ class DeepResearchPipeline:
                     except Exception as e:
                         logger.warning(f"[pipeline] SEC 8-K 조회 실패 (계속 진행): {e}")
 
-            # ── 3d. Discovery 심층 확장 (n차 단서추적 + 접근가능본 복구) ──
+            # ── 3d. 공시 연대기 수집 (티커 기반 상시 — 쿼리 무관) ──
+            # 검색 기반 수집은 '검색에 걸린 사건'만 가져온다. 실적 PR·전환사채·
+            # 지분매각 같은 8-K 사건이 통째로 빠지는 격차의 해소 — EDGAR 제출
+            # 이력 자체를 시간축으로 전수 수집 (INDI 비교 감사 실측 기반).
+            tl_ticker = (request.context or {}).get("ticker", "")
+            if tl_ticker:
+                await emit("searching", f"SEC 공시 연대기 수집 중 ({tl_ticker})...", 57)
+                try:
+                    tl_contents = await self.filing_timeline.collect(tl_ticker)
+                    if tl_contents:
+                        all_contents.extend(tl_contents)
+                        for c in tl_contents:
+                            raw_storage.store(c.url, c.title, c.content, c.domain)
+                        await emit("searching",
+                                  f"공시 연대기 확보 + 중요 8-K 원문 {len(tl_contents) - 1}건",
+                                  58, {"filing_timeline_docs": len(tl_contents)})
+                except Exception as e:
+                    logger.warning(f"[pipeline] 공시 연대기 수집 실패 (계속): {e}")
+
+                # ── 3d-2. IR 뉴스룸 연대기 (8-K 비의무 PR — 제품/파트너십) ──
+                try:
+                    ctx = request.context or {}
+                    news_chron, pr_targets = await self.ir_newsroom.collect(
+                        tl_ticker,
+                        company=ctx.get("company_name") or ctx.get("company"),
+                    )
+                    if news_chron:
+                        all_contents.append(news_chron)
+                        raw_storage.store(news_chron.url, news_chron.title,
+                                          news_chron.content, news_chron.domain)
+                    if pr_targets:
+                        all_results.extend(pr_targets)
+                        pr_contents = await self.extractor.extract_from_results(
+                            pr_targets, max_extract=10)
+                        all_contents.extend(pr_contents)
+                        for c in pr_contents:
+                            raw_storage.store(c.url, c.title, c.content,
+                                              domain_of(c.url))
+                        await emit("searching",
+                                  f"IR 뉴스룸 연대기 확보 + 보도자료 원문 "
+                                  f"{len(pr_contents)}건", 58,
+                                  {"ir_newsroom_docs": len(pr_contents)})
+                except Exception as e:
+                    logger.warning(f"[pipeline] IR 뉴스룸 수집 실패 (계속): {e}")
+
+                # ── 3d-3. 시장 수급 스냅샷 (공매도·목표주가·추천 — LLM 0콜) ──
+                try:
+                    mkt = await self.market_context.collect(tl_ticker)
+                    if mkt:
+                        all_contents.append(mkt)
+                        raw_storage.store(mkt.url, mkt.title, mkt.content,
+                                          mkt.domain)
+                        await emit("searching",
+                                  "시장 수급 스냅샷 확보 (공매도·목표주가·추천)",
+                                  58, {"market_context": True})
+                except Exception as e:
+                    logger.warning(f"[pipeline] 시장 수급 수집 실패 (계속): {e}")
+
+            # ── 3e. Discovery 심층 확장 (n차 단서추적 + 접근가능본 복구) ──
             if DISCOVERY_ENABLED:
                 await emit("searching", "심층 단서추적 (n차 확장)...", 58)
                 try:
@@ -304,14 +414,42 @@ class DeepResearchPipeline:
                         metadata.recovered_sources += recovered  # 메인 경로 복구분에 누적
                         all_contents.extend(disc_contents)
                         for c in disc_contents:
-                            from urllib.parse import urlparse as _up
-                            raw_storage.store(c.url, c.title, c.content,
-                                              _up(c.url).netloc.removeprefix("www."))
+                            raw_storage.store(c.url, c.title, c.content, domain_of(c.url))
                         await emit("searching",
                                    f"심층 확장: 단서 {metadata.discovery_leads}개 추적, "
                                    f"본문 {len(disc_contents)}건(+복구 {recovered}) 추가", 59)
                 except Exception as e:
                     logger.warning(f"[pipeline] Discovery 심층 확장 실패 (계속): {e}")
+
+            # ── 3f. 결정론적 반증 검색 + 공식 공시 fallback ──
+            # Planner가 반증 쿼리를 누락하거나 LLM 폴백 계획을 사용해도 최소 2개는
+            # 항상 실행한다. 기업/산업별 키워드를 하드코딩하지 않고 원 질문과
+            # 티커를 앵커로 사용한다.
+            counter_queries = _build_counter_queries(request)
+            metadata.counter_evidence_queries = [q.query for q in counter_queries]
+            metadata.generated_queries = _dedupe_strings(
+                metadata.generated_queries + metadata.counter_evidence_queries
+            )
+            await emit("searching", "반대 근거·공식 공시 fallback 검색...", 59)
+            try:
+                counter_results = await self.searcher.search_queries(counter_queries)
+                if counter_results:
+                    all_results.extend(counter_results)
+                    counter_contents, counter_recovered = await self._extract_with_recovery(
+                        counter_results, max_extract=12, max_recovery=3,
+                    )
+                    metadata.recovered_sources += counter_recovered
+                    all_contents.extend(counter_contents)
+                    for c in counter_contents:
+                        raw_storage.store(c.url, c.title, c.content, domain_of(c.url))
+                    await emit(
+                        "searching",
+                        f"반대 근거 {len(counter_contents)}개 본문 확보",
+                        60,
+                        {"counter_evidence_docs": len(counter_contents)},
+                    )
+            except Exception as e:
+                logger.warning(f"[pipeline] 반증/fallback 검색 실패 (계속): {e}")
 
             # ── 4. 반사 루프 ──
             max_iter = request.max_iterations or MAX_ITERATIONS
@@ -325,8 +463,8 @@ class DeepResearchPipeline:
                 if elapsed > MAX_RUN_SECONDS:
                     logger.warning(f"[pipeline] 시간 초과: {elapsed:.0f}s")
                     break
-                # 비용 가드 — config에 정의만 되고 검사 안 되던 것(장식) 실동작화
-                run_cost = self.planner.estimated_cost + self.synthesizer.estimated_cost
+                # 비용 가드 — llm_client 전수 집계 기반(입력+출력+사고, 현행 단가)
+                run_cost = llm_client.estimated_cost_usd()
                 if run_cost > MAX_COST_USD_PER_RUN:
                     logger.warning(f"[pipeline] 비용 초과: ${run_cost:.3f} > ${MAX_COST_USD_PER_RUN}")
                     break
@@ -368,9 +506,7 @@ class DeepResearchPipeline:
                 metadata.recovered_sources += recovered_extra
                 all_contents.extend(extra_contents)
                 for c in extra_contents:
-                    from urllib.parse import urlparse
-                    raw_storage.store(c.url, c.title, c.content,
-                                      urlparse(c.url).netloc.removeprefix("www."))
+                    raw_storage.store(c.url, c.title, c.content, domain_of(c.url))
                 await emit("extracting",
                           f"추가 {len(extra_contents)}개 페이지 추출", 75)
 
@@ -397,11 +533,19 @@ class DeepResearchPipeline:
             # 신뢰도 기준 콘텐츠 정렬 (상위 출처 우선 노출)
             all_contents = evidence_ranker.rank_contents(all_contents)
 
-            # coverage 정보 생성
+            # coverage 정보 생성 (티커가 있으면 종목 질문 — 기대 도메인을
+            # 증권 규제기관·거래소로 한정, 거시 기관은 기대치에서 제외.
+            # 컨텍스트 티커 외에 쿼리에서 감지된 티커 시그널도 인정 — 제너릭 실행 대응)
             collected_urls = [c.url for c in all_contents]
+            has_ticker_signal = bool((request.context or {}).get("ticker")) or any(
+                s.startswith(("ticker:", "ctx_ticker:"))
+                for sigs in jurisdiction.signals.values() for s in sigs
+            )
+            coverage_topic = "company" if has_ticker_signal else "all"
             coverage_dict = official_source_searcher.build_coverage_info(
                 jurisdiction, collected_urls,
                 official_extracted_count=official_extracted_count,
+                topic=coverage_topic,
             )
             coverage = CoverageInfo(
                 checked=coverage_dict["checked"],
@@ -410,6 +554,12 @@ class DeepResearchPipeline:
             )
 
             await emit("synthesizing", f"환각 검증 준비 ({len(raw_storage)}개 원본 저장됨)...", 82)
+
+            async def _emit_draft(draft_report):
+                # ② 초안 즉시 표시 — 심사(방어선 5+) 전 판본을 프론트로 먼저.
+                await emit("draft", "초안 완성 — 심사 중 (검증·교차확인 진행)...", 88,
+                           {"draft_report": draft_report.model_dump(mode="json")})
+
             report = await self.synthesizer.synthesize(
                 query=request.query,
                 contents=all_contents,
@@ -420,17 +570,23 @@ class DeepResearchPipeline:
                 raw_storage=raw_storage,
                 coverage=coverage,
                 context=request.context,  # XBRL 원장 대조용 ticker 전달
+                on_draft=_emit_draft,
             )
 
             report.metadata.elapsed_seconds = time.time() - start_time
-            report.metadata.estimated_cost_usd = (
-                self.planner.estimated_cost + self.synthesizer.estimated_cost
-            )
+            # 실비용: llm_client 전수 집계(모델별 입력+출력+사고 × 현행 단가).
+            # 레거시 폴백 경로는 집계 밖이라 하한값 — 로그에 모델별 내역 남김.
+            report.metadata.estimated_cost_usd = llm_client.estimated_cost_usd()
+            report.metadata.gemini_tokens_used = llm_client.total_tokens()
+            logger.info(f"[pipeline] LLM 사용량: {llm_client.get_usage()} "
+                        f"→ ${report.metadata.estimated_cost_usd:.4f}")
             report.metadata.generated_queries = metadata.generated_queries
             report.metadata.official_source_queries = metadata.official_source_queries
             report.metadata.searched_official_domains = metadata.searched_official_domains
+            report.metadata.counter_evidence_queries = metadata.counter_evidence_queries
             report.generated_queries = report.metadata.generated_queries
             report.official_source_queries = report.metadata.official_source_queries
+            report.search_attempts = self.searcher.attempts
 
 
             await emit("done", "리서치 완료!", 100, {"job_id": job_id})

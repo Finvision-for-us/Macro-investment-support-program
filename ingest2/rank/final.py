@@ -13,11 +13,18 @@ from src.causal.schema import Story
 from ..candidates.pipeline import CandidateResult
 
 _WORD_RE = re.compile(r"[a-z0-9가-힣]+")
+# 증권 집단소송 로펌 광고 탐지. 강한 신호(로펌명·"class action"·"lead plaintiff" 등)는
+# 그 자체로 특정된다. 반면 맨 단어 "deadline"·"losses of"는 정당한 금융 뉴스에도
+# 흔하다(규제·공개매수·채무 만기 deadline; "reported losses of $2B" 실적 뉴스) →
+# 오탐 방지를 위해 로펌광고 문맥 구절("deadline reminder", "losses of more than …")로만
+# 매칭한다. 로펌 스팸은 거의 항상 강한 신호도 동반하므로 재현율 손실은 미미하다.
 _LEGAL_SOLICITATION_RE = re.compile(
     r"\b("
     r"class action|lead plaintiff|law firm|shareholder alert|investor alert|"
-    r"securities fraud|deadline|losses of|rosen law|levi & korsinsky|"
-    r"pomerantz|glancy prongay|bragar eagel"
+    r"securities fraud|rosen law|levi & korsinsky|"
+    r"pomerantz|glancy prongay|bragar eagel|"
+    r"deadline reminder|"
+    r"losses of (?:more than|over|exceeding|in excess of)"
     r")\b",
     re.IGNORECASE,
 )

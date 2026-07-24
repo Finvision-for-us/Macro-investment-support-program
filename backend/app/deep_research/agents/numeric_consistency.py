@@ -19,9 +19,12 @@ LLM에게 산술을 시키지 않는다 — 산술은 코드가 한다. (LLM 산
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 # ── 수식어 토큰 (gross / net) ──
@@ -68,10 +71,17 @@ _FRAMING_MIN_SOURCES = 3
 
 # 통화 교차: '같은 문장 안 통화 등가액 쌍'으로 볼 최대 문자 거리
 _COLOCATION_CHARS = 130
-# 주요 통화쌍의 상식적 환율 밴드(넓게 — 단위/통화 오표기 같은 '큰 오류'만 잡는다).
-# 값은 (통화A 1단위당 통화B 수)가 아니라 아래 함수에서 정의한 기준으로 해석.
-_FX_BANDS = {
-    frozenset(("RMB", "USD")): (5.0, 8.5),   # RMB per 1 USD
+# 각 통화의 'USD 1당 단위 수' 상식 밴드(넓게 — 단위 亿/万 혼동·통화 오표기 같은
+# '큰 오류'만 잡는 게 목적이라 실제 변동폭보다 훨씬 넓게 잡는다).
+# USD를 피벗으로 (외화 등가액 ↔ USD 등가액) 쌍만 검사한다.
+# EUR/GBP처럼 환율이 1.0 근처인 통화는 무관한 두 금액이 우연히 근접할 때 오탐 위험이
+# 크고(단위혼동도 잘 안 일어남) 가치가 낮아 제외 — 亿/万·큰 자릿수를 쓰는 아시아 통화 위주.
+_FX_PER_USD_BANDS = {
+    "RMB": (5.0, 8.5),         # 人民币 per 1 USD
+    "HKD": (7.0, 8.3),         # 페그 ~7.75~7.85, 넓게
+    "JPY": (70.0, 180.0),      # 엔
+    "KRW": (900.0, 1700.0),    # 원
+    "TWD": (25.0, 35.0),       # 신 타이완 달러
 }
 _FX_CROSS_SOURCE_TOL = 0.05    # 출처 간 함축환율 일치로 볼 상대오차 (5%)
 
@@ -275,14 +285,88 @@ def _collect_tags(win: str) -> tuple[set[str], set[str], bool, bool, bool]:
     return quals, dates, ratio, tax, whole
 
 
+# ── 교차언어 엔티티 게이저티어 (CJK 앵커) ──
+# _ANCHOR_RE은 Latin/숫자만 잡아 중국어 회사명('无锡' 등)이 앵커가 못 됐다(_ANCHOR_STOP
+# 주석의 '가젯티어 전까지'). 게이저티어는 CJK/Latin 별칭을 canonical 앵커로 정규화해,
+# 중국어 출처('无锡')와 영어 출처('Wuxi')를 같은 앵커 'Wuxi'로 묶는다(교차언어 연결).
+_GAZ_LOADED = False
+_GAZ_CJK: list[tuple[str, str]] = []       # (cjk_별칭, canonical) — 부분문자열 매칭
+_GAZ_LATIN_MAP: dict[str, str] = {}        # lower(latin_별칭) → canonical
+_GAZ_LATIN_RE: Optional[re.Pattern] = None  # Latin 별칭 단어경계 매칭
+
+
+def _has_cjk(s: str) -> bool:
+    return any(
+        "一" <= ch <= "鿿"      # CJK 통합 한자
+        or "぀" <= ch <= "ヿ"   # 일본어 가나
+        or "가" <= ch <= "힣"   # 한글 음절
+        or "㐀" <= ch <= "䶿"   # CJK 확장 A
+        for ch in s
+    )
+
+
+def _load_gazetteer() -> None:
+    """엔티티 게이저티어 로드(프로세스 1회, 파일 없거나 손상 시 조용히 비활성)."""
+    global _GAZ_LOADED, _GAZ_CJK, _GAZ_LATIN_MAP, _GAZ_LATIN_RE
+    if _GAZ_LOADED:
+        return
+    _GAZ_LOADED = True
+    from pathlib import Path
+    import json as _json
+    path = Path(__file__).resolve().parent.parent / "data" / "entity_gazetteer.json"
+    try:
+        entities = _json.loads(path.read_text(encoding="utf-8")).get("entities", {})
+    except Exception as e:
+        logger.warning(f"[numeric] 게이저티어 로드 실패(앵커 축소 동작): {e}")
+        return
+
+    cjk: list[tuple[str, str]] = []
+    latin_map: dict[str, str] = {}
+    for canon, aliases in entities.items():
+        if not canon or not isinstance(aliases, list):
+            continue
+        for a in aliases:
+            a = (a or "").strip()
+            if not a:
+                continue
+            if _has_cjk(a):
+                if len(a) >= 2:        # 단일 CJK자는 오탐 위험 → 제외
+                    cjk.append((a, canon))
+            else:
+                latin_map[a.lower()] = canon
+
+    # 긴 별칭 우선(부분 겹침 방지: 'Pinduoduo' 전에 'PDD' 등)
+    _GAZ_CJK = sorted(cjk, key=lambda x: len(x[0]), reverse=True)
+    _GAZ_LATIN_MAP = latin_map
+    if latin_map:
+        alt = "|".join(
+            re.escape(k) for k in sorted(latin_map, key=len, reverse=True)
+        )
+        _GAZ_LATIN_RE = re.compile(r"\b(" + alt + r")\b", re.IGNORECASE)
+    logger.info(
+        f"[numeric] 엔티티 게이저티어: CJK 별칭 {len(cjk)}, Latin 별칭 {len(latin_map)}"
+    )
+
+
 def _extract_anchors(win: str) -> frozenset:
-    """창(window)에서 고유 식별자(6자리 코드/티커/라틴 고유명)만 추출."""
+    """창(window)에서 고유 식별자를 추출: 6자리 코드/티커/라틴 고유명 + 게이저티어
+    canonical(CJK·Latin 별칭 → 교차언어 정규화)."""
+    _load_gazetteer()
     out = set()
     for m in _ANCHOR_RE.finditer(win):
         t = m.group(0)
         if t.upper() in _ANCHOR_STOP:
             continue
         out.add(t)
+    # 게이저티어 CJK 별칭(부분문자열) → canonical
+    if _has_cjk(win):
+        for alias, canon in _GAZ_CJK:
+            if alias in win:
+                out.add(canon)
+    # 게이저티어 Latin 별칭(단어경계) → canonical (variant 철자 정규화)
+    if _GAZ_LATIN_RE is not None:
+        for m in _GAZ_LATIN_RE.finditer(win):
+            out.add(_GAZ_LATIN_MAP[m.group(0).lower()])
     return frozenset(out)
 
 
@@ -501,7 +585,8 @@ def find_cross_currency_inconsistencies(
     for m in monies:
         by_src.setdefault(m.source_id, []).append(m)
 
-    rmb_usd_rates: list[float] = []
+    # 통화별(USD 1당 단위) 함축환율 수집 → 출처 간 일관성 검사에 사용
+    rates_by_cur: dict[str, list[float]] = {}
     for _sid, ms in by_src.items():
         ms = sorted(ms, key=lambda x: x.pos)
         for i in range(len(ms)):
@@ -512,43 +597,50 @@ def find_cross_currency_inconsistencies(
                     break  # pos 정렬됨 → 더 뒤는 볼 필요 없음
                 if a.currency == b.currency:
                     continue
-                pair = frozenset((a.currency, b.currency))
-                if pair == frozenset(("RMB", "USD")):
-                    m_by = {a.currency: a, b.currency: b}
-                    rmb, usd = m_by["RMB"].value, m_by["USD"].value
-                    # 두 금액 모두 유의미(≥100만)해야 '같은 값의 이종통화 표기' 후보.
-                    # 작은 숫자가 큰 금액과 우연히 근접한 경우(함축FX≈0)를 배제.
-                    if usd <= 0 or rmb < _MIN_PRORATA_VALUE or usd < _MIN_PRORATA_VALUE:
-                        continue
-                    rate = rmb / usd  # RMB per USD
-                    band = _FX_BANDS[pair]
-                    # 정상범위의 ~10배 밖이면 '같은 값'이 아니라 무관한 쌍 → 침묵.
-                    if not (band[0] / 10 <= rate <= band[1] * 10):
-                        continue
-                    if band[0] <= rate <= band[1]:
-                        rmb_usd_rates.append(rate)
-                        consistent.append(
-                            f"[환율 정합] {m_by['RMB'].raw} ≈ {m_by['USD'].raw} "
-                            f"(함축 FX ≈ {rate:.2f} RMB/USD)."
-                        )
-                    else:
-                        conflicts.append(
-                            f"[환율 이상] {m_by['RMB'].raw} ↔ {m_by['USD'].raw} "
-                            f"함축 FX ≈ {rate:.2f} RMB/USD (정상범위 "
-                            f"{band[0]}~{band[1]} 밖) — 단위(亿/万)·통화 표기 확인 필요."
-                        )
-                        queries.append(
-                            f"{m_by['RMB'].raw} {m_by['USD'].raw} RMB USD 환율 단위 확인"
-                        )
+                # USD를 피벗으로 (외화 ↔ USD) 쌍만 검사한다.
+                curs = {a.currency, b.currency}
+                if "USD" not in curs:
+                    continue
+                other = (curs - {"USD"}).pop()
+                if other not in _FX_PER_USD_BANDS:
+                    continue
+                usd_m = a if a.currency == "USD" else b
+                oth_m = a if a.currency == other else b
+                # 두 금액 모두 유의미(≥100만)해야 '같은 값의 이종통화 표기' 후보.
+                # 작은 숫자가 큰 금액과 우연히 근접한 경우(함축FX≈0/∞)를 배제.
+                if oth_m.value < _MIN_PRORATA_VALUE or usd_m.value < _MIN_PRORATA_VALUE:
+                    continue
+                rate = oth_m.value / usd_m.value  # other per USD
+                band = _FX_PER_USD_BANDS[other]
+                # 정상범위의 ~10배 밖이면 '같은 값'이 아니라 무관한 쌍 → 침묵.
+                if not (band[0] / 10 <= rate <= band[1] * 10):
+                    continue
+                if band[0] <= rate <= band[1]:
+                    rates_by_cur.setdefault(other, []).append(rate)
+                    consistent.append(
+                        f"[환율 정합] {oth_m.raw} ≈ {usd_m.raw} "
+                        f"(함축 FX ≈ {rate:.2f} {other}/USD)."
+                    )
+                else:
+                    conflicts.append(
+                        f"[환율 이상] {oth_m.raw} ↔ {usd_m.raw} "
+                        f"함축 FX ≈ {rate:.2f} {other}/USD (정상범위 "
+                        f"{band[0]}~{band[1]} 밖) — 단위(亿/万)·통화 표기 확인 필요."
+                    )
+                    queries.append(
+                        f"{oth_m.raw} {usd_m.raw} {other} USD 환율 단위 확인"
+                    )
 
-    # 출처 간 함축환율 일관성 (같은 환산이 여러 출처에서 크게 어긋나면 상충)
-    if len(rmb_usd_rates) >= 2:
-        srt = sorted(rmb_usd_rates)
+    # 출처 간 함축환율 일관성 (같은 환산이 여러 출처에서 크게 어긋나면 상충) — 통화별
+    for cur, rates in rates_by_cur.items():
+        if len(rates) < 2:
+            continue
+        srt = sorted(rates)
         median = srt[len(srt) // 2]
-        for r in rmb_usd_rates:
+        for r in rates:
             if median > 0 and abs(r - median) / median > _FX_CROSS_SOURCE_TOL:
                 conflicts.append(
-                    f"[환율 상충] 함축 FX {r:.2f} RMB/USD가 출처간 중앙값 "
+                    f"[환율 상충] 함축 FX {r:.2f} {cur}/USD가 출처간 중앙값 "
                     f"{median:.2f}에서 {int(_FX_CROSS_SOURCE_TOL*100)}% 넘게 이탈 "
                     f"— 통화 환산 재확인."
                 )

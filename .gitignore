@@ -21,6 +21,9 @@ dist/
 
 # 파이프라인 생성물 (수집 원본/산출물 — 재생성됨)
 data/
+# 예외: 코드가 배포하는 실제 소스 데이터(캐시 아님) — CJK 앵커 게이저티어
+!backend/app/deep_research/data/
+!backend/app/deep_research/data/entity_gazetteer.json
 
 # IDE
 .vscode/

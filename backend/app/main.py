@@ -8,6 +8,10 @@ from app.deep_research.router import router as deep_research_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    # 경기 사이클 패턴 예열(백그라운드) — 첫 market-state 요청이 FRED 대량
+    # 조회(수십 초~2분)에 걸려 프론트 타임아웃되는 것 방지
+    from app.services.business_cycle import warm_cache_async
+    warm_cache_async()
     yield
 
 app = FastAPI(title="FinVision API", lifespan=lifespan)

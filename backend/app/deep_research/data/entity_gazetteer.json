@@ -1,0 +1,17 @@
+{
+  "_comment": "교차언어 엔티티 앵커 게이저티어. canonical(앵커 문자열) → [별칭...](CJK/Latin). 크로스출처 pro-rata의 엔티티 연결에 사용 — 중국어 출처의 '无锡'과 영어 출처의 'Wuxi'를 같은 canonical 'Wuxi'로 묶어 같은 딜임을 인식한다. GLEIF/OpenFIGI/Wikidata로 확장 가능(같은 형식). 확실히 검증된 매핑만 등재(무할루시네이션 원칙). 별칭에는 CJK 표기(간체/번체)와 대표 Latin 표기를 함께 넣는다.",
+  "entities": {
+    "Wuxi": ["Wuxi", "无锡", "無錫"],
+    "BYD": ["BYD", "比亚迪", "比亞迪"],
+    "Alibaba": ["Alibaba", "阿里巴巴"],
+    "Tencent": ["Tencent", "腾讯", "騰訊"],
+    "SMIC": ["SMIC", "中芯国际", "中芯國際"],
+    "CATL": ["CATL", "宁德时代", "寧德時代"],
+    "NIO": ["NIO", "蔚来", "蔚來"],
+    "XPeng": ["XPeng", "小鹏汽车", "小鹏", "小鵬"],
+    "BeiGene": ["BeiGene", "百济神州", "百濟神州"],
+    "PDD": ["PDD", "Pinduoduo", "拼多多"],
+    "Baidu": ["Baidu", "百度"],
+    "JD": ["JD.com", "京东", "京東"]
+  }
+}

@@ -2,8 +2,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from urllib.parse import urlparse
 
+from app.deep_research.common import domain_of
 from app.deep_research.config import MAX_SOURCES_PER_RUN
 from app.deep_research.models import SearchResult, ExtractedContent
 from app.deep_research.sources.jina_reader import JinaReaderSource
@@ -54,13 +54,48 @@ class Extractor:
         candidates = self._select_candidates(results, max_extract, priority_domains)
         logger.info(f"[extractor] {len(candidates)}개 URL 추출 시작")
 
-        extracted = await self._jina.extract_batch(
-            [r.url for r in candidates],
-            max_concurrent=5,
-        )
+        # PDF는 로컬 2단 추출(텍스트레이어 → 이미지 PDF OCR) 우선 —
+        # Jina는 스캔 PDF(중국 공시 구형)에서 빈손이 된다. 실패분은 Jina로 폴백.
+        from app.deep_research.sources.pdf_extractor import extract_pdf_batch, is_pdf_url
+        pdf_urls = [r.url for r in candidates if is_pdf_url(r.url)]
+        web_urls = [r.url for r in candidates if not is_pdf_url(r.url)]
+
+        pdf_extracted: list[ExtractedContent] = []
+        if pdf_urls:
+            pdf_extracted = await extract_pdf_batch(pdf_urls)
+            done = {e.url for e in pdf_extracted}
+            failed_pdfs = [u for u in pdf_urls if u not in done]
+            if pdf_extracted:
+                logger.info(f"[extractor] PDF 로컬 추출 {len(pdf_extracted)}/{len(pdf_urls)}건")
+            web_urls += failed_pdfs  # 로컬 실패 PDF는 Jina에 한 번 더
+
+        extracted = await self._jina.extract_batch(web_urls, max_concurrent=5)
+
+        # Jina 실패분(무키 20RPM 제한·503 폭주)을 로컬 HTML 추출로 흡수 —
+        # 추출 실패는 자기검증의 [[unverified]] 남발로 직결된다(2차 시험 실측)
+        from app.deep_research.sources.html_extractor import extract_html_batch
+        jina_done = {e.url for e in extracted}
+        missing = [u for u in web_urls if u not in jina_done]
+        if missing:
+            local_extracted = await extract_html_batch(missing)
+            extracted = extracted + local_extracted
 
         # 너무 짧은 내용 필터링
-        valid = [e for e in extracted if e.word_count > 50]
+        metadata_by_url = {r.url: r for r in candidates}
+        enriched: list[ExtractedContent] = []
+        for item in pdf_extracted + extracted:
+            source = metadata_by_url.get(item.url)
+            if source:
+                item = item.model_copy(update={
+                    "publisher": source.publisher,
+                    "published_at": source.published_date,
+                    "document_type": source.document_type,
+                    "reporting_period": source.reporting_period,
+                    "source_section": source.source_section,
+                    "source_type": source.source_type,
+                })
+            enriched.append(item)
+        valid = [e for e in enriched if e.word_count > 50]
         logger.info(f"[extractor] {len(valid)}개 전문 추출 완료")
         return valid
 
@@ -75,7 +110,7 @@ class Extractor:
         for r in results:
             if not r.url or not r.url.startswith("http"):
                 continue
-            domain = urlparse(r.url).netloc.removeprefix("www.")
+            domain = domain_of(r.url)
             if domain in BLOCKED_DOMAINS:
                 continue
             if r.url in self._extracted_urls:
@@ -85,7 +120,7 @@ class Extractor:
 
         # 신뢰도 높은 도메인 우선 정렬 (저품질 도메인 패널티) — source_registry 파생
         def _score(r: SearchResult) -> float:
-            domain = urlparse(r.url).netloc.removeprefix("www.")
+            domain = domain_of(r.url)
             tier = get_domain_tier(domain)
             if tier in (1, 2):
                 domain_bonus = 0.3
@@ -100,8 +135,7 @@ class Extractor:
 
     def get_credibility(self, url: str) -> str:
         from app.deep_research.sources.source_registry import get_domain_credibility
-        domain = urlparse(url).netloc.removeprefix("www.")
-        return get_domain_credibility(domain)
+        return get_domain_credibility(domain_of(url))
 
 
 # Optional import fix

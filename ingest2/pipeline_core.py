@@ -10,6 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from .analyze.score import make_gemini_batch_llm as make_impact_batch_llm
 from .analyze.score import make_gemini_llm as make_impact_llm
 from .analyze.score import score_candidates
 from .candidates.pipeline import CandidateConfig, generate_candidates
@@ -137,7 +138,14 @@ def run_core(
 
     _hr(on_log, "7. §8 AI 영향도 스코어")
     t0 = time.perf_counter()
-    stories = score_candidates(result, llm_fn=make_impact_llm(), on_log=on_log)
+    # 배치 스코어(무료티어 RPD 절감): batch_llm_fn 주입 → 스토리 묶음당 LLM 1회.
+    # 배치 실패·개수 불일치 시 llm_fn으로 단건 폴백하므로 정확성은 보존.
+    stories = score_candidates(
+        result,
+        llm_fn=make_impact_llm(),
+        batch_llm_fn=make_impact_batch_llm(),
+        on_log=on_log,
+    )
     on_log(f"scored={len(stories)} stories")
     timings["§7 AI스코어"] = time.perf_counter() - t0
     _elapsed(on_log, t0)

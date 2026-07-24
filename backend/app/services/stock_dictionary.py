@@ -8,7 +8,18 @@
 """
 
 import difflib
+import json
+import logging
 import re
+import time
+from pathlib import Path
+
+try:
+    import requests
+except ImportError:  # 오프라인/테스트 환경
+    requests = None
+
+logger = logging.getLogger(__name__)
 
 # ── 한국어 초성 (Korean initial consonants) ─────────────────────────
 CHOSUNG = [
@@ -268,20 +279,17 @@ def _search_chosung(query: str, max_results: int = 8) -> list:
     return results[:max_results]
 
 
-def search_local(query: str, max_results: int = 8) -> list:
-    """
-    로컬 사전에서 검색. 우선순위:
-    0. 초성 검색 (ㅌㅅㄹ → 테슬라)
-    1. 정확 일치 (티커/이름)
-    2. 시작 부분 일치
-    3. 부분 문자열 포함
-    4. 퍼지 매칭 (오타 허용)
-    """
+# ── 통합 티어 (낮을수록 강한 매치) ──
+# 0 정확 티커 | 1 정확 이름 | 2 접두 | 3 초성 | 4 부분문자열 | 5 퍼지(오타)
+# 로마자 브리지 결과는 +0.5 가산해 같은 티어 내에서 뒤로.
+
+def _search_local_scored(query: str, max_results: int = 8) -> list:
+    """큐레이트 사전 검색을 (티어, entry) 쌍으로 반환. search_local의 코어."""
     raw_q = query.strip()
 
     # 0단계: 초성 검색 (입력이 모두 한글 자음인 경우)
     if raw_q and _is_all_chosung(raw_q):
-        return _search_chosung(raw_q, max_results)
+        return [(3, e) for e in _search_chosung(raw_q, max_results)]
 
     q = _normalize(query)
     if not q:
@@ -290,21 +298,21 @@ def search_local(query: str, max_results: int = 8) -> list:
     seen_tickers = set()
     results = []
 
-    def _add(entries):
+    def _add(entries, tier):
         for e in entries:
             if e["ticker"] not in seen_tickers:
                 seen_tickers.add(e["ticker"])
-                results.append(e)
+                results.append((tier, e))
 
     # 1단계: 정확 일치
     if q in _INDEX:
-        _add(_INDEX[q])
+        _add(_INDEX[q], 1)
 
     # 2단계: 시작 부분 일치 (prefix)
     if len(results) < max_results:
         for key in _ALL_KEYS:
             if key.startswith(q) and key != q:
-                _add(_INDEX[key])
+                _add(_INDEX[key], 2)
             if len(results) >= max_results:
                 break
 
@@ -312,18 +320,210 @@ def search_local(query: str, max_results: int = 8) -> list:
     if len(results) < max_results:
         for key in _ALL_KEYS:
             if q in key and not key.startswith(q):
-                _add(_INDEX[key])
+                _add(_INDEX[key], 4)
             if len(results) >= max_results:
                 break
 
     # 4단계: 퍼지 매칭 (오타 허용)
     if len(results) < max_results and len(q) >= 3:
-        # cutoff을 문자열 길이에 따라 조정
         cutoff = 0.55 if len(q) >= 5 else 0.65
         close_matches = difflib.get_close_matches(q, _ALL_KEYS, n=6, cutoff=cutoff)
         for match in close_matches:
-            _add(_INDEX[match])
+            _add(_INDEX[match], 5)
             if len(results) >= max_results:
                 break
 
     return results[:max_results]
+
+
+def search_local(query: str, max_results: int = 8) -> list:
+    """로컬 큐레이트 사전 검색 (초성/오타/한국어명 지원). entry 리스트 반환."""
+    return [e for _, e in _search_local_scored(query, max_results)]
+
+
+# ── 한글 → 로마자 (Revised Romanization, 결정론) ────────────────────
+# 한국식 음차를 영문 회사명에 근사시키는 브리지. 완벽하지 않음(애플→aepeul 등
+# 실패 케이스 존재) — 큐레이트 사전 밑에 깔리는 '최선노력' 보조 경로로만 사용.
+_ROM_CHO = ['g', 'kk', 'n', 'd', 'tt', 'r', 'm', 'b', 'pp', 's', 'ss',
+            '', 'j', 'jj', 'ch', 'k', 't', 'p', 'h']
+_ROM_JUNG = ['a', 'ae', 'ya', 'yae', 'eo', 'e', 'yeo', 'ye', 'o', 'wa', 'wae',
+             'oe', 'yo', 'u', 'wo', 'we', 'wi', 'yu', 'eu', 'ui', 'i']
+_ROM_JONG = ['', 'g', 'kk', 'ks', 'n', 'nj', 'nh', 'd', 'l', 'lg', 'lm', 'lb',
+             'ls', 'lt', 'lp', 'lh', 'm', 'b', 'ps', 's', 'ss', 'ng', 'j',
+             'ch', 'k', 't', 'p', 'h']
+
+
+def _has_hangul(text: str) -> bool:
+    return any(0xAC00 <= ord(ch) <= 0xD7A3 for ch in text)
+
+
+def romanize_hangul(text: str) -> str:
+    """완성형 한글 음절을 로마자로 변환(비한글은 그대로). 예: 인디 → indi."""
+    out = []
+    for ch in text:
+        code = ord(ch)
+        if 0xAC00 <= code <= 0xD7A3:
+            s = code - 0xAC00
+            out.append(_ROM_CHO[s // 588] + _ROM_JUNG[(s % 588) // 28]
+                       + _ROM_JONG[s % 28])
+        else:
+            out.append(ch)
+    return ''.join(out)
+
+
+# ── SEC 전체 미국 상장 유니버스 (~10,400개) 검색 코퍼스 ──────────────
+# sec_client는 같은 파일에서 ticker→CIK만 쓰지만, 여기선 회사명(title)도 써서
+# '모든 미국기업'을 로컬에서 검색 가능하게 한다(Yahoo 한국어 미지원 우회 + 속도).
+_SEC_URL = "https://www.sec.gov/files/company_tickers.json"
+_SEC_HEADERS = {"User-Agent": "FinVision research admin@finvision.app"}
+_SEC_CACHE = Path("data/company_tickers.json")
+_SEC_TTL = 7 * 24 * 3600  # 유니버스 캐시 7일
+
+# 회사명 접미어 — 퍼지/단어 매칭에서 제외(노이즈·비율 희석 방지)
+_UNI_STOP = {
+    "the", "inc", "corp", "corporation", "co", "company", "ltd", "limited",
+    "plc", "group", "holdings", "holding", "sa", "ag", "nv", "lp", "llc",
+    "trust", "fund", "and", "of", "class", "common", "stock", "shares",
+}
+
+_universe_loaded = False
+_uni_entries: list = []          # [{"ticker","name"}]
+_uni_name_keys: list = []        # _normalize(name) 병렬 리스트 (부분문자열용)
+_uni_by_ticker: dict = {}        # TICKER → entry
+_uni_word_bucket: dict = {}      # 첫 글자 → [(유의미단어, entry)] (퍼지 버킷)
+
+
+def _sig_words(name: str) -> set:
+    """회사명에서 유의미 단어(정규화, 접미어 제외, 4자 이상) 집합."""
+    words = set()
+    for w in re.split(r"[^0-9A-Za-z가-힣]+", name):
+        wn = _normalize(w)
+        if len(wn) >= 4 and wn not in _UNI_STOP:
+            words.add(wn)
+    return words
+
+
+def _load_sec_universe() -> None:
+    """SEC company_tickers.json → 검색 인덱스 1회 구축(디스크 캐시 7일).
+
+    실패 시 유니버스 빈 상태(큐레이트+Yahoo로 폴백 — 무회귀). LLM/네트워크
+    실패가 파이프라인을 막지 않는다.
+    """
+    global _universe_loaded
+    if _universe_loaded:
+        return
+    _universe_loaded = True  # 1회만 시도(실패해도 재시도 안 함 — 지연 방지)
+
+    raw = None
+    try:
+        if _SEC_CACHE.exists() and (time.time() - _SEC_CACHE.stat().st_mtime) < _SEC_TTL:
+            raw = json.loads(_SEC_CACHE.read_text(encoding="utf-8"))
+    except Exception:
+        raw = None
+    if raw is None and requests is not None:
+        try:
+            r = requests.get(_SEC_URL, headers=_SEC_HEADERS, timeout=15)
+            r.raise_for_status()
+            raw = r.json()
+            try:
+                _SEC_CACHE.parent.mkdir(parents=True, exist_ok=True)
+                _SEC_CACHE.write_text(json.dumps(raw), encoding="utf-8")
+            except Exception:
+                pass  # 캐시 저장 실패는 무해
+        except Exception as e:
+            logger.warning("[stock_dict] SEC 유니버스 로드 실패: %s", e)
+            raw = None
+    if not raw:
+        return
+
+    for entry in (raw.values() if isinstance(raw, dict) else raw):
+        ticker = str(entry.get("ticker") or "").upper()
+        name = str(entry.get("title") or "")
+        if not ticker or not name or ticker in _uni_by_ticker:
+            continue
+        e = {"ticker": ticker, "name": name}
+        nkey = _normalize(name)
+        _uni_by_ticker[ticker] = e
+        _uni_entries.append(e)
+        _uni_name_keys.append(nkey)
+        for w in _sig_words(name):
+            _uni_word_bucket.setdefault(w[0], []).append((w, e))
+    logger.info("[stock_dict] SEC 유니버스 %d개 로드", len(_uni_entries))
+
+
+def _search_universe_scored(query: str, max_results: int = 8) -> list:
+    """SEC 유니버스에서 (티어, entry) 반환. 정확티커/이름접두/부분/퍼지."""
+    _load_sec_universe()
+    if not _uni_entries:
+        return []
+    q = _normalize(query)
+    qu = query.strip().upper()
+    if not q:
+        return []
+
+    scored = []  # (tier, name_len, entry)
+    for e, nkey in zip(_uni_entries, _uni_name_keys):
+        t = e["ticker"]
+        if t == qu:
+            tier = 0
+        elif nkey == q:
+            tier = 1
+        elif len(q) >= 2 and (t.lower().startswith(q) or nkey.startswith(q)):
+            tier = 2
+        elif len(q) >= 3 and q in nkey:
+            tier = 4
+        else:
+            continue
+        scored.append((tier, len(e["name"]), e))
+    scored.sort(key=lambda x: (x[0], x[1]))
+    out = [(tier, e) for tier, _, e in scored[:max_results]]
+
+    # 퍼지(오타): 강한 매치가 부족할 때만. 유의미 단어(접미어 제외) 대조 —
+    # 'nvida'를 전체 'nvidiacorp'가 아니라 'nvidia'와 비교(비율 희석 방지).
+    # 첫 글자 버킷으로 후보 축소(속도).
+    strong = sum(1 for tier, _ in out if tier <= 2)
+    if strong < max_results and len(q) >= 4:
+        bucket = _uni_word_bucket.get(q[0], [])
+        keys = list({w for w, _ in bucket})
+        matches = set(difflib.get_close_matches(q, keys, n=8, cutoff=0.72))
+        seen = {e["ticker"] for _, e in out}
+        if matches:
+            for w, e in bucket:
+                if w in matches and e["ticker"] not in seen:
+                    seen.add(e["ticker"])
+                    out.append((5, e))
+                    if len(out) >= max_results:
+                        break
+    return out[:max_results]
+
+
+def search_suggest(query: str, max_results: int = 8) -> list:
+    """큐레이트 사전 + SEC 유니버스 + 한글 로마자 브리지 통합 검색.
+
+    두 소스를 매치 품질(티어)로 병합 — 유니버스 정확/접두 매치가 큐레이트
+    퍼지 노이즈보다 위로 온다. 한글 입력은 로마자로 변환해 유니버스에도 질의
+    (예: '인디' → 'indi' → INDI). entry 리스트 반환.
+    """
+    query = (query or "").strip()
+    if not query:
+        return []
+
+    scored = []  # (tier, entry)
+    scored.extend(_search_local_scored(query, max_results))
+    scored.extend(_search_universe_scored(query, max_results))
+
+    # 한글 로마자 브리지 → 유니버스 (티어 +0.5로 동급 내 후순위)
+    if _has_hangul(query):
+        rq = romanize_hangul(query)
+        if rq != query and re.search(r'[a-z]', rq):
+            scored.extend((tier + 0.5, e)
+                          for tier, e in _search_universe_scored(rq, max_results))
+
+    # 티커별 최상(최저 티어) 유지 후 티어순 정렬
+    best: dict = {}
+    for tier, e in scored:
+        cur = best.get(e["ticker"])
+        if cur is None or tier < cur[0]:
+            best[e["ticker"]] = (tier, e)
+    ranked = sorted(best.values(), key=lambda x: x[0])
+    return [{"ticker": e["ticker"], "name": e["name"]} for _, e in ranked[:max_results]]

@@ -1,8 +1,6 @@
 from __future__ import annotations
 import asyncio
-import json
 import logging
-import re
 from typing import Optional
 
 from app.deep_research.config import (
@@ -16,6 +14,7 @@ from app.deep_research.models import (
 )
 from app.deep_research.agents import numeric_consistency
 from app.deep_research import llm_client
+from app.deep_research.common import parse_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +186,7 @@ class Critic:
                 ),
             )
             text = response.text.strip() if response.text else ""
-            data = _parse_json(text)
+            data = parse_json_object(text)
             if not data or not isinstance(data.get("recent_gaps"), list):
                 return []
 
@@ -323,7 +322,7 @@ class Critic:
                 raw = response.text.strip()
                 self._tokens_used += len(raw) // 4
 
-                data = _parse_json(raw)
+                data = parse_json_object(raw)
                 if not data:
                     logger.warning("[critic] JSON 파싱 실패 — 충분하다고 가정")
                     return GapAnalysis(
@@ -444,18 +443,3 @@ def _summarize_contents(contents: list[ExtractedContent], max_chars: int = 16000
         lines.append(line)
         remaining -= len(line)
     return "\n".join(lines)
-
-
-def _parse_json(text: str) -> Optional[dict]:
-    text = re.sub(r'^```(?:json)?\n?', '', text.strip())
-    text = re.sub(r'\n?```$', '', text)
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group())
-            except json.JSONDecodeError:
-                pass
-    return None
