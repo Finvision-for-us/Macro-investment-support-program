@@ -12,9 +12,12 @@
   5. Phase 순서 제약
 """
 
+import json
 import math
+import threading
 import time
 from datetime import datetime, date
+from pathlib import Path
 from statistics import median, stdev, mean
 from app.services.fred_client import fetch_series, get_latest_value
 
@@ -335,21 +338,72 @@ def _extract_patterns(zscore_data: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 캐시 관리
+# 캐시 관리 — 메모리 + 디스크 2단
+#
+# 첫 계산은 FRED에서 일간 시리즈를 수만 행씩 12개 직렬로 받아 수십 초~2분대
+# (프론트 60초 타임아웃 초과 → "분석 중..." 무한 로딩으로 보이는 원인).
+# 패턴은 수십 년치 히스토리 파생이라 하루 안에 사실상 불변 → 디스크에 저장해
+# 서버 재시작 후에도 즉시 응답. 예열은 startup 백그라운드 스레드(warm_cache_async).
 # ---------------------------------------------------------------------------
+_DISK_CACHE = Path(__file__).resolve().parent.parent.parent / "data" / "cycle_cache.json"
+_patterns_lock = threading.Lock()
+
+
+def _load_disk_cache() -> bool:
+    try:
+        if not _DISK_CACHE.exists():
+            return False
+        payload = json.loads(_DISK_CACHE.read_text(encoding="utf-8"))
+        if time.time() - payload.get("timestamp", 0) >= CACHE_TTL:
+            return False
+        # JSON 키는 문자열 — phase 키를 int로 복원
+        _cache["patterns"] = {int(k): v for k, v in payload["patterns"].items()}
+        _cache["zscore_data"] = payload["zscore_data"]
+        _cache["raw_data"] = payload["raw_data"]
+        _cache["timestamp"] = payload["timestamp"]
+        return True
+    except Exception:
+        return False
+
+
+def _save_disk_cache() -> None:
+    try:
+        _DISK_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        _DISK_CACHE.write_text(json.dumps({
+            "timestamp": _cache["timestamp"],
+            "patterns": _cache["patterns"],
+            "zscore_data": _cache["zscore_data"],
+            "raw_data": _cache["raw_data"],
+        }), encoding="utf-8")
+    except Exception:
+        pass  # 디스크 캐시는 최적화일 뿐 — 실패해도 기능은 정상
+
+
 def _get_patterns():
     now = time.time()
     if _cache["patterns"] is not None and (now - _cache["timestamp"]) < CACHE_TTL:
         return _cache["patterns"], _cache["zscore_data"], _cache["raw_data"]
 
-    zscore_data, raw_data = _fetch_all_indicator_data()
-    patterns = _extract_patterns(zscore_data)
+    with _patterns_lock:  # 동시 요청이 FRED 대량 조회를 중복 발사하지 않도록
+        if _cache["patterns"] is not None and (time.time() - _cache["timestamp"]) < CACHE_TTL:
+            return _cache["patterns"], _cache["zscore_data"], _cache["raw_data"]
+        if _load_disk_cache():
+            return _cache["patterns"], _cache["zscore_data"], _cache["raw_data"]
 
-    _cache["patterns"] = patterns
-    _cache["zscore_data"] = zscore_data
-    _cache["raw_data"] = raw_data
-    _cache["timestamp"] = now
-    return patterns, zscore_data, raw_data
+        zscore_data, raw_data = _fetch_all_indicator_data()
+        patterns = _extract_patterns(zscore_data)
+
+        _cache["patterns"] = patterns
+        _cache["zscore_data"] = zscore_data
+        _cache["raw_data"] = raw_data
+        _cache["timestamp"] = time.time()
+        _save_disk_cache()
+    return _cache["patterns"], _cache["zscore_data"], _cache["raw_data"]
+
+
+def warm_cache_async() -> None:
+    """서버 startup에서 호출 — 백그라운드 스레드로 패턴 캐시 예열."""
+    threading.Thread(target=_get_patterns, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------

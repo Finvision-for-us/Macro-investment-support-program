@@ -94,8 +94,10 @@ class TavilySearchSource(BaseSource):
                     if resp is None:
                         return []
 
-                    # 429: 한도 초과 → 다음 키로
-                    if resp.status_code in (429, 402):
+                    # 한도 초과 → 다음 키로. 432는 Tavily의 플랜 사용량 초과 코드
+                    # (라이브 실측: 월간 소진 키가 429가 아니라 432를 반환 —
+                    # 미처리 시 멀쩡한 예비 키를 두고도 첫 키에서 중단된다)
+                    if resp.status_code in (429, 402, 432):
                         _mark_exhausted_and_rotate()
                         continue
 

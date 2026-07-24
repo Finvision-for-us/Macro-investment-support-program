@@ -32,6 +32,7 @@ class StockResearchRequest(BaseModel):
 class PlanRequest(BaseModel):
     query: str
     internal_context: Optional[str] = None
+    progress_id: Optional[str] = None  # 클라이언트 생성 — 계획 진행상황 폴링용
 
 class PlanRefineRequest(BaseModel):
     current_plan: str
@@ -99,15 +100,39 @@ async def start_stock_research(
 
 # ── 플랜 생성/수정 엔드포인트 ──
 
+# 딥 플래닝 진행상황 (progress_id → 메시지). 계획은 1~2분 걸리므로
+# 프론트가 폴링해 단계 표시. 완료 시 엔트리 제거, 크기 가드로 누수 방지.
+_plan_progress: dict[str, str] = {}
+
+
+def _set_plan_progress(pid: Optional[str], message: str) -> None:
+    if not pid:
+        return
+    if len(_plan_progress) > 100:  # 비정상 누적 가드
+        _plan_progress.clear()
+    _plan_progress[pid] = message
+
+
 @router.post("/stock/{ticker}/plan")
 async def generate_plan(ticker: str, request: PlanRequest):
-    """Gemini만으로 리서치 계획 생성 (검색 API 사용 안 함)."""
-    plan = await chat_service.generate_plan(
-        ticker=ticker.upper(),
-        query=request.query,
-        internal_context=request.internal_context or "",
-    )
+    """다라운드 정찰 + 심사 패스 기반 리서치 계획 생성."""
+    pid = request.progress_id
+    try:
+        plan = await chat_service.generate_plan(
+            ticker=ticker.upper(),
+            query=request.query,
+            internal_context=request.internal_context or "",
+            progress_cb=lambda msg: _set_plan_progress(pid, msg),
+        )
+    finally:
+        _plan_progress.pop(pid, None)
     return {"plan": plan}
+
+
+@router.get("/plan-progress/{progress_id}")
+async def plan_progress(progress_id: str):
+    """계획 생성 진행상황 폴링 (완료/미시작이면 빈 메시지)."""
+    return {"message": _plan_progress.get(progress_id, "")}
 
 
 @router.post("/plan/refine")

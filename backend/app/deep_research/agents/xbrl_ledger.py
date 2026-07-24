@@ -9,6 +9,15 @@
 - 일치를 '확인'만 한다. 원장에 없는 수치는 침묵 — 딜 대가·백로그처럼 재무제표
   밖의 정당한 수치가 많으므로 '원장에 없음'을 오류로 단정하면 그 자체가
   '미검증 근거 상충 단정'이 된다.
+- **개념-주장 일치**: 값이 맞아도 주장 문맥과 XBRL 개념 범주가 맞아야 한다.
+  (2026-07-20 INDI 감사 실측: 값만 보면 Non-GAAP 순손실 $15.1M↔InterestPaidNet,
+  무맥락 $11.1M↔OtherAccruedLiabilities, 구조조정↔2024 상각 같은 허위 '일치'가
+  6건 중 3건 — 가짜 신뢰를 부여한다.) 문맥에 범주 신호가 없거나 Non-GAAP/
+  조정 수치(GAAP 원장에 없는 게 정상)면 침묵이 옳다.
+- **기간-주장 일치**: 주장 문맥이 회계연도·분기를 명시하면 원장 항목의
+  fy/fp와 일치해야 한다. (2026-07-22 외부 감사 지적: 개념이 맞아도 2024 Q2
+  값을 2026 Q1 주장에 붙이면 오판. 문서 §5.1의 기간 요건.) 주장에 기간
+  신호가 없으면 기간 제약을 걸지 않고 최신 항목 우선(종전 동작 유지).
 - 네트워크/파싱 실패 시 빈 결과 + 경고 로그. 파이프라인은 절대 죽지 않는다.
 
 데이터: data.sec.gov/api/xbrl/companyfacts/CIK##########.json (무료, 키 불필요)
@@ -21,6 +30,7 @@ import asyncio
 import bisect
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,6 +62,7 @@ class LedgerFact:
     fy: str         # 회계연도 라벨 (예: 2026)
     fp: str         # 회계기간 라벨 (FY/Q1/Q2/Q3/Q4)
     form: str       # 출처 서식 (10-K/10-Q/8-K)
+    start: str = ""  # 기간 시작일(duration 개념만; instant는 빈값) — 분기/YTD 구분용
 
 
 class XbrlLedger:
@@ -74,11 +85,13 @@ class XbrlLedger:
         lo = bisect.bisect_left(self._keys, lo_v)
         hi = bisect.bisect_right(self._keys, hi_v)
         hits = self._facts[lo:hi]
-        # 같은 (concept, end) 중복 제거(10-K/10-Q 재보고), 최신 end 우선
-        seen: set[tuple[str, str]] = set()
+        # 같은 (concept, end, start) 중복 제거(10-K/10-Q 재보고), 최신 end 우선.
+        # start를 키에 포함해 같은 종료일의 '단일 분기 vs 연초 누적'(값이 다름)이
+        # 뭉개지지 않게 한다 — 값 매칭이 올바른 기간을 자연 선택.
+        seen: set[tuple[str, str, str]] = set()
         uniq: list[LedgerFact] = []
         for f in sorted(hits, key=lambda f: f.end, reverse=True):
-            k = (f.concept, f.end)
+            k = (f.concept, f.end, f.start)
             if k in seen:
                 continue
             seen.add(k)
@@ -136,6 +149,7 @@ def _build_facts(raw: dict) -> list[LedgerFact]:
                 fy=str(pt.get("fy") or ""),
                 fp=pt.get("fp") or "",
                 form=pt.get("form") or "",
+                start=pt.get("start") or "",
             ))
     return out
 
@@ -176,12 +190,131 @@ async def get_ledger(ticker: str) -> Optional[XbrlLedger]:
     return ledger
 
 
+# ── 개념-주장 범주 매칭 ──
+# (주장 문맥 키워드, XBRL 개념명 부분문자열) 쌍 — 하나라도 겹쳐야 '일치' 인정.
+# 키워드는 리포트 실문장 기준의 실용 목록(감사 오탐 3건 + 정당 매치 3건으로 보정).
+_CONCEPT_CATEGORIES: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
+    (("revenue", "sales", "매출"), ("Revenue", "Sales")),
+    (("net loss", "net income", "순손실", "순이익", "당기순"),
+     ("NetIncomeLoss", "ProfitLoss")),
+    (("operating loss", "operating income", "영업손실", "영업이익"),
+     ("OperatingIncomeLoss",)),
+    (("gross profit", "gross margin", "매출총이익"), ("GrossProfit",)),
+    (("cash", "현금"), ("Cash",)),
+    (("convertible", "notes", "debt", "차입", "사채", "전환사채", "offering",
+      "placement", "발행", "조달", "borrow"),
+     ("Debt", "Notes", "Borrow", "Proceeds", "Placement", "Financ", "Repay")),
+    (("r&d", "research and development", "연구개발"),
+     ("ResearchAndDevelopment",)),
+    (("operating expense", "sg&a", "selling, general", "판관비", "영업비용"),
+     ("OperatingExpenses", "SellingGeneralAndAdministrative")),
+    (("interest", "이자"), ("Interest",)),
+    (("amortization", "depreciation", "상각", "감가상각"),
+     ("Amortization", "Depreciation", "Depletion")),
+    (("impairment", "손상차손", "손상"), ("Impairment",)),
+    (("restructuring", "구조조정"), ("Restructuring",)),
+    (("goodwill", "영업권"), ("Goodwill",)),
+    (("intangible", "무형자산"), ("IntangibleAsset",)),
+    (("acquisition", "acquire", "인수", "merger", "합병", "매각", "divest",
+      "disposal", "consideration", "대가"),
+     ("BusinessCombination", "Consideration", "Disposal", "Acquisition")),
+    (("total assets", "총자산", "자산총계"), ("Assets",)),
+    (("total liabilities", "총부채", "부채총계", "accrued", "미지급"),
+     ("Liabilities",)),
+    (("stockholders", "shareholders equity", "자본총계", "자기자본"),
+     ("StockholdersEquity", "Equity")),
+    (("stock-based compensation", "주식보상", "주식기준보상"),
+     ("ShareBasedCompensation",)),
+    (("inventory", "재고"), ("Inventor",)),
+    (("capital expenditure", "capex", "설비투자"),
+     ("PaymentsToAcquireProperty", "PropertyPlantAndEquipment")),
+    (("tax", "법인세", "세금"), ("Tax",)),
+]
+
+# Non-GAAP/조정 수치는 GAAP 원장에 없는 게 정상 — 값 일치는 우연이므로 침묵
+_NONGAAP_RE_STR = ("non-gaap", "non gaap", "adjusted", "조정 ", "조정된",
+                   "비일반회계", "ebitda")
+
+_CTX_WINDOW = 90  # 금액 표기 앞뒤 문맥 창(문자)
+
+
+def _claim_context(text: str, raw: str, cursor: int) -> tuple[str, int]:
+    """금액 표기(raw)의 주장 문맥 창과 다음 커서. 못 찾으면 전체 재탐색."""
+    pos = text.find(raw, cursor)
+    if pos < 0:
+        pos = text.find(raw)
+    if pos < 0:
+        return "", cursor
+    ctx = text[max(0, pos - _CTX_WINDOW):pos + len(raw) + _CTX_WINDOW]
+    return ctx.lower(), pos + len(raw)
+
+
+def _concept_allowed(ctx: str, concept: str) -> Optional[bool]:
+    """주장 문맥 대비 개념 허용 판정.
+
+    None = 문맥에 범주 신호 없음(판단 불가 → 침묵),
+    True/False = 신호 있음 → 개념 범주 일치 여부.
+    """
+    found_any = False
+    for claim_kws, concept_subs in _CONCEPT_CATEGORIES:
+        if not any(kw in ctx for kw in claim_kws):
+            continue
+        found_any = True
+        if any(sub in concept for sub in concept_subs):
+            return True
+    return False if found_any else None
+
+
+# ── 기간-주장 매칭 (문서 §5.1: 개념이 맞아도 기간이 틀리면 오판) ──
+# 4자리 회계연도(2000~2099). 앞뒤 숫자 배제로 금액 내부 숫자열 오탐 방지.
+# (2000~2039만 잡으면 2040+ 오연도가 '연도 신호 없음'으로 새어 기간 무검사됨.)
+_YEAR_IN_CTX = re.compile(r"(?<!\d)(20\d\d)(?!\d)")
+_QUARTER_PATTERNS: list[tuple[str, re.Pattern]] = [
+    ("Q1", re.compile(r"1\s*분기|Q\s*1|1Q\d{2}|first\s+quarter", re.IGNORECASE)),
+    ("Q2", re.compile(r"2\s*분기|Q\s*2|2Q\d{2}|second\s+quarter", re.IGNORECASE)),
+    ("Q3", re.compile(r"3\s*분기|Q\s*3|3Q\d{2}|third\s+quarter", re.IGNORECASE)),
+    ("Q4", re.compile(r"4\s*분기|Q\s*4|4Q\d{2}|fourth\s+quarter", re.IGNORECASE)),
+]
+
+
+def _claim_period(ctx: str) -> tuple[set[str], set[str]]:
+    """주장 문맥에서 회계연도 집합·분기 집합을 추출. (years, quarters)."""
+    years = set(_YEAR_IN_CTX.findall(ctx))
+    quarters = {q for q, pat in _QUARTER_PATTERNS if pat.search(ctx)}
+    return years, quarters
+
+
+def _period_ok(fact: LedgerFact, years: set[str], quarters: set[str]) -> bool:
+    """원장 항목이 주장 기간과 양립하는가.
+
+    연도: 주장 연도가 있으면 fact.fy(없으면 end 연도)가 그 집합에 있어야 함.
+    분기: 주장 분기가 있으면 fact.fp가 분기 태그일 때 일치해야 하고, 연간(FY)
+    태그면 분기 주장과 불일치로 기각. fp가 없으면(예: DEF 14A) 분기는 판단
+    불가로 통과(연도로만 거른다 — 메타데이터 누락에 과잉 기각 방지).
+    """
+    if years:
+        fy = fact.fy or ""
+        end_year = fact.end[:4] if len(fact.end) >= 4 else ""
+        if fy not in years and end_year not in years:
+            return False
+    if quarters:
+        fp = (fact.fp or "").upper()
+        if fp in ("Q1", "Q2", "Q3", "Q4"):
+            if fp not in quarters:
+                return False
+        elif fp == "FY":
+            return False  # 분기 주장에 연간 값 — 불일치
+    return True
+
+
 # ── 보고서 수치 대조 ──
 
 def verify_amounts_against_ledger(text: str, ledger: XbrlLedger) -> list[str]:
     """텍스트의 USD 금액(≥$1M)을 원장과 대조해 '[원장 일치]' 문장을 생성.
 
     확인 전용 — 미매치 수치는 침묵(재무제표 밖 수치가 정상적으로 존재).
+    값 일치 + **개념-주장 범주 일치**를 모두 요구한다. 문맥에 범주 신호가
+    없거나 Non-GAAP/조정 수치면 침묵(허위 신뢰 부여 방지 — 감사 실측 규칙).
     통화 파싱은 numeric_consistency의 검증된 파서를 재사용한다.
     """
     if not text or ledger is None or len(ledger) == 0:
@@ -190,17 +323,27 @@ def verify_amounts_against_ledger(text: str, ledger: XbrlLedger) -> list[str]:
 
     statements: list[str] = []
     seen_values: set[int] = set()
+    cursor = 0
     for m in extract_mentions(text):
         if m.kind != "money" or m.currency != "USD":
             continue
         if m.value < _MIN_LEDGER_VALUE:
             continue
+        ctx, cursor = _claim_context(text, m.raw, cursor)
         key = round(m.value)
         if key in seen_values:
+            continue
+        if any(kw in ctx for kw in _NONGAAP_RE_STR):
             continue
         # 라운드 값(정확히 $1M 단위)은 엄격 오차 — 우연 매치 억제
         tol = _ROUND_MATCH_TOL if m.value % 1_000_000 == 0 else _MATCH_TOL
         hits = ledger.match(m.value, tol=tol)
+        # 개념-주장 범주 필터: 신호 없으면 전부 기각(침묵), 있으면 일치 개념만
+        hits = [h for h in hits if _concept_allowed(ctx, h.concept)]
+        # 기간-주장 필터: 문맥에 연도/분기가 있으면 원장 기간과 일치하는 것만
+        years, quarters = _claim_period(ctx)
+        if hits and (years or quarters):
+            hits = [h for h in hits if _period_ok(h, years, quarters)]
         if not hits:
             continue
         seen_values.add(key)

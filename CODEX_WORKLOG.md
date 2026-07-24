@@ -1241,3 +1241,361 @@ Fable 리뷰의 유일한 '재설계'급 항목. research_lab/langfuse_deep_rese
 - **버그 2: cninfo announcementTime 형식 편차** — 002594 링크는 '2026-07-02 00:00:00'(시간 포함)이라 YYYY-MM-DD fullmatch 탈락 → 선별 7건 전량 병합 실패(000001은 우연히 날짜만이라 첫 라이브에서 안 걸림). → [:10] 정규화. 회귀 테스트 추가(시간 포함 형식). 라이브: BYD 7건 변환 + 공시 PDF 1,826단어 실추출.
 - **2차 E2E 완주(잡 fd9cfdf5)**: done·오류 0·서버 생존. 소스 286개. 마커 — PDF text-layer ×15(+크기캡 차단 ×3), wayback 회수 ×5, cninfo 선별(225→7), 구조화 planner/critic×5/추출/자기검증 전부. cross_validation 12건: **[pro-rata 정합] 8,142.70万元≈81,910.64万元×10% (RMB)** + **[환율 정합] ×5**(¥804B≈$116B 등 실제 BYD 수치) — 중국어 공시 수치가 결정론 검사를 실전 관통. 1차 실행에선 야생 스캔 PDF(미래에셋) OCR 5,106자도 확인.
 - backend 232 전량 green(회귀 1 추가). 참고: 일시적 cninfo 네트워크 플레이크는 설계된 조용한 폴백으로 처리됨(재시도서 정상).
+
+### 추가(2026-07-16) - [감사] 리뷰 범위 밖 영역 감사 + GitHub Actions 실green 확인
+사용자 지시로 잔여 영역 순차 처리(finvision_crawling은 사용자가 로컬 제거 예정으로 제외).
+- **CI 실green**: 비인증 GitHub API로 c44aadc 체크런 조회 — backend/core/research_lab 3잡 전부 completed/success. 회귀 방지 실가동 확인.
+- **프론트 API 계약 전수 대조 (불일치 0)**: api/index.js 24개 호출(macro 5·stock 16·portfolio 3) ↔ app.routes 전수 매칭. deep research 인라인 호출(세션 CRUD 5종·plan/refine/execute/chat/status/stream)도 라우터에 전부 존재. SSE 이벤트 형태(stage/progress_pct) = pipeline emit 직렬화와 일치, 완료 처리(done→status 재조회→result 렌더)·error 스테이지 처리 확인. ResearchReport 소비 필드(sections/key_findings/timeline/coverage/cross_validation/unverified_gaps/metadata.total_queries·total_sources·elapsed_seconds·estimated_cost_usd) 전부 모델에 존재.
+- **ui/ (Next.js)**: /today 단일 페이지, 백엔드 API 호출 0 — data/stories_latest.json 정적 읽기 전용(구조적 저위험).
+- **research_lab/gemini_langfuse_log_runner**: 격리 실험 러너(1,920줄, 서비스 무접촉). .env 미추적·전 히스토리에 커밋 이력 없음. 추적된 output/ 산출물 14개에 키 패턴(AIza…/sk-…/api_key=) 없음.
+- 결론: 잔여 영역에서 실결함 0. 미해결로 남는 것: Brave/Exa(키 필요·선택), 보안 권고 중 사용자 보류분(.env 키 로테이션 판단).
+
+### 추가(2026-07-19) - [종결] 보안 권고 처리 완료 — Fable 리뷰 사이클 전 항목 종결
+- .env 키 로테이션: **사용자 결정으로 미실시**. 근거: 실키 포함 zip은 Fable 챗봇 검토 1회 업로드 외 공유 이력 없음(저장소 히스토리 유출 없음은 기확인). 노출 경로 제한적.
+- finvision_crawling: 사용자가 일회성 코드로 확인, 로컬 정리 예정 — 감사 범위 제외.
+- 이로써 Fable 리뷰 발 전 항목(즉시수정·로드맵·확장·종합 E2E·잔여영역 감사·보안 권고) 종결. 남은 선택지: Brave/Exa 키 발급 시 배선(비차단).
+
+### 추가(2026-07-19) - [UX/성능] 대시보드 무한로딩·주가 표시 수정 (사용자 불편 신고 2건)
+- **FRED 403 차단**: FRED CDN(Akamai)이 기본 python UA·연발 호출을 403으로 차단(실측: 첫 200 → 연발 후 IP 일시차단). fred_client에 브라우저형 UA + 시리즈별 10분 캐시(+실패 시 만료 캐시 폴백). 키 주입(.env FRED_API_KEY) 후 지표 12/12 실데이터 확인.
+- **market-state 120s+ 행**: business_cycle이 FRED 일간 시리즈를 2만행×12개 직렬 수집 → 프론트 60s 타임아웃 → "분석 중..." 무한. 수정: 패턴 캐시를 디스크(backend/data/cycle_cache.json, 24h TTL, data/는 gitignore)로 2단화 + startup 백그라운드 예열(warm_cache_async) + 중복 발사 방지 락. 실측 120s+ → **0.22s**.
+- **현재가 커서로만 보임**: overview(무거움·타임아웃 가능)가 실패하면 헤더 전체가 안 그려져 차트 호버로만 가격 확인 가능했음. StockDetail 수정: quote를 마운트 즉시 1회+30s 주기로 독립 조회, 헤더 현재가는 quote 우선, **전일 대비 등락(±금액/%) 신설**, 로딩 스켈레톤·overview 실패 시에도 현재가 헤더 표시. 브라우저 검증: TSLA $380.84 · 전일 대비 -10.22(-2.61%) 즉시 표시, 콘솔 무오류.
+
+### 추가(2026-07-19) - [버그] 리서치 채팅 프롬프트 증발 수정 (사용자 신고)
+- **근본 원인**: init_db가 research_sessions/research_messages 테이블을 생성하지 않아(누락) 세션 API 전체가 500(`no such table: research_sessions`). 프론트 핸들러가 `ensureSession → addMsg(user)` 순서라 세션 생성 throw 시 사용자 메시지 추가 전에 죽음 — 입력은 이미 비워져 프롬프트 증발.
+- **백엔드**: database.py init_db에 research_sessions/research_messages CREATE TABLE IF NOT EXISTS + 세션·시간 인덱스 추가(라우터 컬럼과 정합 확인). curl 검증: 세션 생성/목록 200.
+- **프론트**: (1) addMsg(user)를 ensureSession보다 먼저 — 메시지 즉시 표시, (2) ensureSession 실패를 non-fatal로(null 반환, 저장만 스킵하고 채팅 계속), (3) saveMsg sid null 가드.
+- **브라우저 E2E**: TSLA 심층 채팅에 질문 전송 → 프롬프트 유지 + POST /sessions·/messages·/plan 전부 200 + 리서치 계획 렌더링(실제 사전검색 근거 포함) 확인.
+
+### 추가(2026-07-19) - [개선] 리서치 계획 2라운드 정찰 — 사고 깊이 강화 (사용자 피드백 "사고가 짧다")
+- 기존: 광각 쿼리 5개 1회 검색 → 바로 계획(16.5s 실측). 표면 정보 기반이라 얕음.
+- 변경: chat_service._scout_search를 2라운드로 재구성 — ① 1차 광각 정찰(5쿼리) → ② SCOUT_FOLLOWUP_PROMPT로 빈틈 분석(1차 결과의 구체 사건 원문 확인·미검증 주장·미커버 측면·반대관점) → ③ 추적 쿼리 4개 2차 정찰 → ④ 라운드 구분 표기로 종합해 계획 작성. 검색 러너는 _run_search_round로 추출(Parallel 배치+Tavily 병렬 동일), _gen_queries/_dedup_lines 헬퍼 분리. 1차 빈손이면 2차 스킵.
+- 실측(INDI 동일 질문): 27.0s, 2차 쿼리가 1차 발견을 파고듦("EXALOS/GEO/ams OSRAM 인수 효과", "profitability roadmap", "ADAS/LiDAR 경쟁우위"). 계획 품질: 명칭 교정(indi 세미 컨덕터→indie Semiconductor, 근거 포함) + M&A 세부 + 반대관점(내부자 매도) 포함 확인.
+- 비용: 플랜당 lite 호출 +1, tavily +4, parallel 배치 +1 — 무료티어 여유 내.
+
+### 추가(2026-07-19) - [개선2] 딥 플래닝 파이프라인 — N라운드 정찰 + 심사 패스 (사용자 "타 AI는 몇 분씩 사고" 피드백)
+- 2라운드 고정 → **N라운드 루프(기본 4, PLAN_SCOUT_ROUNDS env)**: 각 라운드가 누적 증거+기검색 쿼리를 보고 빈틈 분석 → 추적 4쿼리. 모델이 SATURATED 선언 또는 신규 결과 0이면 조기 종료(시간 낭비 자체 방지). 증거 상한 라운드 3500자/전체 11000자.
+- **심사 패스 신설(PLAN_REVIEW_PROMPT)**: 초안을 증거와 대조해 심사 — ①질문 측면 커버리지 ②항목별 무엇을·어디서·어떻게 구체성 ③반대가설/리스크 검증 항목 ④증거 없는 추측 제거 ⑤중복 병합·근거 표기 보완 → "심사 반영" 요약과 함께 최종본 출력(사용자에게 사고 과정 가시화). 심사본이 초안의 60% 미만 길이면 초안 유지(생성실패 가드). 검색 증거 없으면 심사 스킵(추측 증폭 방지).
+- 실측(INDI, 3라운드+심사): **55.3s**, 증거 10,080자. 3차 쿼리가 "Tier 1 OEM design wins"·"특허 벤치마킹"·"M&A 통합의 마진 영향"·"내부자 매집 추이"까지 파고듦. 심사 반영 확인: "호재 질문이지만 리스크 균형 배치, 막연한 내부자거래 항목을 지배구조 확인으로 구체화, 전 항목에 *확인 방법* 추가". 기본 4라운드로 ~1.5분대.
+- 비용: 플랜당 lite ≤5 + flash 2 호출 — 무료티어 여유 내.
+
+### 추가(2026-07-19) - [수정] US 단일 관할 공식소스 집중 검색 활성화 (INDI 실측 "공식쿼리 0" 해소)
+- pipeline의 `primary != "US" or cross_border` 게이트 제거 — 가장 흔한 케이스(미국 종목)에서 SEC EDGAR·IR 1차 자료 직접 타격이 빠지던 문제. 이제 전 관할에서 공식소스 검색 실행.
+- multilingual_query_builder._add_us_queries에 IR·보도자료 쿼리 신설: `"{회사명}" investor relations press release {이벤트키워드}` (IR 도메인은 사전 미상이라 site: 없이 — businesswire/globenewswire/IR 페이지 타격).
+- 라이브 검증(US 단일, INDI): 공식 쿼리 2개 → **10건 수집** — sec.gov EDGAR 실공시(CIK 1841925, 10-Q indi-20260508.htm 포함) + **investors.indie.inc**(신설 IR 쿼리가 회사 IR 사이트 직접 포착) + nasdaq. backend 232 전량 green.
+- 참고: Form 4 전수조사는 채팅 execute 경로에서 계획 전문이 query에 포함돼 키워드 트리거 정상(제너릭 엔드포인트 단독 실행에만 미포함이었던 것 — 버그 아님).
+
+### 추가(2026-07-19) - [수정] 커버리지 판정 topic 필터 — 종목 질문에 거시 기관 기대치 제거
+- 원인: build_coverage_info가 질문 성격 무관하게 관할의 전 tier-1 도메인(연준·재무부·BLS·BEA·FRED 포함)을 기대치로 잡아, 종목 질문 커버리지가 항상 "미확인 다수"로 표시(INDI 실측 확인 2/미확인 8 — 미확인 대부분이 거시 기관).
+- 수정: topic 파라미터 신설 — "company"면 기대 도메인을 category∈{regulator, exchange}로 한정(공시가 사는 곳), "all"(거시)은 기존 유지. pipeline이 컨텍스트 티커 또는 관할 시그널의 ticker:/ctx_ticker: 감지로 topic 결정(제너릭 실행도 커버).
+- 검증: US 종목 → 확인 1/1(sec.gov, 미확인 0). US+KR 종목 → sec.gov·dart 확인/fsc·krx만 미확인(거시 기관 부재). 거시(all) → 연준 등 기대 유지 + "(searched, no result)" 라벨 회귀 확인. 신규 test_coverage_info.py 4케이스, backend 236 전량 green.
+
+### 추가(2026-07-19) - [개선3] 딥 플래닝 실시간 진행 표시 (남은 목록 3번)
+- 배경: 계획이 1~2분 걸리게 됐는데 프론트는 "사전 검색 중..." 정적 한 줄 — 체감 대기 나쁨.
+- 백엔드: PlanRequest에 progress_id(클라 생성) 신설. chat_service.generate_plan/_scout_search에 progress_cb 배선 — 단계별 보고("1차 정찰: 쿼리 생성/광각 검색 실행", "N차 추적: 빈틈 분석/검증·반대관점 검색", "초안 작성", "심사관 패스"). router에 _plan_progress 딕셔너리(+100개 가드, 완료 시 pop) + GET /plan-progress/{id} 폴링 엔드포인트.
+- 프론트: handleDeepQuery가 crypto.randomUUID()로 pid 생성해 요청에 포함, 2초 간격 폴링으로 마지막 메시지를 "🔎 {단계} (딥 플래닝 1~2분 소요)"로 갱신. 폴링 실패는 무해(부가 기능), finally에서 타이머 정리.
+- 브라우저 E2E 검증: TSLA 로보택시 질문 → "🔎 2차 추적: 검증·반대관점 검색 실행 중 (4개 쿼리)" → "🔎 4차 추적..." 실시간 전환 → 심사반영 포함 최종 계획 도착 확인. backend 236 전량 green.
+
+### 추가(2026-07-19) - [개선4+버그2] 계획 사고 깊이: thinking 모델 승격 + Tavily 432 로테이션 수정 (사용자 "사고 시간 짧음" 지적)
+- **본질 진단**: 타 AI의 '몇 분 계획'은 추론 모델의 내부 사고 시간. FinVision 계획 경로는 전부 flash-lite 비추론 호출이라 짧았음. 실측: gemini-3.5-flash가 무료티어에서 thinking 기본 활성(짧은 프롬프트 사고토큰 ~1k, 6s/콜), pro 계열은 429 불가.
+- **승격**: llm_client에 generate_text(thinking_budget 지원, 사고토큰 로깅) 신설. 계획 초안·심사 2콜을 PLAN_THINKING_MODEL(기본 gemini-3.5-flash, budget 16384)로 — 실패 시 기존 lite 폴백. 쿼리 생성은 lite 유지(쿼터 절약).
+- **버그: Tavily 432 미처리** — 월간 소진 키가 429가 아닌 432 반환(라이브 실측). 로테이션 조건이 (429,402)뿐이라 예비 키 2개가 멀쩡한데 첫 키에서 중단 → 정찰 전패. tavily_search+chat_service 양쪽 (429,402,432)로 수정. 수정 후 로그로 키 전환 확인.
+- **정직 강등**: 정찰 전패(크레딧 소진 등) 시 근거 없는 계획을 꾸미지 않고 내부 데이터 모드 강등 + 계획 상단 "⚠️ 웹 정찰 실패" 경고 명시.
+- 재실측(INDI): 49.0s — thinking 초안(사고토큰 1,840)+thinking 심사(1,297) 완주, 초안 1,827자→최종 3,678자. **당일 자원 현황: Parallel 402 크레딧 소진, Tavily 3키 중 대부분 소진(15분 쿨다운 복귀)** — 오늘 대량 테스트 영향, 코드가 아닌 쿼터 문제로 기록. backend 236 green.
+
+### 추가(2026-07-19) - [준비] Gemini 유료 전환 코드 — 모델 승격 + 실비용 전수 집계
+- **모델 라우팅(.env)**: 사고 필요 단계 전부 gemini-3.5-flash(thinking) 승격 — 플래너(서브쿼리)·비평가·종합·자기검증·계획(초안/심사)·채팅. 대량 작업은 lite 유지: 추출(EXTRACT_MODEL=3.1-flash-lite 명시), 가이던스·stock_profile·ai_client는 자체 lite 고정이라 무영향. 쿼터 소진 시 llm_client fallback_model로 lite 강등(기존 메커니즘).
+- **실비용 전수 집계(llm_client)**: _record_usage가 generate_structured(폴백 모델 구분 포함)/generate_text의 usage_metadata(입력·출력·사고 토큰)를 모델별 누적. 2026-07 공식 단가표(_PRICE_PER_M: 3.5-flash $1.5/$9, 3.1-flash-lite $0.25/$1.5, 3.1-pro $2/$12 등, 사고=출력 과금) 기반 estimated_cost_usd()/total_tokens()/reset_usage(). 한계 명시: 레거시 SDK 직호출 폴백 경로는 집계 밖(정상 경로 하한값).
+- **파이프라인**: 잡 시작 reset_usage → 중간 비용 가드(MAX_COST_USD_PER_RUN $2)를 전수 집계 기반으로 교체(기존 planner+synth 출력토큰만·구식 단가) → 종료 시 metadata.estimated_cost_usd/gemini_tokens_used 실집계 기록 + 모델별 내역 로그.
+- 검증: 신규 test_llm_usage.py 5케이스(모델별 누적, 사고=출력 과금 수기검산, 미등록 모델 lite 근사, reset, usage_metadata 부재 안전) + backend 241 전량 green. 라우팅 해석 실확인(플래너/비평가/종합/검증/계획/채팅=3.5-flash, 추출=lite). 서버 반영.
+- 대기: 사용자 유료 키 수령 → .env 교체 → 풀 리서치 1회 시험(품질 + 계산비용 vs AI Studio 실청구 대조).
+
+### 추가(2026-07-19) - [기능] 그라운딩 검색 배선 + 유료 키 전환 — 1차 시험이 드러낸 검색 전멸 해소
+- **유료 키 전환**: .env 교체, 스모크로 유료 티어 확인(무료에서 429였던 3.1-pro 응답). 1차 시험(INDI): done, **실비용 $0.3054/54,438토큰/296s** — 비용 예측 적중. 단 Tavily 전키 소진+Parallel 402로 검색 전멸 → 소스 9개, 품질 시험 무효 판정.
+- **그라운딩 소스 신규(sources/grounding_search.py)**: generate_content(tools=[google_search]) 1콜 → 모델이 검색어 3~4개 자체 실행(실측) → grounding_chunks(제목=도메인)+grounding_supports(텍스트 조각↔청크 매핑)를 parse_grounding 순수함수로 파싱. **vertexaisearch 리다이렉트 URL을 검색 시점에 실URL 해석**(HEAD→GET 폴백, 동시 8) — 미해석 시 domain_of가 전부 vertexaisearch로 잡혀 신뢰도 랭킹·중복제거 파괴되는 문제 방지. 토큰은 llm_client 집계기 기록, 실행 검색어 수는 모듈 카운터 누적 로그(월 5,000 무료분 추적). 모델 GROUNDING_MODEL=3.1-flash-lite(그라운딩 지원 실측, 토큰비 최소).
+- **배선**: searcher._sources에 등록 + _search_one에서 모든 쿼리에 병행 추가(타 엔진 크레딧 소진 시에도 검색 생존). 채팅 스카우트는 라운드당 그라운딩 1콜(검색어 자체 생성 활용).
+- 검증: parse_grounding 4케이스(스니펫 매핑·무효청크 스킵·메타 부재 안전·캡) + 라이브 사슬(실URL 해석 — seekingalpha 기사·investing.com Q1 2026 뉴스 회수). backend 245 전량 green. 2차 시험(검색 복구 상태) 실행.
+
+### 추가(2026-07-19) - [기능] 로컬 HTML 추출 폴백 — [[unverified]] 남발의 근본 원인(추출 실패) 대응
+- 2차 시험 진단: 소스 144건인데 Jina(무키 20RPM) 503 폭주로 본문 추출 대량 실패 → 자기검증이 근거를 못 찾아 [[unverified]] 175개 남발(실사실까지 미확인 처리).
+- 신규 sources/html_extractor.py: httpx+trafilatura 로컬 추출. **2단 UA**(브라우저형 → 403 시 정직한 봇 UA 재시도 — 위키미디어류의 'python TLS+브라우저 UA=스푸핑' 차단 우회, 실측 위키피디아 403→성공). Cloudflare/Akamai TLS 지문 차단 사이트는 로컬 불가로 Jina 몫 명시. 200자 미만/비HTML/3MB 초과 스킵, trafilatura 미설치 시 모듈 비활성.
+- extractor 배선: PDF 로컬 → Jina → **Jina 실패분 로컬 HTML 흡수** 3단 체인. 실측 3/3(위키·stockanalysis·marketbeat). backend 245 green, requirements에 trafilatura 추가.
+- 오늘 시험 지출 누계: 1차 $0.31(검색 전멸·무효) + 2차 $0.43(검색 부활 144소스, 추출 병목 발견) = **$0.74**. 3차(추출 복구 검증)는 사용자 예산 확인 대기.
+
+### 추가(2026-07-19) - [판정] 3차 시험 — 유료 구성 최종 검증 (3회 누계 $1.09)
+- 3차(추출 3단 체인 복구): done, **$0.347/88,513토큰/835s**, 쿼리 61 → **소스 150/도메인 57종**.
+- **검증 오염 해소 확인**: 스팸성 [[unverified]] 175→0. 잔존 단일 [unverified] 109개는 성격 전환 — 2차엔 'Fabless' 같은 상식 용어까지 태그, 3차엔 수주잔고 시점·전환사채 등 실검증 필요 주장에만. **GlobalFoundries 파트너십이 미확인→검증([2]) 전환**이 추출 복구의 직접 증거. $7.4B 백로그 최신 수치 포착(2차는 2021년 $2.6B 낡은 값).
+- 3회 비교: 1차 $0.31/소스9(검색전멸) → 2차 $0.43/소스144(추출병목) → 3차 $0.35/소스150(정상). **회당 실비용 $0.35 안정 — 본격 사용 가능 판정.**
+- 남은 선택 개선: Jina 무료 키(20→200RPM, 강성 차단 사이트 추출) — 사용자 액션 대기. [unverified] 표시 UX(프론트 각주화)는 추후.
+
+### 추가(2026-07-20) - [설정] Jina API 키 적용 — 강성 차단 사이트 추출 활성
+- 사용자 Jina 무료 키(가입 토큰 1,000만) .env 등록. jina_reader는 이미 Bearer 헤더 지원(코드 무변경).
+- 검증: 로컬 추출로 403이던 reuters.com(1,817단어)·seekingalpha.com(3,557단어) Jina 경유 추출 성공. 한도 분당 20→200회 — 2차 시험의 503 폭주 원인 해소.
+- 추출 스택 완성: PDF 로컬(텍스트레이어→OCR) → Jina(키, 200RPM, 강성 사이트) → 로컬 HTML(trafilatura, 2단 UA).
+
+### 추가(2026-07-20) - [기능] 수치 결정론 재검증(방어선 5.5) + 검증 컨텍스트 확대 — [unverified] 마지막 마일
+- 4차 진단: 태그 대상이 전부 수치·연도(회사·파트너십은 검증 통과) — 원인은 자기검증 컨텍스트가 원문 10k자/리포트 8k자로 잘려, 수치가 원문에 있어도 컨텍스트 밖이면 미확인 처리.
+- **① 검증 컨텍스트 확대**: 원문 10k→150k자, 리포트 8k→30k자 (thinking 모델 유료 전환으로 +$0.07/run 감내 가능).
+- **② 신규 agents/numeric_reverifier.py — 수치 전용 결정론 재검증 (LLM 0콜)**: [unverified] 태그 구간의 수치를 **전체 수집 원문(무제한)**과 대조. numeric_consistency 다국어 파서 재사용("74억 달러"↔"$7.4 billion" 교차언어 정규화, 통화 일치+1% 오차), 연도(한글 인접 \b 실패 → 숫자경계 정규식으로 수정), %(0.1%p), 통화없는 큰 수(억/만 조합·콤마수). **보수성 원칙**: 수치 전수 확인 시에만 해제, 부분 확인·수치 없는 사실관계 태그는 유지. synthesizer의 자기검증 직후 배선(방어선 5.5), 실패 시 태그 유지 폴백.
+- 검증: 신규 테스트 9케이스(교차언어 매칭, 부분확인 거부, 사실관계 불변, 이중괄호 변형, 무코퍼스 no-op) + backend 254 전량 green. 5차 시험으로 효과 측정 중(기준: 3차 109/4차 114).
+
+### 추가(2026-07-20) - [판정] 5차 시험 — [unverified] 114→1, 마지막 마일 완결
+- 5차(컨텍스트 확대+결정론 재검증): done, $0.3392/97,343토큰/869s, 소스 121/도메인 59종. **[unverified] 3차 109/4차 114 → 1개.**
+- 남은 1개 검증: "Seeing Machines·emotion3D 포트폴리오 통합" — 수치 없는 사실관계 주장으로, 재검증이 손대지 않는 영역(보수성 원칙 정확 작동). 수치·연도류 태그는 전멸.
+- 5회 시험 누계 $1.70(약 2,600원). 유료 전환 프로젝트(모델 승격→비용 집계→그라운딩→Jina→추출 3단→검증 마지막 마일) 완결 판정.
+
+### 추가(2026-07-24) - [분석/검증] 현재 코드 및 심층 리서치 구현 브리핑
+- 목적: Claude 작업 이후 현재 저장소 구조와 심층 리서치 실행 흐름을 코드 기준으로 재점검.
+- 읽은 핵심 위치: `backend/app/deep_research/` 전체, `backend/app/main.py`, `backend/app/database.py`, `backend/app/api/stock.py`, `frontend/src/components/shared/StockResearchChat.jsx`, `frontend/src/components/shared/StockDetail.jsx`.
+- 확인 내용:
+  - 계획 생성/수정/승인 후 실행하는 사용자 승인형 흐름.
+  - 관할 감지 → 다중 검색원 병렬 검색 → 공식 소스/SEC/IR/시장 데이터 보강 → 전문 추출/페이월 복구 → Discovery 단서 추적 → Critic 반사 루프 → 보고서 생성/교차검증/수치 재검증/정제 순서.
+  - 비동기 작업 상태는 프로세스 메모리, 진행 이벤트는 SSE, 채팅 세션/메시지는 SQLite에 저장.
+  - `.env`는 값 자체를 읽거나 기록하지 않고 `has_key`만 확인: Gemini/Google/Tavily/Parallel/FRED=True, SEC_USER_AGENT/DART=False.
+- 수정 파일: `CODEX_WORKLOG.md`만 추가 기록. 제품 코드는 수정하지 않음.
+- 검증:
+  - `cd backend; python -m pytest -q` → `322 passed`, 경고 57개.
+  - `cd frontend; npm run build` → 성공, 2695 modules transformed.
+  - 빌드 경고: `NewsFeed.jsx`, `StockResearchChat.jsx`의 동적/정적 import 혼용으로 별도 chunk 분리 안 됨. `recharts` chunk 547.71kB로 500kB 경고.
+- 남은 리스크:
+  - 실제 외부 API 풀 리서치는 비용과 쿼터를 사용하므로 이번 점검에서 실행하지 않음.
+  - 작업/결과가 메모리 기반이라 서버 재시작 시 진행 중 job 및 완료 결과가 사라지고, 다중 worker 간 공유되지 않음.
+  - `_plan_progress`도 메모리 폴링 구조라 재시작/다중 worker에 취약.
+  - `research_messages`에 DB foreign key 제약이 없어 세션 삭제/비정상 호출 시 고아 행 방지는 애플리케이션 로직에 의존.
+
+### 추가(2026-07-24) - [FCF-03 최소 구현] Claim Safety Ledger
+- 목적: ChatGPT 심층 리서치 비교 지적 중 가장 큰 구조적 공백인 “사실·전망·추론 미분리”, “최종 주장과 validator 결과 미연결”, “미검증 주장의 요약 승격 위험”을 DB 마이그레이션 없이 축소.
+- 수정:
+  - `backend/app/deep_research/models.py`
+    - `ClaimRecord` 추가: `claim_id`, `research_run_id`, `claim_text`, `claim_type`, `confidence`, `verification_status`, `source_ids`, `evidence_excerpt`, `counter_evidence`, `executive_summary_eligible`.
+    - `DeepResearchResponse.claim_ledger`를 기본 빈 배열로 추가. 기존 응답과 호환되는 additive 변경.
+  - `backend/app/deep_research/agents/claim_ledger.py`
+    - 최종 `key_findings`만 입력받는 결정론적 원장 생성기 추가.
+    - `source_matcher`와 `cross_checker`를 재사용해 `verified`, `single_source`, `partially_verified`, `contradicted`, `unverified` 판정.
+    - `[추론]`, `[unverified]`, 회사 전망, 외부 전망, FinVision 계산을 구분.
+    - run ID와 최종 claim 텍스트 기반 안정적 claim ID 생성.
+    - 미검증·상충·FinVision 해석은 Executive Summary 승격 불가. 외부 전망/자체 계산은 high confidence일 때만 승격 후보.
+  - `backend/app/deep_research/agents/synthesizer.py`
+    - 초안·최종 응답 조립 시 동일 run의 최종 `key_findings`로 claim ledger 생성.
+  - `backend/tests/test_claim_ledger.py`
+    - run 격리/안정 ID, 근거 연결, 미검증 승격 차단, 추론 분류, 최종 claim만 포함하는 회귀 테스트 4개 추가.
+- 수정 이유:
+  - 기존 `cross_validation`은 사람이 읽는 문자열 배열이라 어느 claim에 대한 결과인지 구조적으로 연결되지 않았음.
+  - `job_id`는 존재했지만 validator 결과 객체에 전달되지 않았음.
+  - 중간 수치 validator 결과와 최종 보고서 주장을 구조적으로 구분할 필드가 없었음.
+- 검증:
+  - `python -m compileall -q app/deep_research` → 성공.
+  - 핵심 회귀 32개 → 전부 통과.
+  - `cd backend; python -m pytest -q` → `326 passed`, 경고 57개.
+- 남은 리스크:
+  - claim type은 현재 태그/표현 기반 결정론 분류라 복잡한 문장은 향후 구조화 LLM 출력과 결합 필요.
+  - `executive_summary_eligible`는 응답에 제공되지만 기존 자유형 summary 문장을 아직 물리적으로 제거하지는 않음.
+  - 계산식·가정·기간·단위·분모를 보존하는 Calculation Ledger는 별도 단계 필요.
+  - claim ledger DB 영속화와 프론트 표시도 후속 단계.
+
+### 추가(2026-07-24) - [FCF-03C] 산업 독립 Metric/Calculation Ledger
+- 목적: Micron/DRAM 같은 특정 산업용 계산 패치를 금지하고, 모든 기업·산업·거시 계산에 동일하게 적용되는 의미 기반 계산 계약과 validator 도입.
+- 수정:
+  - `backend/app/deep_research/models.py`
+    - 범용 `MetricValue`: 지표명, 값, 단위, entity, scope, period, period_type, as_of, basis, currency, source_id.
+    - 범용 `CalculationRecord`: run/calculation ID, 계산 유형, 설명, 산식, 입력, 가정, 정렬 차원, 출력, 검증 결과, 요약 승격 가능 여부.
+    - `DeepResearchResponse.calculation_ledger` additive field.
+  - `backend/app/deep_research/agents/calculation_ledger.py`
+    - 기업명·산업명·지표명 하드코딩 없는 결정론 validator.
+    - 계산이 선언한 의미 정렬 차원(entity/scope/period/period_type/as_of/basis/currency)을 범용 비교.
+    - `scope_mismatch`, `period_type_mismatch`, `basis_mismatch`, 메타데이터/출처/산식 누락 등을 구조화.
+    - forecast/scenario 자동 요약 승격 차단. 검증된 derived/mechanical_sensitivity만 후보.
+  - `backend/app/deep_research/agents/synthesizer.py`
+    - 구조화 메타데이터 출력에 calculations 추가.
+    - 실제 보고서에 존재하는 계산만 추출하고 입력의 의미·범위·기간·기준일·회계기준·단위·통화·출처를 보존하도록 프롬프트/스키마 확장.
+    - 초안/최종 응답에 같은 run ID의 calculation ledger 조립.
+  - `backend/tests/test_calculation_ledger.py`
+    - 반도체·SaaS·항공·에너지 범위명을 동일 validator가 처리하는 scope mismatch 회귀.
+    - 분기/연간, actual/guidance, 출처 누락, forecast 자동 승격 차단, run-scoped 안정 ID 검증.
+- 설계 원칙:
+  - 산업별 공식은 AI가 제안할 수 있으나 검증 코드는 산업을 알지 않는다.
+  - validator는 문자열 키워드가 아니라 계산이 명시한 의미 차원을 비교한다.
+  - 계산이 없으면 빈 ledger. 보고서에 없는 계산을 새로 만들지 않는다.
+- 검증:
+  - `python -m compileall -q app/deep_research` → 성공.
+  - 핵심 회귀 33개 → 전부 통과.
+  - `cd backend; python -m pytest -q` → `332 passed`, 경고 57개.
+- 남은 리스크:
+  - 현재 계산 추출은 Gemini 구조화 출력에 의존. 런타임 fixture로 추출 품질 검증 필요.
+  - 산식 문자열의 실제 산술 재계산 엔진은 아직 없음. 현재 단계는 의미 차원 정합과 추적 가능성 확보.
+  - required_alignment 자체가 잘못 선언되는 경우를 잡는 공식별 type system은 후속 단계.
+
+### 추가(2026-07-24) - [FCF-03D/03E] 검색 관측 원장 + 반증/공식공시 fallback
+- 목적: 검색 실패를 정보 부재로 뭉개는 문제와 긍정 서사 편향을 산업 독립적으로 축소.
+- 수정:
+  - `backend/app/deep_research/models.py`
+    - `SearchAttempt` 추가: query, source, status, result_count, duration_ms, error_type, message.
+    - `DeepResearchResponse.search_attempts`, `ResearchMetadata.counter_evidence_queries` additive field.
+  - `backend/app/deep_research/agents/searcher.py`
+    - 모든 searcher 제공자 호출을 `_search_source`로 감싸 run-scoped 시도 기록.
+    - 상태: `success`, `no_results`, `not_searched`, `timeout`, `access_denied`, `parse_failed`, `provider_error`.
+    - 요청했지만 API 키/필수 설정이 없는 소스는 `not_searched/source_unavailable`.
+    - `reset()`이 시도 원장도 비워 run 간 누수 차단.
+  - `backend/app/deep_research/agents/planner.py`
+    - 계획에 최소 2개 반증 쿼리와 `counter_evidence` rationale을 요구.
+  - `backend/app/deep_research/pipeline.py`
+    - Planner 출력에 의존하지 않는 `_build_counter_queries` 추가.
+    - 매 run마다 일반 반대 근거 1개 + SEC 10-K/10-Q Risk Factors/Legal Proceedings/Commitments fallback 1개 강제 실행.
+    - ticker/company/query 앵커만 사용하며 특정 기업·산업 키워드 없음.
+    - 결과 전문을 기존 추출·페이월 복구·raw source·최종 합성 경로에 병합.
+    - 최종 응답에 실제 검색 시도 원장과 반증 쿼리 노출.
+  - `backend/tests/test_search_observability.py`
+    - 성공/무결과, timeout/access denied/parse/provider error, unavailable, reset 격리, 산업 비의존 반증 쿼리 검증.
+- 검증:
+  - `python -m compileall -q app/deep_research` → 성공.
+  - 핵심 회귀 30개 → 전부 통과.
+  - `cd backend; python -m pytest -q` → `337 passed`, 경고 57개.
+- 남은 리스크:
+  - 일부 개별 source 구현이 내부 예외를 잡고 빈 배열로 반환하므로 그 경우 searcher 외곽에서는 `no_results`로 관측될 수 있음. 제공자별 typed outcome 전환은 후속 강화 필요.
+  - SEC fallback은 검색 + 기존 상시 filing timeline 조합. 문서 섹션별 구조 인덱스는 아직 없음.
+  - 반증 검색 결과가 존재한다는 것과 특정 최종 claim의 counter_evidence에 연결되는 것은 별개. 현재 Claim Ledger의 cross-check 연결을 향후 더 강화해야 함.
+
+### 추가(2026-07-24) - [FCF-03F/04] 안전 Executive Summary + 원장 UI/영속화
+- 목적: 자유형 요약에 미검증·상충·추론 주장이 승격되는 경로를 사용자 기본 화면에서 물리적으로 차단하고, 검증 근거를 사람이 감사할 수 있게 표시.
+- 수정:
+  - `backend/app/deep_research/models.py`
+    - `DeepResearchResponse.safe_executive_summary` additive field.
+  - `backend/app/deep_research/agents/synthesizer.py`
+    - 최종 Claim Ledger에서 `executive_summary_eligible=True`인 claim만 결정론적으로 안전 요약에 조립.
+    - 통과 claim이 없으면 “검증 기준을 통과한 핵심 주장이 없음”을 명시하고 자유형 내용을 대신 노출하지 않음.
+    - 기존 `summary`는 전체 보고서 원문 호환성을 위해 보존.
+  - `frontend/src/components/shared/StockResearchChat.jsx`
+    - 최종본 기본 요약을 `safe_executive_summary`로 전환. 초안은 기존 summary 유지.
+    - Claim Ledger UI: 주장 유형, 검증 상태, 요약 승격 여부, 근거 excerpt, 반대 근거, 출처.
+    - Calculation Ledger UI: 산식, 검증상태, 오류 코드, 가정.
+    - Search Diagnostics UI: 제공자별 success/no_results/실패/미실행과 검색어.
+    - 기존 최종 응답 전체 JSON 세션 저장 경로를 그대로 사용하므로 새 원장도 SQLite `research_messages`에 영속화되고 재접속 시 복원.
+  - `backend/tests/test_claim_ledger.py`
+    - 검증 claim만 안전 요약 후보가 되고 미검증 경쟁사 주장이 제외되는 정책 테스트.
+- 검증:
+  - `cd backend; python -m pytest -q` → `338 passed`, 경고 57개.
+  - `cd frontend; npm run build` → 성공, 2695 modules transformed.
+- 남은 리스크:
+  - 안전 요약은 현재 key finding 기반 bullet 조립이라 자연스러운 서술성보다 안전성을 우선.
+  - Bull/Base/Bear 범용 시나리오 계약·확률/무효화 조건 validator는 다음 작업.
+  - 프론트 기존 번들 경고(recharts 547.71kB, 동적/정적 import 혼용)는 유지.
+
+### 추가(2026-07-24) - [FCF-03G] 산업 독립 Bull/Base/Bear 시나리오 계층
+- 목적: P/B 단일 판단이나 반도체 전용 모델 대신 모든 기업·산업에 공통 적용되는 시나리오 계약, 검증, UI 도입.
+- 수정:
+  - `backend/app/deep_research/models.py`
+    - `ScenarioCase`, `ScenarioAnalysis`, `DeepResearchResponse.scenario_analysis`.
+  - `backend/app/deep_research/agents/scenario_validator.py`
+    - Bull/Base/Bear 3개 존재·중복 검사.
+    - 확률 0~1/0~100 입력 정규화 및 합계 100% 검사.
+    - 각 case의 가정, 결과, 무효화 조건, 근거 출처 필수.
+    - 세 case 결과가 동일 metric/unit/entity/scope/period/period_type/currency인지 비교.
+    - 하나라도 실패하면 `validation_status=invalid`, `executive_summary_eligible=False`.
+    - 산업·기업·지표명 하드코딩 없음.
+  - `backend/app/deep_research/agents/synthesizer.py`
+    - 투자 전망·밸류에이션·향후 실적 질문에만 시나리오를 작성하도록 지시.
+    - 자료 부족 시 수치를 만들지 않고 빈 시나리오 유지.
+    - 구조화 출력/자기검증 스키마에 scenarios 추가, 최종 응답 validator 연결.
+  - `frontend/src/components/shared/StockResearchChat.jsx`
+    - Bear/Base/Bull 확률·결과·가정·무효화 조건·근거 출처 카드.
+    - invalid 시 결과 사용 차단 사유 표시.
+  - `backend/tests/test_scenario_validator.py`
+    - 일반기업 EPS, 은행 순이자이익, SaaS ARR, 항공 영업이익, 에너지 FCF를 동일 validator로 검증.
+    - 확률 합계, 결과 scope 불일치, 무효화·근거 누락, 백분율 정규화, 빈 시나리오 비생성 테스트.
+- 검증:
+  - `python -m compileall -q app/deep_research` → 성공.
+  - 핵심 회귀 44개 → 전부 통과.
+  - `cd backend; python -m pytest -q` → `348 passed`, 경고 57개.
+  - `cd frontend; npm run build` → 성공, 2695 modules transformed.
+- 남은 리스크:
+  - 시나리오 수치는 구조화 추출된 보고서 값을 검증하며, 독립 산술 재계산 엔진과 직접 연결은 후속 강화 가능.
+  - 실제 LLM 런타임에서 다양한 종목에 대한 시나리오 추출 품질은 비용 허가 후 live 회귀 필요.
+  - 프론트 기존 번들 경고는 유지.
+
+### 추가(2026-07-24) - [FCF-05 runtime 검증] JPM 비반도체 제한 실행 + stale 서버 진단
+- 목적: 반도체 외 은행 종목에서 전체 파이프라인과 신규 안전 원장 runtime 동작 확인.
+- 실행:
+  - 질의: JPM 향후 12개월 투자 매력도, NII/대손/자본규제/수수료/밸류에이션, Bull/Base/Bear 및 무효화 조건.
+  - 제한: `max_iterations=1`, `max_sources=20`, 외부 호출 1회, 자동 재시도 없음.
+  - 결과: status=done, 650.6초, 출처 223개, 실비용 $0.4112785, 오류 없음.
+- 발견:
+  - 8000 서버 프로세스가 `python -m uvicorn app.main:app --port 8000`로 `--reload` 없이 수정 전부터 실행 중.
+  - `/openapi.json` 확인 결과 `safe_executive_summary`, `claim_ledger`, `calculation_ledger`, `scenario_analysis`, `search_attempts`가 모두 없는 stale 앱.
+  - 따라서 유료 실행은 기존 파이프라인 runtime 정상만 증명하며 신규 기능 runtime 검증으로 간주하지 않음.
+  - 프로세스 종료/새 백그라운드 서버 시작은 실행 정책에 막혀 강제 재기동하지 않음.
+- 무비용 최신 코드 검증:
+  - 새 Python 프로세스에서 `app.main:app` 직접 import 후 OpenAPI 확인 → 신규 필드 5개 전부 존재.
+  - JPM fixture Claim Ledger → `verified`, executive eligible=True.
+  - JPM Bull/Base/Bear fixture → valid, case 3개.
+- 수정 파일: 제품 코드 수정 없음. `CODEX_WORKLOG.md` 기록만 추가.
+- 남은 작업:
+  - 사용자가 8000 서버를 최신 코드로 재시작한 뒤 외부 유료 호출은 추가 비용 승인 시 1회만 재검증.
+  - stale 서버 방지를 위해 개발 실행 명령은 `--reload`, 운영 배포는 명시적 재시작 절차 필요.
+
+### 추가(2026-07-24) - [FCF-05 완료] 최신 코드 JPM runtime 재검증
+- 목적: stale 8000 서버 영향을 제거하고 최신 Claim/Calculation/Scenario/Search 원장이 실제 유료 파이프라인에서 직렬화·검증되는지 확인.
+- 환경:
+  - 최신 코드를 임시 8001 서버로 실행.
+  - OpenAPI에서 `safe_executive_summary`, `claim_ledger`, `calculation_ledger`, `scenario_analysis`, `search_attempts` 5개 필드 존재 확인.
+  - 검증 후 임시 서버 프로세스 종료. 기존 8000 서버는 건드리지 않음.
+- 실행:
+  - JPM 향후 12개월 투자 매력도, NII/대손/자본규제/수수료, Bull/Base/Bear/확률/무효화 조건.
+  - `max_iterations=1`, `max_sources=12`, 외부 유료 호출 1회.
+- 결과:
+  - status=done, 오류 없음.
+  - 569.8초, 비용 $0.3066185, 출처 122개.
+  - claim 3개, executive eligible 0개.
+  - `safe_executive_summary` 존재, 부적격 claim 혼입 0개. 통과 claim이 없어 안전 경고문을 표시한 보수적 정책 정상 작동.
+  - scenario present=True, Bull/Base/Bear 3개, validation_status=valid, 오류 0.
+  - search attempts 78개: success 18, no_results 48, not_searched 12.
+  - counter evidence queries 2개.
+  - 명시적 파생 계산은 추출되지 않아 calculation ledger 빈 상태로 관측. 자료 없는 계산 비생성 정책과 일치.
+- 판정:
+  - 반도체 외 은행 종목에서 신규 안전 계층 실제 runtime 통과.
+  - 안전 요약 차단, 범용 시나리오 검증, 검색 관측, 반증 검색 정상.
+- 남은 관찰:
+  - claim 3개 모두 승격 불가였던 상세 상태 분포는 이번 요약 출력에 포함하지 않아 미확인. 다음 품질 감사 시 상태별 이유를 별도 저장/집계 권장.
+  - PowerShell 콘솔의 UTF-8 표시가 깨졌으나 JSON 필드 존재와 판정 로직에는 영향 없음.
+
+### 추가(2026-07-24) - [운영 반영] stale 서버 교체 및 로컬 smoke
+- 목적: 최신 심층 리서치 안전 계층을 실제 8000/5173 로컬 앱에 반영.
+- 조치:
+  - 기존 수동 실행 stale 백엔드 PID 22776 종료.
+  - `backend`에서 `python -m uvicorn app.main:app --reload --port 8000`으로 최신 서버 실행.
+  - 프론트 Vite를 127.0.0.1:5173으로 실행.
+  - 최초 실행 잔여 Vite 프로세스 1개를 식별해 종료하고 단일 listener만 유지.
+- 검증:
+  - 8000 listener 정상.
+  - `/openapi.json`: safe_executive_summary/claim_ledger/calculation_ledger/scenario_analysis/search_attempts 모두 존재.
+  - `GET /` → status=ok, FinVision API.
+  - `GET http://127.0.0.1:5173` → HTTP 200.
+  - 프론트 `/api/deep-research/nonexistent/status` → 백엔드 의도 응답 HTTP 404 전달, Vite proxy 정상.
+- 수정 파일: 제품 코드 수정 없음. 작업 로그만 추가.
+- 남은 필수 차단 문제: 현재 확인 없음.
+- 선택 개선: provider 내부 예외 typed outcome 완전 통일, 산술 재계산 엔진, 번들 크기 최적화. 현 기능 사용을 막는 문제는 아님.
+### 추가(2026-07-24 16:05:58 +09:00) - 범용 계산 재실행·동시 실행 격리·출처 메타데이터
+- 목적:
+  - Micron/DRAM 전용 규칙 없이 모든 기업·산업 계산을 코드가 직접 재실행해 LLM 계산 오류 차단.
+  - 공유 mutable state 때문에 동시 리서치가 서로의 검색·추출·사용량 상태를 초기화할 수 있는 구조 차단.
+  - 보고서 저장·재열람 후에도 출처를 재검증할 수 있도록 메타데이터 보존.
+- 수정:
+  - `backend/app/deep_research/agents/calculation_ledger.py`: Decimal 단위 정규화, AST 안전 수식 실행, 계산 불일치 차단.
+  - `backend/app/deep_research/models.py`: 계산 재실행 값/차이와 출처 메타데이터 필드 추가.
+  - `backend/app/deep_research/agents/synthesizer.py`: `formula_expression` 구조화 출력과 최종 출처 메타데이터 연결.
+  - `backend/app/deep_research/agents/extractor.py`: 검색 메타데이터를 전문 추출 결과에 결합.
+  - `backend/app/deep_research/storage/raw_sources.py`: 원문 증거와 출처 메타데이터 동시 보존.
+  - `backend/app/deep_research/pipeline.py`: 동시 reset 오염 방지 run lock 추가.
+  - `frontend/src/components/shared/StockResearchChat.jsx`: 재계산값·차이 및 출처 상세 메타데이터 표시.
+  - `backend/tests/test_calculation_ledger.py`: 은행·SaaS·항공·에너지 공통 계산, 오류/위험 수식 차단 테스트.
+  - `backend/tests/test_source_metadata.py`: 검색→추출→응답 및 RawSource 메타데이터 보존 테스트.
+- 검증:
+  - `PYTHONPATH=backend py -3.13 -m pytest backend/tests -q` → `354 passed`.
+  - 변경 Python 파일 `py_compile` → 성공.
+  - `frontend npm run build` → 성공, 2695 modules transformed.
+- 환경:
+  - 기존 `backend/venv`는 Linux 심볼릭 링크라 Windows 실행 불가.
+  - Windows Python 3.13 검증용 pytest/FastAPI/aiosqlite/pypdfium2 설치. 저장소/API 키 변경 없음.
+- 남은 리스크:
+  - 실행식이 없거나 파싱 불가한 계산은 `needs_review`로 차단됨.
+  - 통화 환산, 회계연도 매핑, 13주/14주 보정은 별도 기준값 기반 변환 엔진이 더 필요.
+  - 일부 검색 provider가 내부 예외를 빈 목록으로 삼켜 `no_results`와 장애가 완전히 구분되지 않는 경로가 남음.
+  - run lock은 정확성을 보장하지만 동시 실행을 직렬화함. 안전한 병렬화에는 run-local 에이전트 분리가 필요.

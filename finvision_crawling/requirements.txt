@@ -1,8 +1,0 @@
-telethon>=1.36.0
-python-dotenv>=1.0.0
-aiosqlite>=0.20.0
-apscheduler>=3.10.0
-Pillow>=10.0.0
-aiofiles>=23.0.0
-cryptg>=0.4.0
-google-generativeai>=0.7.0

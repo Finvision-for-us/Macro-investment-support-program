@@ -14,6 +14,12 @@ class RawSource:
     text: str
     domain: str = ""
     extracted_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    publisher: str | None = None
+    published_at: str | None = None
+    document_type: str | None = None
+    reporting_period: str | None = None
+    source_section: str | None = None
+    source_type: str | None = None
 
 
 class RawSourceStorage:
@@ -22,9 +28,19 @@ class RawSourceStorage:
     def __init__(self):
         self._store: dict[str, RawSource] = {}  # url → RawSource
 
-    def store(self, url: str, title: str, text: str, domain: str = "") -> None:
+    def store(
+        self, url: str, title: str, text: str, domain: str = "",
+        *, publisher: str | None = None, published_at: str | None = None,
+        document_type: str | None = None, reporting_period: str | None = None,
+        source_section: str | None = None, source_type: str | None = None,
+    ) -> None:
         if url and text:
-            self._store[url] = RawSource(url=url, title=title, text=text, domain=domain)
+            self._store[url] = RawSource(
+                url=url, title=title, text=text, domain=domain,
+                publisher=publisher, published_at=published_at,
+                document_type=document_type, reporting_period=reporting_period,
+                source_section=source_section, source_type=source_type,
+            )
 
     def get(self, url: str) -> RawSource | None:
         return self._store.get(url)

@@ -123,4 +123,30 @@ async def init_db():
         spa_cols = [row[1] for row in await cursor.fetchall()]
         if "profile_hash" not in spa_cols:
             await db.execute("ALTER TABLE stock_profile_ai ADD COLUMN profile_hash TEXT")
+        # ── 심층 리서치 채팅 세션/메시지 (deep_research/router.py 세션 API가 사용.
+        #    누락돼 있어 세션 API 전체가 500 → 채팅 프롬프트 증발 버그의 원인이었음) ──
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS research_sessions (
+                id TEXT PRIMARY KEY,
+                ticker TEXT NOT NULL,
+                title TEXT,
+                mode TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS research_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                metadata TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_research_messages_session
+            ON research_messages(session_id, created_at)
+        """)
         await db.commit()

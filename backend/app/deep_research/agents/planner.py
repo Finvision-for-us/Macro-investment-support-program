@@ -80,7 +80,11 @@ PLAN_PROMPT = """당신은 금융 리서치 전문가입니다. 사용자의 질
    - context가 {{"ticker": "INDI"}} 이면 → 각 쿼리에 "indie Semiconductor" 또는 "INDI" 포함
    - "semiconductor market" 같은 종목 식별자 없는 제네릭 쿼리는 전혀 무관한 결과(인사관리, SEO 사이트 등)를 유발하므로 절대 금지
    - 올바른 예: "indie Semiconductor INDI Wuxi stake sale 2023" (O)
-   - 잘못된 예: "semiconductor market outlook 2025" (X — INDI 식별자 없음)
+    - 잘못된 예: "semiconductor market outlook 2025" (X — INDI 식별자 없음)
+10. [반증 검색 — 필수] 최소 2개 sub_query는 기존 투자 논리를 반박하거나 무효화할 근거를 찾는 전용 쿼리여야 한다.
+    - 반대되는 공식자료, 최신 Risk Factors/Legal Proceedings, 경쟁사의 상반된 설명을 우선한다.
+    - 호재 질문에도 실패 조건·하방 위험을, 악재 질문에도 완화 조건·반대 근거를 검색한다.
+    - rationale에 반드시 "counter_evidence"를 포함한다.
 
 JSON만 출력, 다른 텍스트 없음."""
 

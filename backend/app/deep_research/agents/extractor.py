@@ -71,8 +71,31 @@ class Extractor:
 
         extracted = await self._jina.extract_batch(web_urls, max_concurrent=5)
 
+        # Jina 실패분(무키 20RPM 제한·503 폭주)을 로컬 HTML 추출로 흡수 —
+        # 추출 실패는 자기검증의 [[unverified]] 남발로 직결된다(2차 시험 실측)
+        from app.deep_research.sources.html_extractor import extract_html_batch
+        jina_done = {e.url for e in extracted}
+        missing = [u for u in web_urls if u not in jina_done]
+        if missing:
+            local_extracted = await extract_html_batch(missing)
+            extracted = extracted + local_extracted
+
         # 너무 짧은 내용 필터링
-        valid = [e for e in pdf_extracted + extracted if e.word_count > 50]
+        metadata_by_url = {r.url: r for r in candidates}
+        enriched: list[ExtractedContent] = []
+        for item in pdf_extracted + extracted:
+            source = metadata_by_url.get(item.url)
+            if source:
+                item = item.model_copy(update={
+                    "publisher": source.publisher,
+                    "published_at": source.published_date,
+                    "document_type": source.document_type,
+                    "reporting_period": source.reporting_period,
+                    "source_section": source.source_section,
+                    "source_type": source.source_type,
+                })
+            enriched.append(item)
+        valid = [e for e in enriched if e.word_count > 50]
         logger.info(f"[extractor] {len(valid)}개 전문 추출 완료")
         return valid
 

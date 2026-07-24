@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.services import yfinance_client
-from app.services.stock_dictionary import search_local
+from app.services.stock_dictionary import search_suggest
 from app.services.sec_client import get_filings
 from app.services.news_client import get_stock_news
 
@@ -52,74 +52,25 @@ def suggest(q: str, enrich: int = 0):
 
     query = q.strip()
 
-    # 1단계: 로컬 사전 검색 (즉시 반환, 한국어/초성/오타 지원)
-    local_results = search_local(query, max_results=6)
+    # 1단계: 통합 로컬 검색 — 큐레이트 사전 + SEC 전체 유니버스(~10,400) +
+    # 한글 로마자 브리지. 매치 품질(티어)로 정렬돼 정확/접두가 위로.
+    merged = [
+        {"ticker": r["ticker"], "name": r["name"], "exchange": "", "sector": ""}
+        for r in search_suggest(query, max_results=8)
+    ]
 
-    # 2단계: Yahoo 검색 — 로컬 결과가 부족하면 항상 Yahoo에서 보충
-    yahoo_results = []
-    if len(local_results) < 3:
+    # 2단계: Yahoo 최종 보충 — 로컬 결과가 부족할 때만(신규 상장·해외 등)
+    if len(merged) < 3:
+        seen = {m["ticker"] for m in merged}
         try:
-            yahoo_results = yfinance_client.search_ticker(query)
+            for item in yfinance_client.search_ticker(query):
+                t = item["ticker"]
+                if "." in t or t in seen:  # 외국 거래소·중복 제외
+                    continue
+                seen.add(t)
+                merged.append(item)
         except Exception:
             pass
-
-    # 3단계: 결과 합치기 (정확 매칭 로컬 → Yahoo → 퍼지 로컬)
-    seen_tickers = set()
-    merged = []
-    query_upper = query.upper()
-
-    # 로컬 결과를 정확 매칭 vs 퍼지 매칭으로 분리
-    exact_local = []
-    fuzzy_local = []
-    for item in local_results:
-        t = item["ticker"]
-        name_lower = item.get("name", "").lower()
-        # 티커 정확 일치 또는 이름에 검색어 포함이면 정확 매칭
-        if t == query_upper or query.lower() in name_lower or query.lower() in t.lower():
-            exact_local.append(item)
-        else:
-            fuzzy_local.append(item)
-
-    # 정확 매칭 로컬 먼저
-    for item in exact_local:
-        t = item["ticker"]
-        if t not in seen_tickers:
-            seen_tickers.add(t)
-            merged.append({
-                "ticker": t,
-                "name": item["name"],
-                "exchange": "",
-                "sector": "",
-            })
-
-    # Yahoo 결과 (미국 주식만, .MX 등 제외)
-    for item in yahoo_results:
-        t = item["ticker"]
-        if "." in t:  # 외국 거래소 제외
-            continue
-        if t not in seen_tickers:
-            seen_tickers.add(t)
-            merged.append(item)
-        else:
-            for m in merged:
-                if m["ticker"] == t:
-                    if item.get("exchange"):
-                        m["exchange"] = item["exchange"]
-                    if item.get("sector"):
-                        m["sector"] = item["sector"]
-                    break
-
-    # 퍼지 로컬 (비슷한 이름)
-    for item in fuzzy_local:
-        t = item["ticker"]
-        if t not in seen_tickers:
-            seen_tickers.add(t)
-            merged.append({
-                "ticker": t,
-                "name": item["name"],
-                "exchange": "",
-                "sector": "",
-            })
 
     # 상위 5개만
     merged = merged[:5]

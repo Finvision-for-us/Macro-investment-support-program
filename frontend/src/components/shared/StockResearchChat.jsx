@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, Fragment } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   Send, X, ChevronDown, ChevronUp, ExternalLink,
   Loader2, BookOpen, Zap, ZapOff, Plus, Trash2,
-  CheckCircle, Edit3, History, AlertTriangle
+  CheckCircle, Edit3, History, AlertTriangle, Circle
 } from 'lucide-react'
 
 const API = '/api/deep-research'
@@ -50,6 +50,99 @@ function domainOf(url) {
 function preprocessFootnotes(text) {
   if (!text) return text
   return text.replace(/\[(\d{1,3})\]/g, (_, n) => `[${n}](#fn-${n})`)
+}
+
+// ── 인라인 검증 태그 → 배지·툴팁 ([unverified]/[추론] 날것 텍스트 제거) ──
+// 백엔드가 태그 위치를 정정(방어선 6)해 배지가 단어를 쪼개지 않는다.
+const TAG_META = {
+  미검증: {
+    label: '미검증',
+    tip: '수집 원문에서 이 수치·사실을 확인하지 못함 (거짓이라는 뜻은 아님)',
+    cls: 'bg-amber-100 text-amber-700 border-amber-200',
+  },
+  추론: {
+    label: '추론',
+    tip: '수집 자료 기반 해석·전망 (원문에 적힌 사실이 아님)',
+    cls: 'bg-sky-100 text-sky-700 border-sky-200',
+  },
+  검증필요: {
+    label: '추가검증',
+    tip: '자동생성·루머 등 낮은 신뢰 출처 — 교차확인 필요',
+    cls: 'bg-orange-100 text-orange-700 border-orange-200',
+  },
+  출처미상: {
+    label: '출처미상',
+    tip: '출처 URL이 확인되지 않은 주장',
+    cls: 'bg-slate-100 text-slate-500 border-slate-200',
+  },
+}
+
+function TagBadge({ kind }) {
+  const m = TAG_META[kind]
+  if (!m) return null
+  return (
+    <span
+      title={m.tip}
+      className={`inline-flex items-center px-1 rounded text-[9px] font-semibold border align-middle cursor-help mx-0.5 ${m.cls}`}
+    >
+      {m.label}
+    </span>
+  )
+}
+
+const _BADGE_SRC = '\\[\\[?unverified\\]?\\]|\\[추론\\]|\\[추가\\s*검증\\s*필요\\]|\\[source:\\s*미확인\\]'
+
+function _tagKind(tok) {
+  if (/unverified/i.test(tok)) return '미검증'
+  if (/추론/.test(tok)) return '추론'
+  if (/추가/.test(tok)) return '검증필요'
+  return '출처미상'
+}
+
+// 문자열 → [텍스트 | 배지 | 각주 sup] 노드 배열.
+// withFootnotes=true면 [n]도 클릭 가능한 각주로(마크다운 밖 raw 경로용).
+function tokenizeInline(str, withFootnotes = false, onFootnoteClick) {
+  if (typeof str !== 'string' || !str) return str
+  const src = withFootnotes ? `(${_BADGE_SRC})|\\[(\\d{1,3})\\]` : `(${_BADGE_SRC})`
+  const re = new RegExp(src, 'gi')
+  const out = []
+  let last = 0
+  let m
+  let key = 0
+  while ((m = re.exec(str)) !== null) {
+    if (m.index > last) out.push(str.slice(last, m.index))
+    if (m[2] !== undefined) {
+      const num = m[2]
+      out.push(
+        <sup key={`f${key++}`}>
+          <a
+            href={`#fn-${num}`}
+            className="text-indigo-500 hover:text-indigo-700 text-[10px] font-semibold cursor-pointer no-underline"
+            onClick={e => { e.preventDefault(); onFootnoteClick?.(num) }}
+          >[{num}]</a>
+        </sup>
+      )
+    } else {
+      out.push(<TagBadge key={`b${key++}`} kind={_tagKind(m[1] || m[0])} />)
+    }
+    last = m.index + m[0].length
+  }
+  if (last < str.length) out.push(str.slice(last))
+  return out.length ? out : str
+}
+
+// ReactMarkdown children(문자열/배열/요소)에 배지 적용.
+// (각주 [n]은 markdown이 링크로 변환→a 렌더러가 처리하므로 여기선 배지만.)
+function withBadges(children) {
+  if (typeof children === 'string') return tokenizeInline(children, false)
+  if (Array.isArray(children)) {
+    return children.map((c, i) =>
+      typeof c === 'string'
+        ? <Fragment key={i}>{tokenizeInline(c, false)}</Fragment>
+        : c
+    )
+  }
+  return children
 }
 
 function credibilityToTier(c) {
@@ -292,19 +385,19 @@ function MarkdownContent({ text, className = '', onFootnoteClick }) {
             </h2>
           ),
           h3: ({ children }) => <h3 className="text-[13px] font-semibold text-slate-600 mt-2 mb-0.5">{children}</h3>,
-          p: ({ children }) => <p className="text-[13px] text-slate-600 leading-relaxed mb-2 last:mb-0">{children}</p>,
+          p: ({ children }) => <p className="text-[13px] text-slate-600 leading-relaxed mb-2 last:mb-0">{withBadges(children)}</p>,
           ul: ({ children }) => <ul className="space-y-1 mb-2">{children}</ul>,
           ol: ({ children }) => <ol className="space-y-1 mb-2 list-decimal list-inside">{children}</ol>,
           li: ({ ordered, children }) => ordered
-            ? <li className="text-[13px] text-slate-600 leading-snug">{children}</li>
+            ? <li className="text-[13px] text-slate-600 leading-snug">{withBadges(children)}</li>
             : (
               <li className="text-[13px] text-slate-600 leading-snug flex gap-1.5">
                 <span className="text-indigo-400 flex-shrink-0 mt-0.5">•</span>
-                <span>{children}</span>
+                <span>{withBadges(children)}</span>
               </li>
             ),
-          strong: ({ children }) => <strong className="font-semibold text-slate-800">{children}</strong>,
-          em: ({ children }) => <em className="italic text-slate-500">{children}</em>,
+          strong: ({ children }) => <strong className="font-semibold text-slate-800">{withBadges(children)}</strong>,
+          em: ({ children }) => <em className="italic text-slate-500">{withBadges(children)}</em>,
           code: ({ className, children }) => className?.startsWith('language-')
             ? <pre className="bg-slate-50 border border-slate-100 rounded-lg p-3 overflow-x-auto text-xs font-mono my-2">{children}</pre>
             : <code className="bg-slate-100 text-slate-700 px-1 py-0.5 rounded text-xs font-mono">{children}</code>,
@@ -505,8 +598,228 @@ function ProgressBar({ pct, message }) {
   )
 }
 
+// ── ① 계획·실행 통합 체크리스트 ──
+// 승인된 계획이 실행되며 단계별로 체크된다(타 딥리서치 AI 방식). 파이프라인
+// stage → 4개 실행 단계로 매핑, 진행은 단조(뒤로 안 감 — 검색↔평가 루프 흡수).
+// draft 도착 시 이 카드는 초안 리포트로 교체되므로 '보고서 작성'까지만 다룬다.
+const EXEC_PHASES = [
+  { key: 'plan', label: '리서치 계획 확정' },
+  { key: 'collect', label: '정보 수집 · 검색과 원문 추출' },
+  { key: 'evaluate', label: '충분성 평가 · 추가 확장' },
+  { key: 'write', label: '보고서 작성' },
+]
+const STAGE_TO_IDX = {
+  planning: 0, searching: 1, extracting: 1,
+  reflecting: 2, synthesizing: 3, draft: 3, done: 3,
+}
+
+function ExecutionChecklist({ msg }) {
+  const [planOpen, setPlanOpen] = useState(false)
+  const cur = msg._phaseIdx ?? 0
+  const planMain = msg.plan ? splitPlanSections(msg.plan).main : ''
+  const planSummary = planMain.split('\n').find(l => l.trim() && !l.startsWith('#'))?.trim() || ''
+
+  return (
+    <div className="border border-indigo-100 rounded-xl overflow-hidden bg-white">
+      <div className="px-4 pt-3 pb-3">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-[11px] font-semibold text-indigo-600">리서치 진행 중</span>
+          <span className="text-[11px] text-slate-400">{msg.pct || 0}%</span>
+        </div>
+        <div className="h-1 bg-slate-100 rounded-full overflow-hidden mb-3">
+          <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${msg.pct || 0}%` }} />
+        </div>
+        <ul className="space-y-2">
+          {EXEC_PHASES.map((p, i) => {
+            const done = i < cur
+            const active = i === cur
+            return (
+              <li key={p.key} className="flex items-start gap-2">
+                {done
+                  ? <CheckCircle size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                  : active
+                    ? <Loader2 size={14} className="text-indigo-500 animate-spin flex-shrink-0 mt-0.5" />
+                    : <Circle size={14} className="text-slate-300 flex-shrink-0 mt-0.5" />}
+                <div className="min-w-0">
+                  <span className={`text-[12px] leading-snug ${done ? 'text-slate-500' : active ? 'text-slate-800 font-medium' : 'text-slate-400'}`}>{p.label}</span>
+                  {active && msg.content && (
+                    <span className="block text-[11px] text-slate-400 truncate">{msg.content}</span>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+      {planSummary && (
+        <div className="border-t border-slate-100">
+          <button
+            onClick={() => setPlanOpen(p => !p)}
+            className="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-slate-50 transition-colors"
+          >
+            <span className="text-[11px] text-slate-400 truncate pr-2">계획: {planSummary}</span>
+            {planOpen ? <ChevronUp size={12} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={12} className="text-slate-400 flex-shrink-0" />}
+          </button>
+          {planOpen && (
+            <div className="px-4 pb-3">
+              <MarkdownContent text={planMain} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const CLAIM_STATUS = {
+  verified: ['검증', 'bg-emerald-100 text-emerald-700'],
+  single_source: ['단일출처', 'bg-amber-100 text-amber-700'],
+  partially_verified: ['부분검증', 'bg-sky-100 text-sky-700'],
+  contradicted: ['상충', 'bg-red-100 text-red-700'],
+  unverified: ['미검증', 'bg-slate-100 text-slate-600'],
+}
+
+function ClaimLedgerSection({ claims }) {
+  const [open, setOpen] = useState(false)
+  const list = claims || []
+  if (!list.length) return null
+  const eligible = list.filter(c => c.executive_summary_eligible).length
+  return (
+    <div className="border border-slate-100 rounded-xl overflow-hidden">
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100">
+        <span className="text-[11px] font-semibold text-slate-700">
+          주장 검증 원장 · 요약 통과 {eligible}/{list.length}
+        </span>
+        {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+      {open && <div className="p-3 space-y-2 bg-white">
+        {list.map(c => {
+          const state = CLAIM_STATUS[c.verification_status] || CLAIM_STATUS.unverified
+          return <div key={c.claim_id} className="border border-slate-100 rounded-lg p-3">
+            <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+              <span className={`text-[10px] px-1.5 py-0.5 rounded ${state[1]}`}>{state[0]}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">{c.claim_type}</span>
+              {c.executive_summary_eligible && <span className="text-[10px] text-emerald-600">요약 사용 가능</span>}
+            </div>
+            <p className="text-[12px] text-slate-700 leading-snug">{tokenizeInline(c.claim_text, true)}</p>
+            {c.evidence_excerpt && <p className="mt-1.5 text-[10px] text-slate-400 line-clamp-3">근거: {c.evidence_excerpt}</p>}
+            {c.counter_evidence?.length > 0 &&
+              <ul className="mt-1.5 text-[10px] text-red-600 space-y-1">
+                {c.counter_evidence.map((e, i) => <li key={i}>반대 근거: {e}</li>)}
+              </ul>}
+            <SourceCards urls={c.source_ids || []} />
+          </div>
+        })}
+      </div>}
+    </div>
+  )
+}
+
+function CalculationLedgerSection({ calculations }) {
+  const [open, setOpen] = useState(false)
+  const list = calculations || []
+  if (!list.length) return null
+  const invalid = list.filter(c => c.validation_status !== 'valid').length
+  return (
+    <div className="border border-violet-100 rounded-xl overflow-hidden">
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-3.5 py-2.5 bg-violet-50 hover:bg-violet-100">
+        <span className="text-[11px] font-semibold text-violet-800">계산 검증 원장 · 주의 {invalid}/{list.length}</span>
+        {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+      {open && <div className="p-3 space-y-2 bg-white">
+        {list.map(c => <div key={c.calculation_id} className="border border-slate-100 rounded-lg p-3">
+          <div className="flex gap-2 items-center">
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+              c.validation_status === 'valid' ? 'bg-emerald-100 text-emerald-700' :
+              c.validation_status === 'invalid' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+            }`}>{c.validation_status}</span>
+            <span className="text-[11px] font-semibold text-slate-700">{c.description}</span>
+          </div>
+          <p className="mt-1.5 text-[11px] text-slate-600 font-mono">{c.formula}</p>
+          {c.recomputed_value != null && <p className="mt-1 text-[10px] text-violet-700">
+            코드 재계산: {c.recomputed_value}
+            {c.recomputation_delta != null ? ` · 보고값 차이 ${c.recomputation_delta}` : ''}
+          </p>}
+          {c.validation_errors?.length > 0 &&
+            <p className="mt-1 text-[10px] text-red-600">{c.validation_errors.join(' · ')}</p>}
+          {c.assumptions?.length > 0 &&
+            <p className="mt-1 text-[10px] text-slate-400">가정: {c.assumptions.join(' · ')}</p>}
+        </div>)}
+      </div>}
+    </div>
+  )
+}
+
+function SearchDiagnostics({ attempts }) {
+  const [open, setOpen] = useState(false)
+  const list = attempts || []
+  if (!list.length) return null
+  const failed = list.filter(a => a.status !== 'success' && a.status !== 'no_results').length
+  return (
+    <div className="border border-slate-100 rounded-xl overflow-hidden">
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100">
+        <span className="text-[11px] font-semibold text-slate-600">검색 진단 · 실패/미실행 {failed}/{list.length}</span>
+        {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+      {open && <div className="p-3 space-y-1 bg-white max-h-64 overflow-y-auto">
+        {list.map((a, i) => <div key={`${a.source}-${i}`} className="text-[10px] text-slate-500 flex gap-2">
+          <span className="font-semibold w-20 flex-shrink-0">{a.source}</span>
+          <span className={a.status === 'success' ? 'text-emerald-600' : a.status === 'no_results' ? 'text-slate-400' : 'text-amber-600'}>{a.status}</span>
+          <span className="truncate">{a.query}</span>
+        </div>)}
+      </div>}
+    </div>
+  )
+}
+
+function ScenarioAnalysisSection({ analysis }) {
+  if (!analysis) return null
+  const order = { bear: 0, base: 1, bull: 2 }
+  const tone = {
+    bear: 'border-red-100 bg-red-50 text-red-700',
+    base: 'border-slate-200 bg-slate-50 text-slate-700',
+    bull: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+  }
+  const cases = [...(analysis.cases || [])].sort((a, b) => order[a.name] - order[b.name])
+  return (
+    <div className="border border-slate-100 rounded-xl p-3 bg-white">
+      <div className="flex items-center justify-between mb-2.5">
+        <p className="text-xs font-semibold text-slate-700">Bull / Base / Bear 시나리오</p>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+          analysis.validation_status === 'valid'
+            ? 'bg-emerald-100 text-emerald-700'
+            : 'bg-red-100 text-red-700'
+        }`}>{analysis.validation_status}</span>
+      </div>
+      {analysis.validation_errors?.length > 0 &&
+        <p className="text-[10px] text-red-600 mb-2">
+          결과 사용 차단: {analysis.validation_errors.join(' · ')}
+        </p>}
+      <div className="grid grid-cols-1 gap-2">
+        {cases.map(c => <div key={c.name} className={`rounded-lg border p-3 ${tone[c.name] || tone.base}`}>
+          <div className="flex justify-between items-center mb-1.5">
+            <span className="text-[11px] font-bold uppercase">{c.name}</span>
+            <span className="text-[11px] font-semibold">{(c.probability * 100).toFixed(0)}%</span>
+          </div>
+          {c.outputs?.map((o, i) =>
+            <p key={i} className="text-[12px] font-semibold">
+              {o.metric_name}: {o.value} {o.unit}
+              <span className="font-normal opacity-70"> · {o.scope} · {o.period}</span>
+            </p>)}
+          <p className="mt-1.5 text-[10px] opacity-80">가정: {(c.assumptions || []).join(' · ')}</p>
+          <p className="mt-1 text-[10px] opacity-80">무효화: {(c.invalidation_triggers || []).join(' · ')}</p>
+          <SourceCards urls={c.evidence_source_ids || []} />
+        </div>)}
+      </div>
+    </div>
+  )
+}
+
 // ── 최종 보고서 ──
-function ResearchReport({ result }) {
+function ResearchReport({ result, isDraft = false }) {
   const [open, setOpen] = useState({})
   const [highlighted, setHighlighted] = useState(null)
   const footnoteItemRefs = useRef({})
@@ -526,19 +839,36 @@ function ResearchReport({ result }) {
     .filter(s => s.ref_number != null)
     .sort((a, b) => a.ref_number - b.ref_number)
 
-  const summary = parseSourcesFromText(result.summary)
+  const summary = parseSourcesFromText(
+    !isDraft && result.safe_executive_summary
+      ? result.safe_executive_summary
+      : result.summary
+  )
 
   return (
     <div className="space-y-3 text-sm">
+      {isDraft && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[12px] text-amber-700">
+          <Loader2 size={13} className="animate-spin flex-shrink-0" />
+          <span><span className="font-semibold">초안</span>입니다 · 심사 중 (검증·교차확인·수치 재대조 진행) — 곧 심사본으로 교체됩니다</span>
+        </div>
+      )}
       {/* 핵심 요약 */}
       <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
-        <p className="text-xs font-semibold text-indigo-600 mb-2">핵심 요약</p>
+        <p className="text-xs font-semibold text-indigo-600 mb-2">
+          {!isDraft && result.safe_executive_summary ? '검증된 핵심 요약' : '핵심 요약'}
+        </p>
         <MarkdownContent
           text={preprocessFootnotes(summary.clean)}
           onFootnoteClick={scrollToFn}
         />
         <SourceCards urls={summary.urls} />
       </div>
+
+      <ScenarioAnalysisSection analysis={result.scenario_analysis} />
+      <ClaimLedgerSection claims={result.claim_ledger} />
+      <CalculationLedgerSection calculations={result.calculation_ledger} />
+      <SearchDiagnostics attempts={result.search_attempts} />
 
       {/* 핵심 발견 */}
       {result.key_findings?.length > 0 && (
@@ -553,7 +883,7 @@ function ResearchReport({ result }) {
                     f.confidence === 'high' ? 'bg-emerald-400' : f.confidence === 'medium' ? 'bg-amber-400' : 'bg-slate-300'
                   }`} />
                   <p className="text-slate-700 text-[13px] leading-snug">
-                    {preprocessFootnotes(parsed.clean)}
+                    {tokenizeInline(parsed.clean, true, scrollToFn)}
                   </p>
                 </div>
                 {parsed.urls.length > 0 && (
@@ -602,7 +932,7 @@ function ResearchReport({ result }) {
               <div key={i} className="flex gap-3 text-[13px]">
                 <span className="flex-shrink-0 text-indigo-500 font-mono text-xs w-24">{t.date}</span>
                 <div>
-                  <span className="text-slate-600">{preprocessFootnotes(parsed.clean)}</span>
+                  <span className="text-slate-600">{tokenizeInline(parsed.clean, true, scrollToFn)}</span>
                   {(parsed.urls.length > 0 || t.source) && (
                     <SourceCards urls={parsed.urls} extra={t.source ? [t.source] : []} />
                   )}
@@ -653,6 +983,17 @@ function ResearchReport({ result }) {
                   <span className="text-slate-400 ml-1 whitespace-nowrap">
                     ({src.domain}{src.credibility ? `, ${credibilityToTier(src.credibility)}` : ''})
                   </span>
+                  {(src.publisher || src.published_at || src.document_type || src.reporting_period || src.source_section) && (
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {[
+                        src.publisher,
+                        src.published_at,
+                        src.document_type,
+                        src.reporting_period,
+                        src.source_section,
+                      ].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
                 </div>
               </li>
             ))}
@@ -660,10 +1001,12 @@ function ResearchReport({ result }) {
         </div>
       )}
 
-      <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-100">
-        검색 {result.metadata?.total_queries}회 · 출처 {result.metadata?.total_sources}개 ·
-        {result.metadata?.elapsed_seconds?.toFixed(0)}초 · ${result.metadata?.estimated_cost_usd?.toFixed(3)}
-      </div>
+      {!isDraft && (
+        <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-100">
+          검색 {result.metadata?.total_queries}회 · 출처 {result.metadata?.total_sources}개 ·
+          {result.metadata?.elapsed_seconds?.toFixed(0)}초 · ${result.metadata?.estimated_cost_usd?.toFixed(3)}
+        </div>
+      )}
     </div>
   )
 }
@@ -757,10 +1100,10 @@ function Message({ msg, onConfirmPlan, onEditPlan, isRunning }) {
     )
   }
   if (msg.role === 'progress') {
-    return <div className="px-1"><ProgressBar pct={msg.pct || 0} message={msg.content} /></div>
+    return <ExecutionChecklist msg={msg} />
   }
   if (msg.role === 'report') {
-    return <ResearchReport result={msg.result} />
+    return <ResearchReport result={msg.result} isDraft={msg._draft} />
   }
   if (msg.role === 'plan') {
     return <PlanBubble plan={msg.content} onConfirm={onConfirmPlan} onEdit={onEditPlan} disabled={isRunning} />
@@ -808,37 +1151,67 @@ export default function StockResearchChat({ ticker, onClose }) {
   const addMsg = (msg) => setMessages(prev => [...prev, msg])
   const updateLast = (update) =>
     setMessages(prev => { const a = [...prev]; a[a.length - 1] = { ...a[a.length - 1], ...update }; return a })
-  const updateProgress = (pct, content) =>
-    setMessages(prev => prev.map(m => m._pid === progressIdRef.current ? { ...m, pct, content } : m))
+  const updateProgress = (pct, content, stage) =>
+    setMessages(prev => prev.map(m => {
+      if (m._pid !== progressIdRef.current) return m
+      // 실행 단계는 단조 증가(검색↔평가 루프에도 체크가 뒤로 가지 않게)
+      const idx = STAGE_TO_IDX[stage]
+      const phaseIdx = idx == null ? (m._phaseIdx ?? 0) : Math.max(m._phaseIdx ?? 0, idx)
+      return { ...m, pct, content, stage: stage ?? m.stage, _phaseIdx: phaseIdx }
+    }))
 
+  // 세션 생성 실패는 치명적이지 않다(저장만 못 할 뿐) — null 반환하고 채팅은 계속.
+  // 과거엔 여기서 throw되면 사용자 메시지가 추가되기 전에 핸들러가 죽어
+  // '프롬프트 증발' 버그가 됐다.
   const ensureSession = async (title, mode) => {
     if (sessionId) return sessionId
-    const data = await sessionAPI.create(ticker, title, mode)
-    setSessionId(data.session_id)
-    window.dispatchEvent(new Event('research-session-updated'))
-    return data.session_id
+    try {
+      const data = await sessionAPI.create(ticker, title, mode)
+      setSessionId(data.session_id)
+      window.dispatchEvent(new Event('research-session-updated'))
+      return data.session_id
+    } catch {
+      return null
+    }
   }
   const saveMsg = async (sid, role, content, metadata) => {
+    if (!sid) return
     try { await sessionAPI.saveMessage(sid, role, content, metadata) } catch {}
   }
 
   const handleDeepQuery = async (query) => {
+    addMsg({ role: 'user', content: query }) // 사용자 메시지 즉시 표시(세션 실패와 무관)
     const sid = await ensureSession(query.slice(0, 30) || ticker, 'deep')
-    addMsg({ role: 'user', content: query })
     await saveMsg(sid, 'user', query)
     setIsRunning(true)
-    addMsg({ role: 'assistant', content: '사전 검색 중... (실제 데이터 수집 후 계획 수립)' })
+    addMsg({ role: 'assistant', content: '딥 플래닝 시작 — 다라운드 정찰 + 심사...' })
+    // 계획 생성 소요는 라운드 포화 시점에 따라 20초~수 분으로 가변 —
+    // 백엔드 진행상황을 2초 간격 폴링해 현재 단계를 표시
+
+    const pid = crypto.randomUUID()
+    const progressTimer = setInterval(async () => {
+      try {
+        const p = await fetchJSON(`${API}/plan-progress/${pid}`)
+        if (p.message) {
+          updateLast({ role: 'assistant', content: `🔎 ${p.message}` })
+        }
+      } catch {} // 진행 표시는 부가 기능 — 실패해도 계획 생성엔 영향 없음
+    }, 2000)
     try {
       const data = await fetchJSON(`${API}/stock/${ticker}/plan`, {
         method: 'POST',
-        body: JSON.stringify({ query, internal_context: internalContext }),
+        body: JSON.stringify({ query, internal_context: internalContext, progress_id: pid }),
       })
+      clearInterval(progressTimer)
       setCurrentPlan(data.plan)
       updateLast({ role: 'plan', content: data.plan })
       await saveMsg(sid, 'plan', data.plan)
     } catch (e) {
       updateLast({ role: 'assistant', content: `계획 생성 실패: ${e.message}` })
-    } finally { setIsRunning(false) }
+    } finally {
+      clearInterval(progressTimer)
+      setIsRunning(false)
+    }
   }
 
   const handlePlanEdit = async (userMsg) => {
@@ -867,7 +1240,20 @@ export default function StockResearchChat({ ticker, onClose }) {
     setIsRunning(true)
     const pid = Date.now()
     progressIdRef.current = pid
-    addMsg({ role: 'progress', _pid: pid, pct: 0, content: '리서치 시작 중...' })
+    // ① 계획 버블을 실행 체크리스트로 '제자리 교체'해 계획→실행을 한 카드로 통합.
+    // (계획 원문은 카드 안 접이식으로 보존)
+    const execMsg = {
+      role: 'progress', _pid: pid, pct: 0, stage: 'planning', _phaseIdx: 0,
+      content: '리서치 시작 중...', plan: currentPlan,
+    }
+    setMessages(prev => {
+      const next = [...prev]
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (next[i].role === 'plan') { next[i] = execMsg; return next }
+      }
+      next.push(execMsg)
+      return next
+    })
     try {
       const userMsgs = messages.filter(m => m.role === 'user')
       const originalQuery = userMsgs[0]?.content || ticker
@@ -877,7 +1263,16 @@ export default function StockResearchChat({ ticker, onClose }) {
       })
       cleanupRef.current = streamSSE(job.job_id, async (event) => {
         if (event.stage === 'heartbeat') return
-        updateProgress(event.progress_pct, event.message)
+        updateProgress(event.progress_pct, event.message, event.stage)
+        if (event.stage === 'draft') {
+          // ② 초안 즉시 표시 — 심사본이 'done'에서 _pid로 교체한다(isRunning 유지)
+          const draft = event.data?.draft_report
+          if (draft) {
+            setMessages(prev => prev.map(m =>
+              m._pid === pid ? { role: 'report', result: draft, _pid: pid, _draft: true } : m))
+          }
+          return
+        }
         if (event.stage === 'done') {
           const status = await fetchJSON(`${API}/${job.job_id}/status`)
           if (status.result) {
@@ -899,8 +1294,8 @@ export default function StockResearchChat({ ticker, onClose }) {
   }
 
   const handleSimpleChat = async (question) => {
+    addMsg({ role: 'user', content: question }) // 사용자 메시지 즉시 표시(세션 실패와 무관)
     const sid = await ensureSession(question.slice(0, 30) || ticker, 'simple')
-    addMsg({ role: 'user', content: question })
     await saveMsg(sid, 'user', question)
     setIsRunning(true)
     addMsg({ role: 'assistant', content: '...' })

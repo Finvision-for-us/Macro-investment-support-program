@@ -1,7 +1,22 @@
+import logging
+import time
+
 import requests
 from app.config import FRED_API_KEY
 
+logger = logging.getLogger(__name__)
+
 BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
+
+# FRED CDN(Akamai)은 기본 python UA·단시간 연발 호출을 403(Access Denied)으로
+# 차단한다(라이브 실측: 첫 호출 200 → 테스트 연발 후 IP 일시 차단). 대응:
+# 브라우저형 UA + 시리즈별 TTL 캐시(대시보드 1회 로드 = 12시리즈 연발이라 필수).
+_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) FinVision/1.0",
+    "Accept": "application/json",
+}
+_CACHE_TTL = 600  # 10분 — 거시지표는 일/월 단위 갱신이라 충분
+_cache: dict[tuple[str, int], tuple[float, list]] = {}
 
 INDICATORS = {
     "GDP":        {"series_id": "GDP",       "name": "GDP 성장률", "unit": "십억 달러"},
@@ -19,6 +34,10 @@ INDICATORS = {
 }
 
 def fetch_series(series_id: str, limit: int = 60):
+    cached = _cache.get((series_id, limit))
+    if cached and time.time() - cached[0] < _CACHE_TTL:
+        return cached[1]
+
     params = {
         "series_id": series_id,
         "api_key": FRED_API_KEY or "none",
@@ -27,16 +46,20 @@ def fetch_series(series_id: str, limit: int = 60):
         "limit": limit,
     }
     try:
-        resp = requests.get(BASE_URL, params=params, timeout=10)
+        resp = requests.get(BASE_URL, params=params, headers=_HEADERS, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         observations = [
             {"date": o["date"], "value": float(o["value"]) if o["value"] != "." else None}
             for o in reversed(data.get("observations", []))
         ]
+        if observations:
+            _cache[(series_id, limit)] = (time.time(), observations)
         return observations
     except Exception as e:
-        return []
+        logger.warning(f"[fred] {series_id} 조회 실패: {e}")
+        # 실패 시 만료된 캐시라도 반환(빈 대시보드보다 낫다)
+        return cached[1] if cached else []
 
 def get_latest_value(series_id: str):
     data = fetch_series(series_id, limit=5)

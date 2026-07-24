@@ -141,13 +141,25 @@ class OfficialSourceSearcher:
         jurisdiction: JurisdictionResult,
         collected_urls: list[str],
         official_extracted_count: int = 0,
+        topic: str = "all",
     ) -> dict:
+        """커버리지 산정.
+
+        topic="company"면 기대 도메인을 증권 규제기관·거래소(공시가 사는 곳)로
+        한정한다 — 종목 질문에 연준·재무부·통계청(central_bank/ministry)까지
+        기대치로 넣으면 '미확인'만 쌓여 커버리지가 항상 나빠 보이는 문제
+        (INDI 라이브 실측: 확인 2/미확인 8, 미확인 대부분이 거시 기관).
+        """
         all_countries = [jurisdiction.primary] + list(jurisdiction.secondary)
+        relevant_categories = (
+            {"regulator", "exchange"} if topic == "company"
+            else {"regulator", "exchange", "central_bank", "ministry", "index_provider"}
+        )
         expected_domains = [
             s.domain
             for country in all_countries
             for s in get_sources_for_country(country)
-            if s.tier == 1
+            if s.tier == 1 and s.category in relevant_categories
         ]
 
         # 수집된 URL에서 도메인 추출

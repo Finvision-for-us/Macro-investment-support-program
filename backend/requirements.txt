@@ -18,3 +18,5 @@ rapidocr-onnxruntime>=1.3
 Pillow>=10.0
 # 중국 A주 공시 목록(cninfo) — sources/cninfo_disclosure.py (미설치여도 소스만 비활성)
 akshare>=1.18
+# 로컬 HTML 본문 추출 (Jina 폴백) — sources/html_extractor.py
+trafilatura>=1.8
