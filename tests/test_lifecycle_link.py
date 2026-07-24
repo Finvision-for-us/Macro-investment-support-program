@@ -244,3 +244,48 @@ def test_multiple_today_share_same_parent_is_allowed():
     out = link.link_to_previous(today, prev, embed_fn=_make_embed_fn(table))
     assert out[0].parent_story_id == "y1"
     assert out[1].parent_story_id == "y1"
+
+
+# ----- 날짜 공백 게이트 (연결↔종결 시계 일치) -------------------------------
+
+
+def test_stale_parent_excluded_by_gap_gate():
+    """부모 last_seen 이 공백(기본 1일)을 넘으면, 동일 제목이라도 연결 안 됨."""
+    today = [_ls("t1", tickers=["NVDA"], title="A", first_seen="2026-07-24", last_seen="2026-07-24")]
+    # 14일 전 스냅샷의 부모 — 게이트로 후보에서 제외 → 임베딩 호출도 안 됨
+    prev = _snapshot("2026-07-10", [_ls("y1", tickers=["NVDA"], title="A", first_seen="2026-07-03", last_seen="2026-07-10")])
+    out = link.link_to_previous(today, prev, today_date="2026-07-24", embed_fn=_make_embed_fn({}))
+    assert out[0].parent_story_id is None
+    assert out[0].first_seen_date == "2026-07-24"  # 상속 안 함
+
+
+def test_recent_parent_within_gap_links():
+    """부모 last_seen 이 어제(1일 전)면 게이트 통과 → 연결."""
+    today = [_ls("t1", tickers=["NVDA"], title="A", last_seen="2026-07-24")]
+    prev = _snapshot("2026-07-23", [_ls("y1", tickers=["NVDA"], title="A", first_seen="2026-07-20", last_seen="2026-07-23")])
+    table = {"A": _angle_vec(0.0)}
+    out = link.link_to_previous(today, prev, today_date="2026-07-24", embed_fn=_make_embed_fn(table))
+    assert out[0].parent_story_id == "y1"
+    assert out[0].first_seen_date == "2026-07-20"
+
+
+def test_gap_gate_disabled_when_today_date_omitted():
+    """today_date 없으면 게이트 미적용 — 옛 부모도 연결(하위 호환)."""
+    today = [_ls("t1", tickers=["NVDA"], title="A", last_seen="2026-07-24")]
+    prev = _snapshot("2026-07-10", [_ls("y1", tickers=["NVDA"], title="A", last_seen="2026-07-10")])
+    table = {"A": _angle_vec(0.0)}
+    out = link.link_to_previous(today, prev, embed_fn=_make_embed_fn(table))
+    assert out[0].parent_story_id == "y1"
+
+
+def test_max_link_gap_days_is_tunable():
+    """max_link_gap_days 를 올리면 더 넓은 공백도 연결 허용."""
+    today = [_ls("t1", tickers=["NVDA"], title="A", last_seen="2026-07-24")]
+    prev = _snapshot("2026-07-21", [_ls("y1", tickers=["NVDA"], title="A", last_seen="2026-07-21")])  # 3일 전
+    table = {"A": _angle_vec(0.0)}
+    # 기본 1일 → 제외
+    out1 = link.link_to_previous(today, prev, today_date="2026-07-24", embed_fn=_make_embed_fn(table))
+    assert out1[0].parent_story_id is None
+    # 3일로 올리면 연결
+    out2 = link.link_to_previous(today, prev, today_date="2026-07-24", max_link_gap_days=3, embed_fn=_make_embed_fn(table))
+    assert out2[0].parent_story_id == "y1"

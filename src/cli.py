@@ -876,7 +876,7 @@ def cmd_lifecycle_link(
     else:
         console.print("[dim]어제 스냅샷 없음 — 모두 신규 active 처리.[/]")
 
-    today_linked = life_link.link_to_previous(today_raw, prev)
+    today_linked = life_link.link_to_previous(today_raw, prev, today_date=date_str)
     n_evolving = sum(1 for s in today_linked if s.parent_story_id is not None)
     console.print(
         f"[green]Linked: {n_evolving}/{len(today_linked)} 가 어제 parent 발견.[/]"
